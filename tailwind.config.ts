@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,6 +60,12 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        'risk-low': 'hsl(var(--risk-low))',
+        'risk-low-bg': 'hsl(var(--risk-low-bg))',
+        'risk-medium': 'hsl(var(--risk-medium))',
+        'risk-medium-bg': 'hsl(var(--risk-medium-bg))',
+        'risk-high': 'hsl(var(--risk-high))',
+        'risk-high-bg': 'hsl(var(--risk-high-bg))',
       },
       borderRadius: {
         lg: "var(--radius)",
