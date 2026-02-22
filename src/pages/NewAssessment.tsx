@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
 import { checklistSchema } from "@/data/checklistSchema";
@@ -11,11 +11,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Upload, Link as LinkIcon, X, ArrowRight, ArrowLeft, Loader2 } from "lucide-react";
+import { Upload, Link as LinkIcon, X, ArrowRight, ArrowLeft, Loader2, Save } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function NewAssessment() {
   const navigate = useNavigate();
-  const { addAssessment } = useAssessments();
+  const [searchParams] = useSearchParams();
+  const { addAssessment, getAssessment, updateAssessment } = useAssessments();
+  const { toast } = useToast();
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [vendorName, setVendorName] = useState("");
   const [criticality, setCriticality] = useState<"Low" | "Medium" | "High">("Medium");
@@ -23,6 +27,21 @@ export default function NewAssessment() {
   const [links, setLinks] = useState<string[]>([]);
   const [linkInput, setLinkInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Load draft if editing
+  useEffect(() => {
+    const id = searchParams.get("draft");
+    if (id) {
+      const draft = getAssessment(id);
+      if (draft && draft.status === "Draft") {
+        setDraftId(id);
+        setVendorName(draft.vendorName);
+        setCriticality(draft.criticality);
+        setFiles(draft.uploadedFiles);
+        setLinks(draft.links);
+      }
+    }
+  }, [searchParams, getAssessment]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -49,6 +68,29 @@ export default function NewAssessment() {
     }
   };
 
+  const saveDraft = () => {
+    if (!vendorName.trim()) return;
+    const id = draftId || `asmt-${Date.now()}`;
+    const data = {
+      id,
+      vendorName,
+      criticality,
+      createdAt: new Date().toISOString().split("T")[0],
+      status: "Draft" as const,
+      score: 0,
+      riskLevel: "Low" as const,
+      controls: [],
+      notes: "",
+      chatHistory: [],
+      uploadedFiles: files,
+      links,
+    };
+    if (draftId) updateAssessment(draftId, data);
+    else addAssessment(data);
+    toast({ title: "Draft saved", description: `Assessment for ${vendorName} saved as draft.` });
+    navigate("/assessments");
+  };
+
   const startAssessment = async () => {
     setLoading(true);
     const allControls = checklistSchema.flatMap((g) =>
@@ -57,13 +99,13 @@ export default function NewAssessment() {
 
     const result = await generateChecklistFromAI(vendorName, allControls);
 
-    const id = `asmt-${Date.now()}`;
-    addAssessment({
+    const id = draftId || `asmt-${Date.now()}`;
+    const assessmentData = {
       id,
       vendorName,
       criticality,
       createdAt: new Date().toISOString().split("T")[0],
-      status: "Completed",
+      status: "Completed" as const,
       score: result.score,
       riskLevel: result.riskLevel as "Low" | "Medium" | "High",
       controls: result.controls,
@@ -71,7 +113,10 @@ export default function NewAssessment() {
       chatHistory: [],
       uploadedFiles: files,
       links,
-    });
+    };
+
+    if (draftId) updateAssessment(draftId, assessmentData);
+    else addAssessment(assessmentData);
 
     navigate(`/assessment/${id}`);
   };
@@ -208,6 +253,10 @@ export default function NewAssessment() {
                 <Button variant="outline" onClick={() => setStep(1)}>
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back
+                </Button>
+                <Button variant="secondary" onClick={saveDraft} disabled={loading || !vendorName.trim()}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Draft
                 </Button>
                 <Button onClick={startAssessment} disabled={loading} className="flex-1">
                   {loading ? (

@@ -22,7 +22,7 @@ export type Assessment = {
   vendorName: string;
   criticality: "Low" | "Medium" | "High";
   createdAt: string;
-  status: "Running" | "Completed";
+  status: "Draft" | "Running" | "Completed";
   score: number;
   riskLevel: "Low" | "Medium" | "High";
   controls: ControlResult[];
