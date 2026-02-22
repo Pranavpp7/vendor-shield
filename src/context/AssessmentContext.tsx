@@ -6,6 +6,7 @@ type AssessmentContextType = {
   assessments: Assessment[];
   addAssessment: (a: Assessment) => void;
   updateAssessment: (id: string, updates: Partial<Assessment>) => void;
+  deleteAssessment: (id: string) => void;
   getAssessment: (id: string) => Assessment | undefined;
 };
 
@@ -33,10 +34,14 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const deleteAssessment = (id: string) => {
+    setAssessments((prev) => prev.filter((a) => a.id !== id));
+  };
+
   const getAssessment = (id: string) => assessments.find((a) => a.id === id);
 
   return (
-    <AssessmentContext.Provider value={{ assessments, addAssessment, updateAssessment, getAssessment }}>
+    <AssessmentContext.Provider value={{ assessments, addAssessment, updateAssessment, deleteAssessment, getAssessment }}>
       {children}
     </AssessmentContext.Provider>
   );

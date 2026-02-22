@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { MarkdownText } from "@/components/ui/markdown-text";
 import { Loader2, FileText } from "lucide-react";
 import { generateSummaryFromAI } from "@/lib/api";
 import { Assessment } from "@/types/assessment";
@@ -50,7 +51,7 @@ export function SummaryModal({ open, onOpenChange, assessment }: Props) {
           </div>
         ) : (
           <div>
-            <div className="whitespace-pre-wrap text-sm leading-relaxed">{summary}</div>
+            <div className="text-sm leading-relaxed"><MarkdownText content={summary} /></div>
             <div className="mt-4 pt-4 border-t">
               <Button variant="outline" size="sm" disabled>
                 <FileText className="h-4 w-4 mr-2" />

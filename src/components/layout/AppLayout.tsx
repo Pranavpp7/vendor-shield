@@ -1,31 +1,19 @@
 import { ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Shield, LogOut } from "lucide-react";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "./AppSidebar";
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
-
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container flex items-center justify-between h-16">
-          <Link to="/dashboard" className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-accent" />
-            <span className="font-bold text-lg">Bank ABC</span>
-            <span className="text-xs text-muted-foreground hidden sm:inline ml-1">
-              Vendor Risk Assessments
-            </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">Security Assessor</span>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col min-h-screen">
+          <header className="h-14 border-b bg-card/80 backdrop-blur-sm flex items-center px-4 sticky top-0 z-50">
+            <SidebarTrigger className="mr-4" />
+          </header>
+          <main className="flex-1 p-6 lg:p-8 bg-background">{children}</main>
         </div>
-      </header>
-      <main className="container py-8">{children}</main>
-    </div>
+      </div>
+    </SidebarProvider>
   );
 }
