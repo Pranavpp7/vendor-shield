@@ -18,7 +18,7 @@ import { Separator } from "@/components/ui/separator";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Assessments", url: "/dashboard", icon: ClipboardList },
+  { title: "Assessments", url: "/assessments", icon: ClipboardList },
   { title: "New Assessment", url: "/assessment/new", icon: PlusCircle },
 ];
 
