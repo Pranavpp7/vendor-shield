@@ -32,7 +32,7 @@ export default function Login() {
           <CardHeader className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2 lg:hidden">
               <Shield className="h-8 w-8 text-accent" />
-              <span className="font-bold text-xl">Bank ABC</span>
+              <span className="font-bold text-xl">Vendor Shield</span>
             </div>
             <CardTitle className="text-2xl">Sign In</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">

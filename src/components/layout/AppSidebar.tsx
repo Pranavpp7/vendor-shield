@@ -33,7 +33,7 @@ export function AppSidebar() {
             <Shield className="h-6 w-6 text-accent" />
           </div>
           <div>
-            <h2 className="font-bold text-base text-sidebar-foreground">Bank ABC</h2>
+            <h2 className="font-bold text-base text-sidebar-foreground">Vendor Shield</h2>
             <p className="text-[11px] text-muted-foreground leading-tight">Vendor Risk Platform</p>
           </div>
         </div>
