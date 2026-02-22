@@ -13,11 +13,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp } from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { assessments } = useAssessments();
+  const { assessments, deleteAssessment } = useAssessments();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [riskFilter, setRiskFilter] = useState<string>("all");
   const [compareOpen, setCompareOpen] = useState(false);
@@ -28,6 +34,7 @@ export default function Dashboard() {
       : assessments.filter((a) => a.riskLevel === riskFilter);
 
   const highRisk = assessments.filter((a) => a.riskLevel === "High").length;
+  const lowRisk = assessments.filter((a) => a.riskLevel === "Low").length;
   const avgScore = assessments.length
     ? Math.round(assessments.reduce((s, a) => s + a.score, 0) / assessments.length)
     : 0;
@@ -38,6 +45,18 @@ export default function Dashboard() {
     );
   };
 
+  const handleDelete = (id: string) => {
+    deleteAssessment(id);
+    setSelectedIds((prev) => prev.filter((x) => x !== id));
+  };
+
+  const statCards = [
+    { icon: Shield, label: "Total Vendors", value: assessments.length, bgClass: "bg-secondary", iconClass: "text-accent" },
+    { icon: AlertTriangle, label: "High Risk", value: highRisk, bgClass: "bg-risk-high-bg", iconClass: "text-risk-high" },
+    { icon: CheckCircle, label: "Low Risk", value: lowRisk, bgClass: "bg-risk-low-bg", iconClass: "text-risk-low" },
+    { icon: TrendingUp, label: "Avg Score", value: avgScore, bgClass: "bg-accent/10", iconClass: "text-accent" },
+  ];
+
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -46,57 +65,40 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground mt-1">Overview of vendor risk assessments</p>
           </div>
-          <Button onClick={() => navigate("/assessment/new")}>
+          <Button onClick={() => navigate("/assessment/new")} className="shadow-md">
             <Plus className="h-4 w-4 mr-2" />
             New Assessment
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-secondary">
-                  <Shield className="h-5 w-5 text-accent" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{assessments.length}</p>
-                  <p className="text-xs text-muted-foreground">Total Vendors</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-risk-high-bg">
-                  <AlertTriangle className="h-5 w-5 text-risk-high" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{highRisk}</p>
-                  <p className="text-xs text-muted-foreground">High Risk</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-risk-low-bg">
-                  <CheckCircle className="h-5 w-5 text-risk-low" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{avgScore}</p>
-                  <p className="text-xs text-muted-foreground">Avg Score</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {statCards.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 }}
+            >
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl ${stat.bgClass}`}>
+                      <stat.icon className={`h-5 w-5 ${stat.iconClass}`} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stat.value}</p>
+                      <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
         </div>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <CardTitle>Recent Assessments</CardTitle>
               <div className="flex items-center gap-2">
                 <Select value={riskFilter} onValueChange={setRiskFilter}>
@@ -134,7 +136,7 @@ export default function Dashboard() {
               </TableHeader>
               <TableBody>
                 {filtered.map((a) => (
-                  <TableRow key={a.id}>
+                  <TableRow key={a.id} className="group">
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.includes(a.id)}
@@ -144,7 +146,7 @@ export default function Dashboard() {
                     <TableCell className="font-medium">{a.vendorName}</TableCell>
                     <TableCell>
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           a.status === "Completed"
                             ? "bg-risk-low-bg text-risk-low"
                             : "bg-risk-medium-bg text-risk-medium"
@@ -159,14 +161,44 @@ export default function Dashboard() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{a.createdAt}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate(`/assessment/${a.id}`)}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/assessment/${a.id}`)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Assessment</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete the assessment for <strong>{a.vendorName}</strong>? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(a.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

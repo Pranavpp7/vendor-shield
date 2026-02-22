@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ChatMessage } from "@/types/assessment";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { MarkdownText } from "@/components/ui/markdown-text";
 import { Send, Loader2 } from "lucide-react";
 import { chatWithAI } from "@/lib/api";
 
@@ -59,11 +60,15 @@ export function ChatPanel({ chatHistory, checklistJson, onNewMessage }: Props) {
         {chatHistory.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[80%] rounded-lg px-4 py-2 text-sm whitespace-pre-wrap ${
-                msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+              className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
+                msg.role === "user" ? "bg-primary text-primary-foreground whitespace-pre-wrap" : "bg-muted"
               }`}
             >
-              {msg.content}
+              {msg.role === "assistant" ? (
+                <MarkdownText content={msg.content} />
+              ) : (
+                msg.content
+              )}
             </div>
           </div>
         ))}
