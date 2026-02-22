@@ -2,7 +2,7 @@ import { Assessment } from "@/types/assessment";
 
 export const mockAssessments: Assessment[] = [
   {
-    id: "asmt-servicenow",
+    id: "servicenow",
     vendorName: "ServiceNow",
     criticality: "High",
     createdAt: "2026-02-18",
@@ -37,7 +37,7 @@ export const mockAssessments: Assessment[] = [
     links: [],
   },
   {
-    id: "asmt-sap",
+    id: "sap",
     vendorName: "SAP",
     criticality: "High",
     createdAt: "2026-02-15",

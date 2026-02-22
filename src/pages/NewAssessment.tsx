@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { vendorNameToSlug } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
 import { checklistSchema } from "@/data/checklistSchema";
@@ -70,7 +71,7 @@ export default function NewAssessment() {
 
   const saveDraft = () => {
     if (!vendorName.trim()) return;
-    const id = draftId || `asmt-${Date.now()}`;
+    const id = draftId || vendorNameToSlug(vendorName);
     const data = {
       id,
       vendorName,
@@ -99,7 +100,7 @@ export default function NewAssessment() {
 
     const result = await generateChecklistFromAI(vendorName, allControls);
 
-    const id = draftId || `asmt-${Date.now()}`;
+    const id = draftId || vendorNameToSlug(vendorName);
     const assessmentData = {
       id,
       vendorName,
@@ -118,7 +119,7 @@ export default function NewAssessment() {
     if (draftId) updateAssessment(draftId, assessmentData);
     else addAssessment(assessmentData);
 
-    navigate(`/assessment/${id}`);
+    navigate(`/assessments/${id}`);
   };
 
   return (

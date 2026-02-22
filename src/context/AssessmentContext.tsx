@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Assessment } from "@/types/assessment";
 import { mockAssessments } from "@/data/mockData";
+import { vendorNameToSlug } from "@/lib/utils";
 
 type AssessmentContextType = {
   assessments: Assessment[];
@@ -8,6 +9,7 @@ type AssessmentContextType = {
   updateAssessment: (id: string, updates: Partial<Assessment>) => void;
   deleteAssessment: (id: string) => void;
   getAssessment: (id: string) => Assessment | undefined;
+  getAssessmentBySlug: (slug: string) => Assessment | undefined;
 };
 
 const AssessmentContext = createContext<AssessmentContextType | null>(null);
@@ -40,8 +42,11 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
 
   const getAssessment = (id: string) => assessments.find((a) => a.id === id);
 
+  const getAssessmentBySlug = (slug: string) =>
+    assessments.find((a) => a.id === slug || vendorNameToSlug(a.vendorName) === slug);
+
   return (
-    <AssessmentContext.Provider value={{ assessments, addAssessment, updateAssessment, deleteAssessment, getAssessment }}>
+    <AssessmentContext.Provider value={{ assessments, addAssessment, updateAssessment, deleteAssessment, getAssessment, getAssessmentBySlug }}>
       {children}
     </AssessmentContext.Provider>
   );

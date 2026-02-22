@@ -165,7 +165,7 @@ export default function Dashboard() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/assessment/${a.id}`)}
+                          onClick={() => navigate(`/assessments/${a.id}`)}
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           View

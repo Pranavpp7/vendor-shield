@@ -176,7 +176,7 @@ export default function Assessments() {
                               Continue
                             </Button>
                           ) : (
-                            <Button variant="ghost" size="sm" onClick={() => navigate(`/assessment/${a.id}`)}>
+                            <Button variant="ghost" size="sm" onClick={() => navigate(`/assessments/${a.id}`)}>
                               <Eye className="h-4 w-4 mr-1" />
                               View
                             </Button>

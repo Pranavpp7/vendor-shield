@@ -14,12 +14,12 @@ import { ArrowLeft, FileText } from "lucide-react";
 import { ChatMessage } from "@/types/assessment";
 
 export default function AssessmentDetail() {
-  const { id } = useParams();
+  const { vendorSlug } = useParams();
   const navigate = useNavigate();
-  const { getAssessment, updateAssessment } = useAssessments();
+  const { getAssessmentBySlug, updateAssessment } = useAssessments();
   const [summaryOpen, setSummaryOpen] = useState(false);
 
-  const assessment = getAssessment(id || "");
+  const assessment = getAssessmentBySlug(vendorSlug || "");
 
   if (!assessment) {
     return (
