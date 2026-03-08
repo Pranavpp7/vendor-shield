@@ -111,10 +111,13 @@ serve(async (req) => {
         const parsed = JSON.parse(cleanContent);
         const controls = params.controls.map((c: { id: string; category: string; name: string }) => {
           const result = parsed.results?.find((r: { id: string }) => r.id === c.id);
+          const status = result?.status || (result?.passed ? "passed" : result?.passed === false ? "failed" : "passed");
           return {
             ...c,
-            passed: result?.passed ?? Math.random() > 0.3,
+            passed: status === "passed",
+            status,
             comment: result?.comment ?? "",
+            aiExplanation: result?.aiExplanation ?? "",
           };
         });
         return new Response(
