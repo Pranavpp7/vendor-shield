@@ -29,14 +29,14 @@ serve(async (req) => {
         {
           role: "system",
           content:
-            "You are generating FAKE but realistic test data for a vendor security checklist. Always respond with valid JSON only, no markdown code blocks.",
+            'You are generating FAKE but realistic test data for a vendor security checklist. Always respond with valid JSON only, no markdown code blocks.',
         },
         {
           role: "user",
-          content: `Generate random but realistic pass/fail results for vendor "${params.vendorName}" with these security controls:\n${controlNames}\n\nReturn JSON: { "results": [{ "id": "<control_id>", "passed": true/false, "comment": "short comment or empty string" }], "score": <0-100 integer>, "riskLevel": "Low"|"Medium"|"High" }\n\nMake roughly 70-85% pass. Score should reflect pass rate. Ensure valid JSON.`,
+          content: `Generate random but realistic assessment results for vendor "${params.vendorName}" with these security controls:\n${controlNames}\n\nEach control should have a status of "passed", "failed", or "needs_info" (use needs_info when additional documentation is required from the vendor).\n\nReturn JSON: { "results": [{ "id": "<control_id>", "status": "passed"|"failed"|"needs_info", "comment": "short comment or empty string", "aiExplanation": "2-3 sentence explanation of why this verdict was given, referencing specific evidence or gaps" }], "score": <0-100 integer>, "riskLevel": "Low"|"Medium"|"High" }\n\nMake roughly 65-80% pass, 5-15% needs_info, rest failed. Score should reflect pass rate. Ensure valid JSON.`,
         },
       ];
-      maxTokens = 600;
+      maxTokens = 1200;
     } else if (action === "chat") {
       messages = [
         {
