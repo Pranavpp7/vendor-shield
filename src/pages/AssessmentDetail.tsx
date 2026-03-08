@@ -6,11 +6,12 @@ import { RiskBadge } from "@/components/assessment/RiskBadge";
 import { ChecklistSection } from "@/components/assessment/ChecklistSection";
 import { ChatPanel } from "@/components/assessment/ChatPanel";
 import { SummaryModal } from "@/components/assessment/SummaryModal";
+import { DocsLinksSection } from "@/components/assessment/DocsLinksSection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle } from "lucide-react";
 import { ChatMessage } from "@/types/assessment";
 
 export default function AssessmentDetail() {
@@ -34,8 +35,9 @@ export default function AssessmentDetail() {
     );
   }
 
-  const passedCount = assessment.controls.filter((c) => c.passed).length;
-  const failedCount = assessment.controls.filter((c) => !c.passed).length;
+  const passedCount = assessment.controls.filter((c) => c.status === "passed").length;
+  const failedCount = assessment.controls.filter((c) => c.status === "failed").length;
+  const needsInfoCount = assessment.controls.filter((c) => c.status === "needs_info").length;
 
   return (
     <AppLayout>
@@ -70,7 +72,7 @@ export default function AssessmentDetail() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-4 text-center">
               <p className="text-2xl font-bold">{assessment.controls.length}</p>
@@ -89,11 +91,20 @@ export default function AssessmentDetail() {
               <p className="text-xs text-muted-foreground">Failed</p>
             </CardContent>
           </Card>
+          <Card>
+            <CardContent className="pt-4 text-center">
+              <p className="text-2xl font-bold text-amber-500">{needsInfoCount}</p>
+              <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                <AlertCircle className="h-3 w-3" /> Needs Info
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         <Tabs defaultValue="checklist" className="space-y-4">
           <TabsList>
             <TabsTrigger value="checklist">Checklist</TabsTrigger>
+            <TabsTrigger value="docs">Documents & Links</TabsTrigger>
             <TabsTrigger value="chat">Chat & Insights</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
           </TabsList>
@@ -104,6 +115,15 @@ export default function AssessmentDetail() {
                 <ChecklistSection controls={assessment.controls} />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="docs">
+            <DocsLinksSection
+              files={assessment.uploadedFiles}
+              links={assessment.links}
+              onUpdateFiles={(files) => updateAssessment(assessment.id, { uploadedFiles: files })}
+              onUpdateLinks={(links) => updateAssessment(assessment.id, { links })}
+            />
           </TabsContent>
 
           <TabsContent value="chat">
