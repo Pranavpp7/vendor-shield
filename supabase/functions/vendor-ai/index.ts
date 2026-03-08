@@ -134,7 +134,9 @@ serve(async (req) => {
         const controls = params.controls.map((c: { id: string; category: string; name: string }) => ({
           ...c,
           passed: Math.random() > 0.3,
+          status: Math.random() > 0.85 ? "needs_info" : (Math.random() > 0.3 ? "passed" : "failed"),
           comment: "",
+          aiExplanation: "",
         }));
         const passedCount = controls.filter((c: { passed: boolean }) => c.passed).length;
         const score = Math.round((passedCount / controls.length) * 100);
