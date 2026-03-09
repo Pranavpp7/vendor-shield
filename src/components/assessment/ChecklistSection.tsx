@@ -1,12 +1,17 @@
 import { useState } from "react";
-import { ControlResult } from "@/types/assessment";
-import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, FileText } from "lucide-react";
+import { ControlResult, UploadedFile } from "@/types/assessment";
+import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, FileText, ExternalLink, Download, FolderOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 
 type Props = {
   controls: ControlResult[];
   isRunning?: boolean;
   revealedCount?: number;
+  uploadedFiles?: UploadedFile[];
+  links?: string[];
+  onNavigateToDocs?: () => void;
 };
 
 function StatusIcon({ status }: { status: ControlResult["status"] }) {
