@@ -73,7 +73,7 @@ export default function NewAssessment() {
     const data = {
       id,
       vendorName,
-      criticality,
+      criticality: "Medium" as const,
       createdAt: new Date().toISOString().split("T")[0],
       status: "Draft" as const,
       score: 0,
