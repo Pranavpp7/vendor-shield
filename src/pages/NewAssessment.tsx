@@ -9,9 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { Upload, Link as LinkIcon, X, ArrowRight, ArrowLeft, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,7 +20,6 @@ export default function NewAssessment() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [vendorName, setVendorName] = useState("");
-  const [criticality, setCriticality] = useState<"Low" | "Medium" | "High">("Medium");
   const [files, setFiles] = useState<{ name: string; size: number }[]>([]);
   const [links, setLinks] = useState<string[]>([]);
   const [linkInput, setLinkInput] = useState("");
@@ -37,7 +33,6 @@ export default function NewAssessment() {
       if (draft && draft.status === "Draft") {
         setDraftId(id);
         setVendorName(draft.vendorName);
-        setCriticality(draft.criticality);
         setFiles(draft.uploadedFiles);
         setLinks(draft.links);
       }
@@ -75,7 +70,7 @@ export default function NewAssessment() {
     const data = {
       id,
       vendorName,
-      criticality,
+      criticality: "Medium" as const,
       createdAt: new Date().toISOString().split("T")[0],
       status: "Draft" as const,
       score: 0,
@@ -104,7 +99,7 @@ export default function NewAssessment() {
     const assessmentData = {
       id,
       vendorName,
-      criticality,
+      criticality: "Medium" as const,
       createdAt: new Date().toISOString().split("T")[0],
       status: "Completed" as const,
       score: result.score,
@@ -142,22 +137,6 @@ export default function NewAssessment() {
                   value={vendorName}
                   onChange={(e) => setVendorName(e.target.value)}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Criticality</Label>
-                <Select
-                  value={criticality}
-                  onValueChange={(v) => setCriticality(v as "Low" | "Medium" | "High")}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Low">Low</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="High">High</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <Button
                 onClick={() => setStep(2)}
