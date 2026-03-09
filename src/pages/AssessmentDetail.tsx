@@ -104,7 +104,7 @@ export default function AssessmentDetail() {
         <Tabs defaultValue="checklist" className="space-y-4">
           <TabsList>
             <TabsTrigger value="checklist">Checklist</TabsTrigger>
-            <TabsTrigger value="docs">Documents & Links</TabsTrigger>
+            <TabsTrigger value="docs" data-value="docs">Documents & Links</TabsTrigger>
             <TabsTrigger value="chat">Chat & Insights</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
           </TabsList>
@@ -112,7 +112,15 @@ export default function AssessmentDetail() {
           <TabsContent value="checklist">
             <Card>
               <CardContent className="pt-6">
-                <ChecklistSection controls={assessment.controls} />
+                <ChecklistSection
+                  controls={assessment.controls}
+                  uploadedFiles={assessment.uploadedFiles}
+                  links={assessment.links}
+                  onNavigateToDocs={() => {
+                    const docsTab = document.querySelector('[data-value="docs"]') as HTMLButtonElement;
+                    docsTab?.click();
+                  }}
+                />
               </CardContent>
             </Card>
           </TabsContent>
