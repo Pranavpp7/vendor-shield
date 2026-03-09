@@ -94,6 +94,7 @@ export async function generateChecklistFromAI(
       data.controls = data.controls.map((c: any) => ({
         ...c,
         aiExplanation: c.aiExplanation || getRandomExplanation(c.status || "passed"),
+        evidenceSource: c.evidenceSource || getRandomSource(),
       }));
     }
     return data;

@@ -8,6 +8,7 @@ export type ControlResult = {
   status: ControlStatus;
   comment: string;
   aiExplanation?: string;
+  evidenceSource?: string;
 };
 
 export type ChatMessage = {
