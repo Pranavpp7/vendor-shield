@@ -66,6 +66,7 @@ export function generateRandomChecklist(
       status,
       comment: Math.random() > 0.6 ? "Verified during assessment." : "",
       aiExplanation: getRandomExplanation(status as "passed" | "failed" | "needs_info"),
+      evidenceSource: getRandomSource(),
     };
   });
   const passedCount = results.filter((r) => r.status === "passed").length;
