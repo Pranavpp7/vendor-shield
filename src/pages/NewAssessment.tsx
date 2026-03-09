@@ -23,7 +23,6 @@ export default function NewAssessment() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [vendorName, setVendorName] = useState("");
-  const [criticality, setCriticality] = useState<"Low" | "Medium" | "High">("Medium");
   const [files, setFiles] = useState<{ name: string; size: number }[]>([]);
   const [links, setLinks] = useState<string[]>([]);
   const [linkInput, setLinkInput] = useState("");
