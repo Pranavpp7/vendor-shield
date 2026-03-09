@@ -141,22 +141,6 @@ export default function NewAssessment() {
                   onChange={(e) => setVendorName(e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Criticality</Label>
-                <Select
-                  value={criticality}
-                  onValueChange={(v) => setCriticality(v as "Low" | "Medium" | "High")}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Low">Low</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="High">High</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <Button
                 onClick={() => setStep(2)}
                 disabled={!vendorName.trim()}
