@@ -36,7 +36,6 @@ export default function NewAssessment() {
       if (draft && draft.status === "Draft") {
         setDraftId(id);
         setVendorName(draft.vendorName);
-        setCriticality(draft.criticality);
         setFiles(draft.uploadedFiles);
         setLinks(draft.links);
       }
