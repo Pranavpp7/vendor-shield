@@ -104,7 +104,7 @@ export default function AssessmentDetail() {
         <Tabs defaultValue="checklist" className="space-y-4">
           <TabsList>
             <TabsTrigger value="checklist">Checklist</TabsTrigger>
-            <TabsTrigger value="docs">Documents & Links</TabsTrigger>
+            <TabsTrigger value="docs" data-value="docs">Documents & Links</TabsTrigger>
             <TabsTrigger value="chat">Chat & Insights</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
           </TabsList>
