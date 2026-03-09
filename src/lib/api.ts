@@ -1,29 +1,51 @@
 import { supabase } from "@/integrations/supabase/client";
 
+const evidenceSources = [
+  "SOC 2 Type II Report (2025)",
+  "ISO 27001 Certificate",
+  "Penetration Test Report Q4",
+  "Vendor Security Questionnaire",
+  "Data Processing Agreement",
+  "Network Architecture Diagram",
+  "Access Control Policy v3.2",
+  "Incident Response Playbook",
+  "Third-Party Audit Summary",
+  "Cloud Security Assessment",
+  "Privacy Impact Assessment",
+  "Business Continuity Plan",
+  "Encryption Standards Doc",
+  "GDPR Compliance Report",
+  "Vulnerability Scan Results",
+];
+
+function getRandomSource(): string {
+  return evidenceSources[Math.floor(Math.random() * evidenceSources.length)];
+}
+
 const aiExplanations = {
   passed: [
-    "Security documentation provided meets industry standards. Vendor demonstrated comprehensive implementation with proper audit trails and monitoring capabilities in place.",
-    "Control implementation verified through automated scanning and manual review. Evidence of regular updates and patch management protocols observed.",
-    "Vendor provided detailed technical specifications and third-party audit reports confirming compliance with this requirement.",
-    "Assessment confirmed proper implementation based on SOC 2 Type II report findings and supplementary technical documentation.",
-    "Control is effectively implemented with appropriate safeguards. Regular testing and validation procedures are documented and followed.",
-    "Evidence reviewed shows mature security practices with documented procedures matching stated policies. No gaps identified.",
+    "Security documentation provided meets industry standards and aligns with NIST CSF guidelines. Vendor demonstrated comprehensive implementation with proper audit trails, continuous monitoring capabilities, and automated alerting mechanisms in place. Evidence of annual third-party validation was confirmed through supplementary audit artifacts.",
+    "Control implementation verified through automated scanning and manual review conducted by the security assessment team. Evidence of regular updates and patch management protocols observed, with a documented 72-hour SLA for critical vulnerability remediation. Historical compliance data shows consistent adherence over the past 18 months.",
+    "Vendor provided detailed technical specifications and third-party audit reports confirming compliance with this requirement. Implementation follows defense-in-depth principles with multiple compensating controls identified. Configuration baselines reviewed and validated against CIS benchmarks.",
+    "Assessment confirmed proper implementation based on SOC 2 Type II report findings and supplementary technical documentation provided during the evaluation period. Control design and operating effectiveness were both validated with no exceptions noted in the most recent audit cycle.",
+    "Control is effectively implemented with appropriate safeguards including automated enforcement, exception tracking, and periodic validation procedures. Testing methodology included both automated scanning and manual review of configuration artifacts and operational logs spanning the past 12 months.",
+    "Evidence reviewed shows mature security practices with documented procedures matching stated policies. Organizational commitment to continuous improvement demonstrated through quarterly review cycles, documented lessons learned, and proactive threat intelligence integration. No material gaps identified.",
   ],
   failed: [
-    "Critical security gaps identified in current implementation. Vendor documentation lacks evidence of required encryption standards and access controls.",
-    "Assessment revealed missing or outdated security controls. Remediation plan required before proceeding with vendor engagement.",
-    "Control implementation does not meet minimum security requirements. Significant vulnerabilities detected during technical review.",
-    "Documentation provided is insufficient to validate compliance. Multiple security exceptions noted that require immediate attention.",
-    "Technical assessment found implementation gaps that pose material risk. Recommend deferring engagement until remediation is complete.",
-    "Security controls do not align with organizational requirements. Evidence of non-compliance with industry standards identified.",
+    "Critical security gaps identified in current implementation that do not meet minimum organizational requirements. Vendor documentation lacks evidence of required encryption standards, and access control configurations were found to be inconsistent with stated policies. Remediation is required before proceeding with any data sharing arrangements.",
+    "Assessment revealed missing or outdated security controls that introduce unacceptable residual risk. Key deficiencies include lack of centralized logging, absence of automated alerting for anomalous activity, and insufficient segregation of duties. A formal remediation plan with defined milestones is required before engagement can proceed.",
+    "Control implementation does not meet minimum security requirements established in the vendor risk management framework. Significant vulnerabilities detected during technical review, including outdated TLS configurations, missing intrusion detection capabilities, and gaps in endpoint protection coverage across production environments.",
+    "Documentation provided is insufficient to validate compliance with regulatory and organizational standards. Multiple security exceptions noted that require immediate attention, including unpatched systems in production, excessive administrative privileges, and lack of documented change management procedures.",
+    "Technical assessment found material implementation gaps that pose significant risk to data confidentiality and integrity. Current architecture lacks required isolation controls, monitoring capabilities are limited, and incident response procedures have not been tested within the past 12 months. Recommend deferring engagement until full remediation is verified.",
+    "Security controls do not align with organizational requirements or industry best practices. Evidence of non-compliance with applicable regulatory standards identified, including inadequate data retention controls, missing privacy safeguards, and insufficient vendor subprocessor oversight. Formal risk acceptance would be required to proceed.",
   ],
   needs_info: [
-    "Additional documentation required to complete security assessment. Vendor has been notified to provide SOC 2 report and penetration test results.",
-    "Unable to validate control effectiveness without supplementary evidence. Awaiting vendor response on technical architecture details.",
-    "Partial documentation received but key artifacts missing. Follow-up request sent for network security configurations and access logs.",
-    "Assessment paused pending receipt of third-party audit documentation and evidence of remediation activities.",
-    "Vendor response incomplete. Additional clarification needed on data handling procedures and incident response capabilities.",
-    "Current evidence insufficient for determination. Requested detailed technical specifications and compliance certifications.",
+    "Additional documentation required to complete the security assessment for this control area. Vendor has been notified to provide current SOC 2 Type II report, most recent penetration test results, and evidence of remediation activities for any identified findings. Assessment will remain in pending status until all requested artifacts are received and reviewed.",
+    "Unable to validate control effectiveness without supplementary evidence from the vendor. Awaiting detailed technical architecture documentation, network segmentation diagrams, and access control matrix. Initial review of available documentation suggests potential compliance, but formal determination cannot be made without complete evidence.",
+    "Partial documentation received but key artifacts are missing for a complete assessment. Follow-up request sent for network security configurations, administrative access logs, and evidence of periodic control testing. Vendor indicated a 10-business-day turnaround for providing the requested materials.",
+    "Assessment paused pending receipt of third-party audit documentation, evidence of remediation activities for prior findings, and updated risk treatment plans. Without these artifacts, the assessment team cannot determine whether compensating controls adequately address identified gaps in the current implementation.",
+    "Vendor response to the security questionnaire was incomplete in several critical areas. Additional clarification needed on data handling procedures, cross-border transfer mechanisms, incident response capabilities, and backup/recovery testing frequency. Follow-up meeting scheduled to discuss outstanding items.",
+    "Current evidence is insufficient for a definitive determination on this control. Requested detailed technical specifications, current compliance certifications, and evidence of operational procedures. Preliminary review indicates the vendor may meet requirements, but formal validation requires the complete documentation package.",
   ],
 };
 
@@ -44,6 +66,7 @@ export function generateRandomChecklist(
       status,
       comment: Math.random() > 0.6 ? "Verified during assessment." : "",
       aiExplanation: getRandomExplanation(status as "passed" | "failed" | "needs_info"),
+      evidenceSource: getRandomSource(),
     };
   });
   const passedCount = results.filter((r) => r.status === "passed").length;
@@ -71,6 +94,7 @@ export async function generateChecklistFromAI(
       data.controls = data.controls.map((c: any) => ({
         ...c,
         aiExplanation: c.aiExplanation || getRandomExplanation(c.status || "passed"),
+        evidenceSource: c.evidenceSource || getRandomSource(),
       }));
     }
     return data;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ControlResult } from "@/types/assessment";
-import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Props = {
@@ -112,17 +112,25 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                           transition={{ duration: 0.2 }}
                           className="overflow-hidden"
                         >
-                          <div className="px-3 pb-3 pt-1 border-t bg-muted/30">
+                          <div className="px-3 pb-3 pt-1 border-t bg-muted/30 space-y-2">
                             {control.comment && (
-                              <p className="text-xs text-muted-foreground mb-2">{control.comment}</p>
+                              <p className="text-xs text-muted-foreground">{control.comment}</p>
                             )}
                             {control.aiExplanation ? (
                               <div className="flex gap-2 items-start">
                                 <Sparkles className="h-3.5 w-3.5 text-accent mt-0.5 flex-shrink-0" />
-                                <p className="text-xs leading-relaxed">{control.aiExplanation}</p>
+                                <p className="text-xs leading-relaxed text-foreground/80">{control.aiExplanation}</p>
                               </div>
                             ) : (
                               <p className="text-xs text-muted-foreground italic">No AI explanation available for this control.</p>
+                            )}
+                            {control.evidenceSource && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <FileText className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                  {control.evidenceSource}
+                                </span>
+                              </div>
                             )}
                           </div>
                         </motion.div>
