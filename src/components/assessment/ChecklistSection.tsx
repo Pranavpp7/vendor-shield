@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ControlResult } from "@/types/assessment";
-import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Props = {
