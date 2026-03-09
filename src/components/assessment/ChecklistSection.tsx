@@ -129,14 +129,67 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                             ) : (
                               <p className="text-xs text-muted-foreground italic">No AI explanation available for this control.</p>
                             )}
-                            {control.evidenceSource && (
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <FileText className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                  {control.evidenceSource}
-                                </span>
-                              </div>
-                            )}
+                            {control.evidenceSource && (() => {
+                              const matchedFile = uploadedFiles.find(f => 
+                                f.name.toLowerCase().includes(control.evidenceSource!.toLowerCase().split(' ')[0].toLowerCase()) ||
+                                control.evidenceSource!.toLowerCase().includes(f.name.split('.')[0].toLowerCase())
+                              );
+                              const matchedLink = links.find(l => 
+                                l.toLowerCase().includes(control.evidenceSource!.toLowerCase().split(' ')[0].toLowerCase())
+                              );
+                              return (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button className="flex items-center gap-1.5 mt-1 group/evidence cursor-pointer hover:opacity-80 transition-opacity">
+                                      <FileText className="h-3 w-3 text-muted-foreground" />
+                                      <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20 group-hover/evidence:border-accent/40 transition-colors">
+                                        {control.evidenceSource}
+                                      </span>
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-72 p-0" align="start">
+                                    <div className="p-3 border-b">
+                                      <p className="text-xs font-semibold flex items-center gap-1.5">
+                                        <FileText className="h-3.5 w-3.5 text-accent" />
+                                        Evidence Source
+                                      </p>
+                                      <p className="text-[11px] text-muted-foreground mt-1">{control.evidenceSource}</p>
+                                    </div>
+                                    <div className="p-3 space-y-2">
+                                      {matchedFile ? (
+                                        <div className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-medium truncate">{matchedFile.name}</p>
+                                              <p className="text-[10px] text-muted-foreground">{(matchedFile.size / 1024).toFixed(1)} KB</p>
+                                            </div>
+                                          </div>
+                                          <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0">
+                                            <Download className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ) : matchedLink ? (
+                                        <a href={matchedLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2 rounded-md bg-muted/50 hover:bg-muted transition-colors text-xs text-accent hover:underline">
+                                          <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" />
+                                          <span className="truncate">{matchedLink}</span>
+                                        </a>
+                                      ) : (
+                                        <div className="text-center py-2">
+                                          <p className="text-[11px] text-muted-foreground">Document not yet uploaded</p>
+                                          {onNavigateToDocs && (
+                                            <Button variant="outline" size="sm" className="mt-2 h-7 text-xs" onClick={onNavigateToDocs}>
+                                              <FolderOpen className="h-3 w-3 mr-1" />
+                                              Go to Documents
+                                            </Button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              );
+                            })()}
                           </div>
                         </motion.div>
                       )}
