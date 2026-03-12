@@ -19,7 +19,7 @@ type Props = {
   assessmentId?: string;
 };
 
-export function ChatPanel({ chatHistory, checklistJson, onNewMessage }: Props) {
+export function ChatPanel({ chatHistory, checklistJson, onNewMessage, assessmentId }: Props) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
