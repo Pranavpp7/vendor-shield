@@ -16,9 +16,10 @@ type Props = {
   chatHistory: ChatMessage[];
   checklistJson: string;
   onNewMessage: (messages: ChatMessage[]) => void;
+  assessmentId?: string;
 };
 
-export function ChatPanel({ chatHistory, checklistJson, onNewMessage }: Props) {
+export function ChatPanel({ chatHistory, checklistJson, onNewMessage, assessmentId }: Props) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -35,7 +36,7 @@ export function ChatPanel({ chatHistory, checklistJson, onNewMessage }: Props) {
     setInput("");
     setLoading(true);
 
-    const reply = await chatWithAI(text.trim(), checklistJson);
+    const reply = await chatWithAI(text.trim(), checklistJson, assessmentId);
     const assistantMsg: ChatMessage = { role: "assistant", content: reply, timestamp: new Date().toISOString() };
     onNewMessage([...updated, assistantMsg]);
     setLoading(false);

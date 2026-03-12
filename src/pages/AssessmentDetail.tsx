@@ -131,6 +131,7 @@ export default function AssessmentDetail() {
               links={assessment.links}
               onUpdateFiles={(files) => updateAssessment(assessment.id, { uploadedFiles: files })}
               onUpdateLinks={(links) => updateAssessment(assessment.id, { links })}
+              assessmentId={assessment.id}
             />
           </TabsContent>
 
@@ -147,6 +148,7 @@ export default function AssessmentDetail() {
                   onNewMessage={(msgs: ChatMessage[]) =>
                     updateAssessment(assessment.id, { chatHistory: msgs })
                   }
+                  assessmentId={assessment.id}
                 />
               </CardContent>
             </Card>

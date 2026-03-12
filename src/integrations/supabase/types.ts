@@ -14,13 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      document_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          document_id: string
+          fts: unknown
+          id: string
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          document_id: string
+          fts?: unknown
+          id?: string
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          document_id?: string
+          fts?: unknown
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          assessment_id: string
+          content_type: string | null
+          created_at: string | null
+          file_name: string
+          file_size: number | null
+          id: string
+          status: string
+          storage_path: string | null
+        }
+        Insert: {
+          assessment_id: string
+          content_type?: string | null
+          created_at?: string | null
+          file_name: string
+          file_size?: number | null
+          id?: string
+          status?: string
+          storage_path?: string | null
+        }
+        Update: {
+          assessment_id?: string
+          content_type?: string | null
+          created_at?: string | null
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          status?: string
+          storage_path?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_document_chunks: {
+        Args: { p_assessment_id: string; p_limit?: number; p_query: string }
+        Returns: {
+          chunk_id: string
+          chunk_index: number
+          content: string
+          document_id: string
+          file_name: string
+          rank: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
