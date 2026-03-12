@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +22,37 @@ serve(async (req) => {
     let messages: { role: string; content: string }[];
     let maxTokens = 800;
 
+    // RAG: retrieve document context if assessment_id is provided
+    let ragContext = "";
+    if (params.assessmentId && (action === "chat" || action === "generate-checklist" || action === "generate-summary")) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        // Build search query from the user's question or vendor name
+        const searchQuery = action === "chat" 
+          ? params.question 
+          : action === "generate-checklist"
+          ? params.vendorName + " security compliance controls"
+          : params.vendorName + " risk assessment summary";
+
+        const { data: chunks } = await supabase.rpc("search_document_chunks", {
+          p_assessment_id: params.assessmentId,
+          p_query: searchQuery,
+          p_limit: 8,
+        });
+
+        if (chunks && chunks.length > 0) {
+          ragContext = "\n\n--- RETRIEVED DOCUMENT CONTEXT ---\n" +
+            chunks.map((c: any) => `[Source: ${c.file_name}, Section ${c.chunk_index + 1}]:\n${c.content}`).join("\n\n") +
+            "\n--- END DOCUMENT CONTEXT ---\n";
+        }
+      } catch (ragErr) {
+        console.error("RAG retrieval error (non-fatal):", ragErr);
+      }
+    }
+
     if (action === "generate-checklist") {
       const controlNames = params.controls
         .map((c: { id: string; name: string }) => `${c.id}: ${c.name}`)
@@ -29,7 +61,8 @@ serve(async (req) => {
         {
           role: "system",
           content:
-            'You are generating FAKE but realistic test data for a vendor security checklist. Always respond with valid JSON only, no markdown code blocks.',
+            'You are generating FAKE but realistic test data for a vendor security checklist. Always respond with valid JSON only, no markdown code blocks.' +
+            (ragContext ? '\n\nUse the following document evidence to ground your assessment. Reference specific documents in aiExplanation fields.' + ragContext : ''),
         },
         {
           role: "user",
@@ -42,7 +75,8 @@ serve(async (req) => {
         {
           role: "system",
           content:
-            "You are a security assessment assistant for Bank ABC. Provide clear, professional analysis based on the vendor assessment data. Keep responses concise and actionable. Use bullet points where appropriate.",
+            "You are a security assessment assistant for Bank ABC. Provide clear, professional analysis based on the vendor assessment data. Keep responses concise and actionable. Use bullet points where appropriate." +
+            (ragContext ? "\n\nUse the following uploaded document evidence to provide grounded, evidence-based answers. Always cite the source document name when referencing information from documents." + ragContext : ""),
         },
         {
           role: "user",
@@ -54,7 +88,8 @@ serve(async (req) => {
         {
           role: "system",
           content:
-            "You are a security assessment report writer for Bank ABC. Generate a concise executive summary of the vendor risk assessment. Use markdown formatting with headers and bullet points.",
+            "You are a security assessment report writer for Bank ABC. Generate a concise executive summary of the vendor risk assessment. Use markdown formatting with headers and bullet points." +
+            (ragContext ? "\n\nIncorporate evidence from the following uploaded documents to support your findings." + ragContext : ""),
         },
         {
           role: "user",
@@ -106,7 +141,6 @@ serve(async (req) => {
 
     if (action === "generate-checklist") {
       try {
-        // Strip markdown code blocks if present
         const cleanContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleanContent);
         const controls = params.controls.map((c: { id: string; category: string; name: string }) => {
@@ -130,7 +164,6 @@ serve(async (req) => {
         );
       } catch (parseErr) {
         console.error("JSON parse error:", parseErr, "Content:", content);
-        // Fallback: generate random results
         const controls = params.controls.map((c: { id: string; category: string; name: string }) => ({
           ...c,
           passed: Math.random() > 0.3,
