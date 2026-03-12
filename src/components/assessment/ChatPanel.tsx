@@ -36,7 +36,7 @@ export function ChatPanel({ chatHistory, checklistJson, onNewMessage, assessment
     setInput("");
     setLoading(true);
 
-    const reply = await chatWithAI(text.trim(), checklistJson);
+    const reply = await chatWithAI(text.trim(), checklistJson, assessmentId);
     const assistantMsg: ChatMessage = { role: "assistant", content: reply, timestamp: new Date().toISOString() };
     onNewMessage([...updated, assistantMsg]);
     setLoading(false);
