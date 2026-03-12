@@ -1,1 +1,7 @@
 project_id = "tcoeljcpoyhuolctlgry"
+
+[functions.parse-document]
+verify_jwt = false
+
+[functions.mcp-server]
+verify_jwt = false
