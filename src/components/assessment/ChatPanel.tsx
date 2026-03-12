@@ -16,6 +16,7 @@ type Props = {
   chatHistory: ChatMessage[];
   checklistJson: string;
   onNewMessage: (messages: ChatMessage[]) => void;
+  assessmentId?: string;
 };
 
 export function ChatPanel({ chatHistory, checklistJson, onNewMessage }: Props) {
