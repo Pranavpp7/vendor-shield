@@ -105,11 +105,12 @@ export async function generateChecklistFromAI(
 
 export async function chatWithAI(
   question: string,
-  checklistJson: string
+  checklistJson: string,
+  assessmentId?: string
 ): Promise<string> {
   try {
     const { data, error } = await supabase.functions.invoke("vendor-ai", {
-      body: { action: "chat", question, context: checklistJson },
+      body: { action: "chat", question, context: checklistJson, assessmentId },
     });
     if (error) throw error;
     return data.reply;
