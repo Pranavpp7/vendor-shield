@@ -12,6 +12,7 @@ import Assessments from "./pages/Assessments";
 import NewAssessment from "./pages/NewAssessment";
 import AssessmentDetail from "./pages/AssessmentDetail";
 import NotFound from "./pages/NotFound";
+import Architecture from "./pages/Architecture";
 
 const queryClient = new QueryClient();
 
