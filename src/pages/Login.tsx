@@ -5,15 +5,53 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
+import { useEffect } from "react";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (user) navigate("/dashboard", { replace: true });
+  }, [user, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate("/dashboard");
+    setLoading(true);
+
+    try {
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { display_name: displayName || email },
+            emailRedirectTo: window.location.origin,
+          },
+        });
+        if (error) throw error;
+        toast.success("Check your email to verify your account before signing in.");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Authentication failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -34,13 +72,25 @@ export default function Login() {
               <Shield className="h-8 w-8 text-accent" />
               <span className="font-bold text-xl">Vendor Shield</span>
             </div>
-            <CardTitle className="text-2xl">Sign In</CardTitle>
+            <CardTitle className="text-2xl">{isSignUp ? "Create Account" : "Sign In"}</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Access the Vendor Risk Assessment Portal
+              {isSignUp ? "Register for the Vendor Risk Assessment Portal" : "Access the Vendor Risk Assessment Portal"}
             </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {isSignUp && (
+                <div className="space-y-2">
+                  <Label htmlFor="displayName">Display Name</Label>
+                  <Input
+                    id="displayName"
+                    type="text"
+                    placeholder="Jane Smith"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -49,6 +99,7 @@ export default function Login() {
                   placeholder="assessor@bankabc.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -59,13 +110,22 @@ export default function Login() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Sign In
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Please wait…" : isSignUp ? "Create Account" : "Sign In"}
               </Button>
-              <p className="text-xs text-muted-foreground text-center">
-                Mock login — any credentials accepted
+              <p className="text-sm text-muted-foreground text-center">
+                {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+                <button
+                  type="button"
+                  className="text-accent hover:underline font-medium"
+                  onClick={() => setIsSignUp(!isSignUp)}
+                >
+                  {isSignUp ? "Sign In" : "Sign Up"}
+                </button>
               </p>
             </form>
           </CardContent>
