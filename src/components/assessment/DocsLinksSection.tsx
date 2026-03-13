@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Link as LinkIcon, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 type DocumentRecord = {
@@ -25,6 +26,7 @@ type Props = {
 };
 
 export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId }: Props) {
+  const { user } = useAuth();
   const [linkInput, setLinkInput] = useState("");
   const [editingLink, setEditingLink] = useState<number | null>(null);
   const [editLinkValue, setEditLinkValue] = useState("");
@@ -112,6 +114,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             content_type: file.type || "application/octet-stream",
             storage_path: storagePath,
             status: "pending",
+            user_id: user?.id,
           })
           .select("id")
           .single();

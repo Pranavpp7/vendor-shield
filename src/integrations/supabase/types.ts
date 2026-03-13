@@ -56,6 +56,7 @@ export type Database = {
           id: string
           status: string
           storage_path: string | null
+          user_id: string | null
         }
         Insert: {
           assessment_id: string
@@ -66,6 +67,7 @@ export type Database = {
           id?: string
           status?: string
           storage_path?: string | null
+          user_id?: string | null
         }
         Update: {
           assessment_id?: string
@@ -76,6 +78,28 @@ export type Database = {
           id?: string
           status?: string
           storage_path?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          display_name: string | null
+          id: string
+          organization: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_name?: string | null
+          id: string
+          organization?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          organization?: string | null
         }
         Relationships: []
       }
