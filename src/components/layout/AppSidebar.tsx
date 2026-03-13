@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ClipboardList, PlusCircle, LogOut, Shield } from "lucide-react";
+import { LayoutDashboard, ClipboardList, PlusCircle, LogOut, Shield, Info } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
