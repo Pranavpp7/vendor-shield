@@ -114,6 +114,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             content_type: file.type || "application/octet-stream",
             storage_path: storagePath,
             status: "pending",
+            user_id: user?.id,
           })
           .select("id")
           .single();
