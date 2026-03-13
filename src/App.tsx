@@ -12,6 +12,7 @@ import Assessments from "./pages/Assessments";
 import NewAssessment from "./pages/NewAssessment";
 import AssessmentDetail from "./pages/AssessmentDetail";
 import NotFound from "./pages/NotFound";
+import Architecture from "./pages/Architecture";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="/assessments" element={<ProtectedRoute><Assessments /></ProtectedRoute>} />
               <Route path="/assessment/new" element={<ProtectedRoute><NewAssessment /></ProtectedRoute>} />
               <Route path="/assessments/:vendorSlug" element={<ProtectedRoute><AssessmentDetail /></ProtectedRoute>} />
+              <Route path="/architecture" element={<ProtectedRoute><Architecture /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
