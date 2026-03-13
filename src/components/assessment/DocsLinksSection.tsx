@@ -26,6 +26,7 @@ type Props = {
 };
 
 export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId }: Props) {
+  const { user } = useAuth();
   const [linkInput, setLinkInput] = useState("");
   const [editingLink, setEditingLink] = useState<number | null>(null);
   const [editLinkValue, setEditLinkValue] = useState("");
