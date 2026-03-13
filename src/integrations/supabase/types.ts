@@ -19,6 +19,7 @@ export type Database = {
           chunk_index: number
           content: string
           document_id: string
+          embedding: string | null
           fts: unknown
           id: string
         }
@@ -26,6 +27,7 @@ export type Database = {
           chunk_index: number
           content: string
           document_id: string
+          embedding?: string | null
           fts?: unknown
           id?: string
         }
@@ -33,6 +35,7 @@ export type Database = {
           chunk_index?: number
           content?: string
           document_id?: string
+          embedding?: string | null
           fts?: unknown
           id?: string
         }
@@ -109,14 +112,18 @@ export type Database = {
     }
     Functions: {
       search_document_chunks: {
-        Args: { p_assessment_id: string; p_limit?: number; p_query: string }
+        Args: {
+          p_assessment_id: string
+          p_limit?: number
+          p_query_embedding: string
+        }
         Returns: {
           chunk_id: string
           chunk_index: number
           content: string
           document_id: string
           file_name: string
-          rank: number
+          similarity: number
         }[]
       }
     }

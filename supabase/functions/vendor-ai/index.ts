@@ -8,6 +8,58 @@ const corsHeaders = {
 };
 
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const GEMINI_EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent";
+
+async function getQueryEmbedding(text: string, apiKey: string): Promise<number[] | null> {
+  try {
+    const response = await fetch(`${GEMINI_EMBED_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "models/gemini-embedding-001",
+        content: { parts: [{ text }] },
+      }),
+    });
+    if (!response.ok) {
+      console.error("Embedding API error:", response.status, await response.text());
+      return null;
+    }
+    const data = await response.json();
+    return data.embedding?.values ?? null;
+  } catch (err) {
+    console.error("Embedding fetch error:", err);
+    return null;
+  }
+}
+
+async function retrieveRAGContext(
+  supabase: any,
+  assessmentId: string,
+  searchQuery: string,
+  geminiApiKey: string | undefined
+): Promise<string> {
+  try {
+    const embedding = geminiApiKey ? await getQueryEmbedding(searchQuery, geminiApiKey) : null;
+
+    if (embedding) {
+      // Vector similarity search
+      const { data: chunks } = await supabase.rpc("search_document_chunks", {
+        p_assessment_id: assessmentId,
+        p_query_embedding: JSON.stringify(embedding),
+        p_limit: 8,
+      });
+
+      if (chunks && chunks.length > 0) {
+        return "\n\n--- RETRIEVED DOCUMENT CONTEXT ---\n" +
+          chunks.map((c: any) => `[Source: ${c.file_name}, Section ${c.chunk_index + 1}, Relevance: ${(c.similarity * 100).toFixed(0)}%]:\n${c.content}`).join("\n\n") +
+          "\n--- END DOCUMENT CONTEXT ---\n";
+      }
+    }
+  } catch (ragErr) {
+    console.error("RAG retrieval error (non-fatal):", ragErr);
+  }
+  return "";
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -18,39 +70,26 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+
     const { action, ...params } = await req.json();
     let messages: { role: string; content: string }[];
     let maxTokens = 800;
 
-    // RAG: retrieve document context if assessment_id is provided
+    // RAG: retrieve document context via vector search
     let ragContext = "";
     if (params.assessmentId && (action === "chat" || action === "generate-checklist" || action === "generate-summary")) {
-      try {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const supabase = createClient(supabaseUrl, supabaseKey);
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
 
-        // Build search query from the user's question or vendor name
-        const searchQuery = action === "chat" 
-          ? params.question 
-          : action === "generate-checklist"
-          ? params.vendorName + " security compliance controls"
-          : params.vendorName + " risk assessment summary";
+      const searchQuery = action === "chat"
+        ? params.question
+        : action === "generate-checklist"
+        ? params.vendorName + " security compliance controls"
+        : params.vendorName + " risk assessment summary";
 
-        const { data: chunks } = await supabase.rpc("search_document_chunks", {
-          p_assessment_id: params.assessmentId,
-          p_query: searchQuery,
-          p_limit: 8,
-        });
-
-        if (chunks && chunks.length > 0) {
-          ragContext = "\n\n--- RETRIEVED DOCUMENT CONTEXT ---\n" +
-            chunks.map((c: any) => `[Source: ${c.file_name}, Section ${c.chunk_index + 1}]:\n${c.content}`).join("\n\n") +
-            "\n--- END DOCUMENT CONTEXT ---\n";
-        }
-      } catch (ragErr) {
-        console.error("RAG retrieval error (non-fatal):", ragErr);
-      }
+      ragContext = await retrieveRAGContext(supabase, params.assessmentId, searchQuery, GEMINI_API_KEY);
     }
 
     if (action === "generate-checklist") {
