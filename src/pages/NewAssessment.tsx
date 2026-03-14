@@ -19,13 +19,16 @@ export default function NewAssessment() {
   const [searchParams] = useSearchParams();
   const { addAssessment, getAssessment, updateAssessment } = useAssessments();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [draftId, setDraftId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [vendorName, setVendorName] = useState("");
   const [files, setFiles] = useState<{ name: string; size: number }[]>([]);
+  const [rawFiles, setRawFiles] = useState<File[]>([]);
   const [links, setLinks] = useState<string[]>([]);
   const [linkInput, setLinkInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Load draft if editing
   useEffect(() => {
