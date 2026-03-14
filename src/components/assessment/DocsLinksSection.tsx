@@ -51,7 +51,9 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const [uploading, setUploading] = useState(false);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [reprocessingId, setReprocessingId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ docId: string; fileIndex: number; fileName: string } | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewName, setPreviewName] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     if (!assessmentId) return;
