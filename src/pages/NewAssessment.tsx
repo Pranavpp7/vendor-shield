@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Link as LinkIcon, X, ArrowRight, ArrowLeft, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
 export default function NewAssessment() {
   const navigate = useNavigate();
