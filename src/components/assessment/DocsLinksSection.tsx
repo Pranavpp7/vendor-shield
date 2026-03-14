@@ -428,7 +428,21 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      {/* Document preview dialog */}
+      <Dialog open={!!previewUrl} onOpenChange={(open) => !open && setPreviewUrl(null)}>
+        <DialogContent className="max-w-4xl w-[90vw] h-[85vh] flex flex-col p-0">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle className="text-sm truncate">{previewName}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 p-4 pt-0">
+            <iframe
+              src={previewUrl || ""}
+              className="w-full h-full rounded-md border"
+              title={previewName}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
