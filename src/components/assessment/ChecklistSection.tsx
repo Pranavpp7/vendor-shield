@@ -44,7 +44,7 @@ function statusLabel(status: ControlResult["status"]) {
   return "Failed";
 }
 
-export function ChecklistSection({ controls, isRunning, revealedCount = controls.length, uploadedFiles = [], links = [], onNavigateToDocs }: Props) {
+export function ChecklistSection({ controls, isRunning, revealedCount = controls.length, uploadedFiles = [], links = [], onNavigateToDocs, onRerunChecklist, rerunning }: Props) {
   const categories = [...new Set(controls.map((c) => c.category))];
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
