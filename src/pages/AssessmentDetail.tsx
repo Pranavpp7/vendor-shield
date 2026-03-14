@@ -145,6 +145,8 @@ export default function AssessmentDetail() {
                     const docsTab = document.querySelector('[data-value="docs"]') as HTMLButtonElement;
                     docsTab?.click();
                   }}
+                  onRerunChecklist={handleRerunChecklist}
+                  rerunning={rerunning}
                 />
               </CardContent>
             </Card>

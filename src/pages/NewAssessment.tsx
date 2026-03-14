@@ -11,19 +11,24 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Link as LinkIcon, X, ArrowRight, ArrowLeft, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
 export default function NewAssessment() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { addAssessment, getAssessment, updateAssessment } = useAssessments();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [draftId, setDraftId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [vendorName, setVendorName] = useState("");
   const [files, setFiles] = useState<{ name: string; size: number }[]>([]);
+  const [rawFiles, setRawFiles] = useState<File[]>([]);
   const [links, setLinks] = useState<string[]>([]);
   const [linkInput, setLinkInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Load draft if editing
   useEffect(() => {
@@ -41,20 +46,21 @@ export default function NewAssessment() {
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const dropped = Array.from(e.dataTransfer.files).map((f) => ({
-      name: f.name,
-      size: f.size,
-    }));
-    setFiles((prev) => [...prev, ...dropped]);
+    const dropped = Array.from(e.dataTransfer.files);
+    setRawFiles((prev) => [...prev, ...dropped]);
+    setFiles((prev) => [...prev, ...dropped.map((f) => ({ name: f.name, size: f.size }))]);
   }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
-    const selected = Array.from(e.target.files).map((f) => ({
-      name: f.name,
-      size: f.size,
-    }));
-    setFiles((prev) => [...prev, ...selected]);
+    const selected = Array.from(e.target.files);
+    setRawFiles((prev) => [...prev, ...selected]);
+    setFiles((prev) => [...prev, ...selected.map((f) => ({ name: f.name, size: f.size }))]);
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, j) => j !== index));
+    setRawFiles((prev) => prev.filter((_, j) => j !== index));
   };
 
   const addLink = () => {
@@ -64,7 +70,44 @@ export default function NewAssessment() {
     }
   };
 
-  const saveDraft = () => {
+  const uploadFilesToStorage = async (assessmentId: string) => {
+    if (rawFiles.length === 0) return;
+    setUploading(true);
+    for (const file of rawFiles) {
+      try {
+        const storagePath = `${assessmentId}/${Date.now()}-${file.name}`;
+        const { error: uploadErr } = await supabase.storage
+          .from("vendor-documents")
+          .upload(storagePath, file);
+        if (uploadErr) throw uploadErr;
+
+        const { data: docRecord, error: docErr } = await supabase
+          .from("documents")
+          .insert({
+            assessment_id: assessmentId,
+            file_name: file.name,
+            file_size: file.size,
+            content_type: file.type || "application/octet-stream",
+            storage_path: storagePath,
+            status: "pending",
+            user_id: user?.id,
+          })
+          .select("id")
+          .single();
+        if (docErr) throw docErr;
+
+        supabase.functions.invoke("parse-document", {
+          body: { documentId: docRecord.id },
+        }).catch((err) => console.error("Parse error:", err));
+      } catch (err: any) {
+        console.error("Upload error:", err);
+        toast({ title: "Upload failed", description: `Failed to upload ${file.name}: ${err.message}`, variant: "destructive" });
+      }
+    }
+    setUploading(false);
+  };
+
+  const saveDraft = async () => {
     if (!vendorName.trim()) return;
     const id = draftId || vendorNameToSlug(vendorName);
     const data = {
@@ -83,19 +126,24 @@ export default function NewAssessment() {
     };
     if (draftId) updateAssessment(draftId, data);
     else addAssessment(data);
+    await uploadFilesToStorage(id);
     toast({ title: "Draft saved", description: `Assessment for ${vendorName} saved as draft.` });
     navigate("/assessments");
   };
 
   const startAssessment = async () => {
     setLoading(true);
+    const id = draftId || vendorNameToSlug(vendorName);
+
+    // Upload files to storage first
+    await uploadFilesToStorage(id);
+
     const allControls = checklistSchema.flatMap((g) =>
       g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
     );
 
     const result = await generateChecklistFromAI(vendorName, allControls);
 
-    const id = draftId || vendorNameToSlug(vendorName);
     const assessmentData = {
       id,
       vendorName,
@@ -185,14 +233,14 @@ export default function NewAssessment() {
                       <span>
                         {f.name} ({(f.size / 1024).toFixed(1)} KB)
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => removeFile(i)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                     </div>
                   ))}
                 </div>
@@ -238,11 +286,11 @@ export default function NewAssessment() {
                   <Save className="h-4 w-4 mr-2" />
                   Save Draft
                 </Button>
-                <Button onClick={startAssessment} disabled={loading} className="flex-1">
-                  {loading ? (
+                <Button onClick={startAssessment} disabled={loading || uploading} className="flex-1">
+                  {loading || uploading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Running Assessment…
+                      {uploading ? "Uploading Files…" : "Running Assessment…"}
                     </>
                   ) : (
                     "Start Assessment"

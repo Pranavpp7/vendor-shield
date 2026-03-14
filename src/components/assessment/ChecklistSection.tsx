@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ControlResult, UploadedFile } from "@/types/assessment";
-import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, FileText, ExternalLink, Download, FolderOpen } from "lucide-react";
+import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, FileText, ExternalLink, Download, FolderOpen, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ type Props = {
   uploadedFiles?: UploadedFile[];
   links?: string[];
   onNavigateToDocs?: () => void;
+  onRerunChecklist?: () => void;
+  rerunning?: boolean;
 };
 
 function StatusIcon({ status }: { status: ControlResult["status"] }) {
@@ -42,7 +44,7 @@ function statusLabel(status: ControlResult["status"]) {
   return "Failed";
 }
 
-export function ChecklistSection({ controls, isRunning, revealedCount = controls.length, uploadedFiles = [], links = [], onNavigateToDocs }: Props) {
+export function ChecklistSection({ controls, isRunning, revealedCount = controls.length, uploadedFiles = [], links = [], onNavigateToDocs, onRerunChecklist, rerunning }: Props) {
   const categories = [...new Set(controls.map((c) => c.category))];
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -56,6 +58,14 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
 
   return (
     <div className="space-y-6">
+      {onRerunChecklist && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={onRerunChecklist} disabled={rerunning}>
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${rerunning ? "animate-spin" : ""}`} />
+            {rerunning ? "Re-running…" : "Re-run Checklist"}
+          </Button>
+        </div>
+      )}
       {categories.map((category) => {
         const categoryControls = controls.filter((c) => c.category === category);
         return (
