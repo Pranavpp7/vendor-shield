@@ -22,6 +22,28 @@ export default function AssessmentDetail() {
   const navigate = useNavigate();
   const { getAssessmentBySlug, updateAssessment } = useAssessments();
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
+
+  const handleRerunChecklist = async () => {
+    if (!assessment) return;
+    setRerunning(true);
+    try {
+      const allControls = checklistSchema.flatMap((g) =>
+        g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
+      );
+      const result = await generateChecklistFromAI(assessment.vendorName, allControls);
+      updateAssessment(assessment.id, {
+        controls: result.controls,
+        score: result.score,
+        riskLevel: result.riskLevel as "Low" | "Medium" | "High",
+      });
+      toast.success("Checklist re-run complete with latest document data.");
+    } catch {
+      toast.error("Failed to re-run checklist.");
+    } finally {
+      setRerunning(false);
+    }
+  };
 
   const assessment = getAssessmentBySlug(vendorSlug || "");
 
