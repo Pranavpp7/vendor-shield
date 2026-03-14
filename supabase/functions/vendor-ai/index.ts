@@ -18,6 +18,8 @@ async function getQueryEmbedding(text: string, apiKey: string): Promise<number[]
       body: JSON.stringify({
         model: "models/gemini-embedding-001",
         content: { parts: [{ text }] },
+        taskType: "RETRIEVAL_QUERY",
+        outputDimensionality: 768,
       }),
     });
     if (!response.ok) {
