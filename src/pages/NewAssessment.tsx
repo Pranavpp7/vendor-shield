@@ -241,7 +241,6 @@ export default function NewAssessment() {
                         >
                           <X className="h-3 w-3" />
                         </Button>
-                      </Button>
                     </div>
                   ))}
                 </div>
