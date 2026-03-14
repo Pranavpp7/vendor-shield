@@ -299,9 +299,19 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                           size="icon"
                           className="h-6 w-6"
                           title="Preview document"
-                          onClick={() => {
-                            const { data } = supabase.storage.from("vendor-documents").getPublicUrl(docRecord.storage_path!);
-                            window.open(data.publicUrl, "_blank");
+                          disabled={previewLoading}
+                          onClick={async () => {
+                            setPreviewLoading(true);
+                            setPreviewName(f.name);
+                            const { data, error } = await supabase.storage
+                              .from("vendor-documents")
+                              .createSignedUrl(docRecord.storage_path!, 300);
+                            setPreviewLoading(false);
+                            if (error || !data?.signedUrl) {
+                              toast.error("Failed to load preview");
+                              return;
+                            }
+                            setPreviewUrl(data.signedUrl);
                           }}
                         >
                           <Eye className="h-3 w-3" />
