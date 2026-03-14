@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ControlResult, UploadedFile } from "@/types/assessment";
-import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, FileText, ExternalLink, Download, FolderOpen } from "lucide-react";
+import { Check, X, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, FileText, ExternalLink, Download, FolderOpen, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
