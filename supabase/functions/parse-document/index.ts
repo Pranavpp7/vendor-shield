@@ -33,6 +33,7 @@ async function getEmbedding(text: string, apiKey: string): Promise<number[] | nu
         model: "models/gemini-embedding-001",
         content: { parts: [{ text }] },
         taskType: "RETRIEVAL_DOCUMENT",
+        outputDimensionality: 768,
       }),
     });
 
