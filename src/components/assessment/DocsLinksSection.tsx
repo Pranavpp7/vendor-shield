@@ -282,6 +282,38 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                     {docRecord && statusBadge(docRecord.status)}
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {docRecord?.storage_path && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          title="Preview document"
+                          onClick={() => {
+                            const { data } = supabase.storage.from("vendor-documents").getPublicUrl(docRecord.storage_path!);
+                            window.open(data.publicUrl, "_blank");
+                          }}
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          title="Download document"
+                          onClick={async () => {
+                            const { data, error } = await supabase.storage.from("vendor-documents").download(docRecord.storage_path!);
+                            if (error || !data) { toast.error("Download failed"); return; }
+                            const url = URL.createObjectURL(data);
+                            const a = document.createElement("a");
+                            a.href = url; a.download = f.name; a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
                     {docRecord && (docRecord.status === "error" || docRecord.status === "ready") && (
                       <Button
                         variant="ghost"
