@@ -42,7 +42,6 @@ async function retrieveRAGContext(
     const embedding = geminiApiKey ? await getQueryEmbedding(searchQuery, geminiApiKey) : null;
 
     if (embedding) {
-      // Vector similarity search
       const { data: chunks } = await supabase.rpc("search_document_chunks", {
         p_assessment_id: assessmentId,
         p_query_embedding: JSON.stringify(embedding),
@@ -61,6 +60,40 @@ async function retrieveRAGContext(
   return "";
 }
 
+async function retrievePerControlRAG(
+  supabase: any,
+  assessmentId: string,
+  controlName: string,
+  geminiApiKey: string | undefined
+): Promise<string> {
+  try {
+    const embedding = geminiApiKey ? await getQueryEmbedding(controlName, geminiApiKey) : null;
+    if (embedding) {
+      const { data: chunks } = await supabase.rpc("search_document_chunks", {
+        p_assessment_id: assessmentId,
+        p_query_embedding: JSON.stringify(embedding),
+        p_limit: 3,
+      });
+      if (chunks && chunks.length > 0) {
+        return chunks.map((c: any) => `[${c.file_name}, Section ${c.chunk_index + 1}, ${(c.similarity * 100).toFixed(0)}% match]: ${c.content}`).join("\n");
+      }
+    }
+  } catch (err) {
+    console.error("Per-control RAG error:", err);
+  }
+  return "";
+}
+
+async function hasIndexedDocuments(supabase: any, assessmentId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("documents")
+    .select("id")
+    .eq("assessment_id", assessmentId)
+    .eq("status", "ready")
+    .limit(1);
+  return data && data.length > 0;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -76,39 +109,64 @@ serve(async (req) => {
     let messages: { role: string; content: string }[];
     let maxTokens = 800;
 
-    // RAG: retrieve document context via vector search
-    let ragContext = "";
-    if (params.assessmentId && (action === "chat" || action === "generate-checklist" || action === "generate-summary")) {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // RAG context for chat / summary
+    let ragContext = "";
+    if (params.assessmentId && (action === "chat" || action === "generate-summary")) {
       const searchQuery = action === "chat"
         ? params.question
-        : action === "generate-checklist"
-        ? params.vendorName + " security compliance controls"
         : params.vendorName + " risk assessment summary";
-
       ragContext = await retrieveRAGContext(supabase, params.assessmentId, searchQuery, GEMINI_API_KEY);
     }
 
     if (action === "generate-checklist") {
+      // Check if we have indexed documents for evidence-based evaluation
+      const hasDocs = params.assessmentId ? await hasIndexedDocuments(supabase, params.assessmentId) : false;
+
+      let controlEvidenceMap = "";
+      if (hasDocs && params.assessmentId && GEMINI_API_KEY) {
+        // Retrieve per-control evidence
+        const evidenceEntries: string[] = [];
+        for (const c of params.controls) {
+          const evidence = await retrievePerControlRAG(supabase, params.assessmentId, c.name, GEMINI_API_KEY);
+          evidenceEntries.push(`### ${c.id}: ${c.name}\n${evidence || "NO EVIDENCE FOUND IN DOCUMENTS"}`);
+        }
+        controlEvidenceMap = "\n\n--- PER-CONTROL DOCUMENT EVIDENCE ---\n" + evidenceEntries.join("\n\n") + "\n--- END PER-CONTROL EVIDENCE ---\n";
+      }
+
       const controlNames = params.controls
         .map((c: { id: string; name: string }) => `${c.id}: ${c.name}`)
         .join("\n");
+
+      const systemPrompt = hasDocs
+        ? `You are a rigorous vendor security assessor for a bank. You MUST evaluate each control STRICTLY based on the document evidence provided. 
+RULES:
+- A control is "passed" ONLY if you find clear, specific evidence in the documents that the control requirement is met.
+- A control is "failed" if documents explicitly show non-compliance or if no relevant evidence exists in any document.
+- A control is "needs_info" if documents partially address the control but lack sufficient detail to confirm compliance.
+- In the aiExplanation field, cite the SPECIFIC document name and what evidence you found (or didn't find).
+- In the evidenceSource field, put the exact document file name where evidence was found, or "No evidence found" if none.
+- Do NOT assume compliance without evidence. Be strict.
+Always respond with valid JSON only, no markdown code blocks.` + controlEvidenceMap
+        : `You are generating a preliminary vendor security checklist assessment. No documents have been uploaded yet, so mark most controls as "needs_info" since there is no evidence to evaluate.
+RULES:
+- Without documents, most controls should be "needs_info" status.
+- Only mark obviously publicly verifiable items (like well-known certifications) as "passed" if the vendor is well-known.
+- In the aiExplanation, note that no supporting documents have been provided.
+- Set evidenceSource to "No documents uploaded".
+Always respond with valid JSON only, no markdown code blocks.`;
+
       messages = [
-        {
-          role: "system",
-          content:
-            'You are generating FAKE but realistic test data for a vendor security checklist. Always respond with valid JSON only, no markdown code blocks.' +
-            (ragContext ? '\n\nUse the following document evidence to ground your assessment. Reference specific documents in aiExplanation fields.' + ragContext : ''),
-        },
+        { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Generate random but realistic assessment results for vendor "${params.vendorName}" with these security controls:\n${controlNames}\n\nEach control should have a status of "passed", "failed", or "needs_info" (use needs_info when additional documentation is required from the vendor).\n\nReturn JSON: { "results": [{ "id": "<control_id>", "status": "passed"|"failed"|"needs_info", "comment": "short comment or empty string", "aiExplanation": "2-3 sentence explanation of why this verdict was given, referencing specific evidence or gaps" }], "score": <0-100 integer>, "riskLevel": "Low"|"Medium"|"High" }\n\nMake roughly 65-80% pass, 5-15% needs_info, rest failed. Score should reflect pass rate. Ensure valid JSON.`,
+          content: `Evaluate vendor "${params.vendorName}" against these security controls:\n${controlNames}\n\nReturn JSON: { "results": [{ "id": "<control_id>", "status": "passed"|"failed"|"needs_info", "comment": "short comment", "aiExplanation": "2-3 sentence explanation citing specific document evidence or lack thereof", "evidenceSource": "exact document filename or No evidence found" }], "score": <0-100>, "riskLevel": "Low"|"Medium"|"High" }\n\nScore must reflect actual evidence-based pass rate. Ensure valid JSON.`,
         },
       ];
-      maxTokens = 1200;
+      maxTokens = 2000;
     } else if (action === "chat") {
       messages = [
         {
@@ -153,7 +211,7 @@ serve(async (req) => {
         model: "google/gemini-3-flash-preview",
         messages,
         max_tokens: maxTokens,
-        temperature: action === "generate-checklist" ? 0.9 : 0.7,
+        temperature: action === "generate-checklist" ? 0.3 : 0.7,
       }),
     });
 
@@ -184,39 +242,40 @@ serve(async (req) => {
         const parsed = JSON.parse(cleanContent);
         const controls = params.controls.map((c: { id: string; category: string; name: string }) => {
           const result = parsed.results?.find((r: { id: string }) => r.id === c.id);
-          const status = result?.status || (result?.passed ? "passed" : result?.passed === false ? "failed" : "passed");
+          const status = result?.status || "needs_info";
           return {
             ...c,
             passed: status === "passed",
             status,
             comment: result?.comment ?? "",
-            aiExplanation: result?.aiExplanation ?? "",
+            aiExplanation: result?.aiExplanation ?? "No AI analysis available for this control.",
+            evidenceSource: result?.evidenceSource ?? "No evidence found",
           };
         });
         return new Response(
           JSON.stringify({
             controls,
-            score: parsed.score ?? 70,
-            riskLevel: parsed.riskLevel ?? "Medium",
+            score: parsed.score ?? 0,
+            riskLevel: parsed.riskLevel ?? "High",
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } catch (parseErr) {
         console.error("JSON parse error:", parseErr, "Content:", content);
+        // Fallback: all needs_info when we can't parse
         const controls = params.controls.map((c: { id: string; category: string; name: string }) => ({
           ...c,
-          passed: Math.random() > 0.3,
-          status: Math.random() > 0.85 ? "needs_info" : (Math.random() > 0.3 ? "passed" : "failed"),
-          comment: "",
-          aiExplanation: "",
+          passed: false,
+          status: "needs_info",
+          comment: "Unable to evaluate - AI response parsing failed",
+          aiExplanation: "The AI assessment could not be parsed. Please re-run the checklist.",
+          evidenceSource: "Parse error",
         }));
-        const passedCount = controls.filter((c: { passed: boolean }) => c.passed).length;
-        const score = Math.round((passedCount / controls.length) * 100);
         return new Response(
           JSON.stringify({
             controls,
-            score,
-            riskLevel: score >= 80 ? "Low" : score >= 60 ? "Medium" : "High",
+            score: 0,
+            riskLevel: "High",
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
