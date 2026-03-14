@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FileText, Link as LinkIcon, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2, Eye, Download } from "lucide-react";
+import { IndexingPipelineFlow } from "./IndexingPipelineFlow";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -254,6 +255,9 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4" /> Documents ({files.length})
               </CardTitle>
+              {assessmentId && documents.length > 0 && (
+                <IndexingPipelineFlow assessmentId={assessmentId} documents={documents.map(d => ({ id: d.id, file_name: d.file_name, status: d.status }))} />
+              )}
               <Button
                 variant="outline"
                 size="sm"

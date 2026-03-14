@@ -31,7 +31,7 @@ export default function AssessmentDetail() {
       const allControls = checklistSchema.flatMap((g) =>
         g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
       );
-      const result = await generateChecklistFromAI(assessment.vendorName, allControls);
+      const result = await generateChecklistFromAI(assessment.vendorName, allControls, assessment.id);
       updateAssessment(assessment.id, {
         controls: result.controls,
         score: result.score,
