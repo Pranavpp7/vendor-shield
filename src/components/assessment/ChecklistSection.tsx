@@ -58,6 +58,14 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
 
   return (
     <div className="space-y-6">
+      {onRerunChecklist && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={onRerunChecklist} disabled={rerunning}>
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${rerunning ? "animate-spin" : ""}`} />
+            {rerunning ? "Re-running…" : "Re-run Checklist"}
+          </Button>
+        </div>
+      )}
       {categories.map((category) => {
         const categoryControls = controls.filter((c) => c.category === category);
         return (
