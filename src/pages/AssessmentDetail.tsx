@@ -11,14 +11,39 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, AlertCircle } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle, Loader2 } from "lucide-react";
 import { ChatMessage } from "@/types/assessment";
+import { checklistSchema } from "@/data/checklistSchema";
+import { generateChecklistFromAI } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function AssessmentDetail() {
   const { vendorSlug } = useParams();
   const navigate = useNavigate();
   const { getAssessmentBySlug, updateAssessment } = useAssessments();
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
+
+  const handleRerunChecklist = async () => {
+    if (!assessment) return;
+    setRerunning(true);
+    try {
+      const allControls = checklistSchema.flatMap((g) =>
+        g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
+      );
+      const result = await generateChecklistFromAI(assessment.vendorName, allControls);
+      updateAssessment(assessment.id, {
+        controls: result.controls,
+        score: result.score,
+        riskLevel: result.riskLevel as "Low" | "Medium" | "High",
+      });
+      toast.success("Checklist re-run complete with latest document data.");
+    } catch {
+      toast.error("Failed to re-run checklist.");
+    } finally {
+      setRerunning(false);
+    }
+  };
 
   const assessment = getAssessmentBySlug(vendorSlug || "");
 
@@ -126,12 +151,21 @@ export default function AssessmentDetail() {
           </TabsContent>
 
           <TabsContent value="docs">
+            {rerunning && (
+              <Card className="mb-4 border-accent/30">
+                <CardContent className="pt-4 pb-4 flex items-center gap-3">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <p className="text-sm">Re-running checklist with updated documents…</p>
+                </CardContent>
+              </Card>
+            )}
             <DocsLinksSection
               files={assessment.uploadedFiles}
               links={assessment.links}
               onUpdateFiles={(files) => updateAssessment(assessment.id, { uploadedFiles: files })}
               onUpdateLinks={(links) => updateAssessment(assessment.id, { links })}
               assessmentId={assessment.id}
+              onRerunChecklist={handleRerunChecklist}
             />
           </TabsContent>
 
