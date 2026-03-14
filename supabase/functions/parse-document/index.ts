@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { extractText, getDocumentProxy } from "npm:unpdf";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,45 +22,6 @@ function splitIntoChunks(text: string, chunkSize = 500, overlap = 100): string[]
     i += chunkSize - overlap;
   }
   return chunks;
-}
-
-function extractTextFromContent(content: string, contentType: string): string {
-  if (contentType.includes("text/") || contentType.includes("json") || contentType.includes("xml") || contentType.includes("csv")) {
-    return content;
-  }
-
-  if (contentType.includes("pdf")) {
-    const textParts: string[] = [];
-    const btEtRegex = /BT\s*([\s\S]*?)\s*ET/g;
-    let match;
-    while ((match = btEtRegex.exec(content)) !== null) {
-      const block = match[1];
-      const tjRegex = /\(([^)]*)\)\s*Tj/g;
-      let tjMatch;
-      while ((tjMatch = tjRegex.exec(block)) !== null) {
-        textParts.push(tjMatch[1]);
-      }
-      const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
-      let tjArrMatch;
-      while ((tjArrMatch = tjArrayRegex.exec(block)) !== null) {
-        const inner = tjArrMatch[1];
-        const strings = inner.match(/\(([^)]*)\)/g);
-        if (strings) {
-          textParts.push(strings.map(s => s.slice(1, -1)).join(""));
-        }
-      }
-    }
-
-    if (textParts.length > 0) {
-      return textParts.join(" ").replace(/\\n/g, "\n").replace(/\s+/g, " ").trim();
-    }
-
-    const readable = content.replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s+/g, " ").trim();
-    const sentences = readable.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    return sentences.join(". ").trim();
-  }
-
-  return content.replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 async function getEmbedding(text: string, apiKey: string): Promise<number[] | null> {
