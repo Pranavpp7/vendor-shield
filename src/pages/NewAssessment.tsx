@@ -287,11 +287,11 @@ export default function NewAssessment() {
                   <Save className="h-4 w-4 mr-2" />
                   Save Draft
                 </Button>
-                <Button onClick={startAssessment} disabled={loading} className="flex-1">
-                  {loading ? (
+                <Button onClick={startAssessment} disabled={loading || uploading} className="flex-1">
+                  {loading || uploading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Running Assessment…
+                      {uploading ? "Uploading Files…" : "Running Assessment…"}
                     </>
                   ) : (
                     "Start Assessment"
