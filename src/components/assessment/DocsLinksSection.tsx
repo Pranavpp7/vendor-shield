@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FileText, Link as LinkIcon, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2, Eye, Download } from "lucide-react";
+import { IndexingPipelineFlow } from "./IndexingPipelineFlow";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
