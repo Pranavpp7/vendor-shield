@@ -175,9 +175,21 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
+      // Get storage path before deleting the record
+      const { data: docData } = await supabase
+        .from("documents")
+        .select("storage_path")
+        .eq("id", deleteTarget.docId)
+        .single();
+
       // Delete from DB (chunks cascade via FK)
       await supabase.from("document_chunks").delete().eq("document_id", deleteTarget.docId);
       await supabase.from("documents").delete().eq("id", deleteTarget.docId);
+
+      // Delete from storage bucket
+      if (docData?.storage_path) {
+        await supabase.storage.from("vendor-documents").remove([docData.storage_path]);
+      }
       
       // Remove from local files
       onUpdateFiles(files.filter((_, j) => j !== deleteTarget.fileIndex));
