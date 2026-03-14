@@ -168,7 +168,7 @@ Always respond with valid JSON only, no markdown code blocks.`;
           content: `Evaluate vendor "${params.vendorName}" against these security controls:\n${controlNames}\n\nReturn JSON: { "results": [{ "id": "<control_id>", "status": "passed"|"failed"|"needs_info", "comment": "short comment", "aiExplanation": "2-3 sentence explanation citing specific document evidence or lack thereof", "evidenceSource": "exact document filename or No evidence found" }], "score": <0-100>, "riskLevel": "Low"|"Medium"|"High" }\n\nScore must reflect actual evidence-based pass rate. Ensure valid JSON.`,
         },
       ];
-      maxTokens = 2000;
+      maxTokens = 4000;
     } else if (action === "chat") {
       messages = [
         {
