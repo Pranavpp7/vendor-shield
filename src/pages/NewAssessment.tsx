@@ -233,13 +233,14 @@ export default function NewAssessment() {
                       <span>
                         {f.name} ({(f.size / 1024).toFixed(1)} KB)
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                      >
-                        <X className="h-3 w-3" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => removeFile(i)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                       </Button>
                     </div>
                   ))}
