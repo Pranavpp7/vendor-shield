@@ -70,7 +70,44 @@ export default function NewAssessment() {
     }
   };
 
-  const saveDraft = () => {
+  const uploadFilesToStorage = async (assessmentId: string) => {
+    if (rawFiles.length === 0) return;
+    setUploading(true);
+    for (const file of rawFiles) {
+      try {
+        const storagePath = `${assessmentId}/${Date.now()}-${file.name}`;
+        const { error: uploadErr } = await supabase.storage
+          .from("vendor-documents")
+          .upload(storagePath, file);
+        if (uploadErr) throw uploadErr;
+
+        const { data: docRecord, error: docErr } = await supabase
+          .from("documents")
+          .insert({
+            assessment_id: assessmentId,
+            file_name: file.name,
+            file_size: file.size,
+            content_type: file.type || "application/octet-stream",
+            storage_path: storagePath,
+            status: "pending",
+            user_id: user?.id,
+          })
+          .select("id")
+          .single();
+        if (docErr) throw docErr;
+
+        supabase.functions.invoke("parse-document", {
+          body: { documentId: docRecord.id },
+        }).catch((err) => console.error("Parse error:", err));
+      } catch (err: any) {
+        console.error("Upload error:", err);
+        toast({ title: "Upload failed", description: `Failed to upload ${file.name}: ${err.message}`, variant: "destructive" });
+      }
+    }
+    setUploading(false);
+  };
+
+  const saveDraft = async () => {
     if (!vendorName.trim()) return;
     const id = draftId || vendorNameToSlug(vendorName);
     const data = {
@@ -89,19 +126,24 @@ export default function NewAssessment() {
     };
     if (draftId) updateAssessment(draftId, data);
     else addAssessment(data);
+    await uploadFilesToStorage(id);
     toast({ title: "Draft saved", description: `Assessment for ${vendorName} saved as draft.` });
     navigate("/assessments");
   };
 
   const startAssessment = async () => {
     setLoading(true);
+    const id = draftId || vendorNameToSlug(vendorName);
+
+    // Upload files to storage first
+    await uploadFilesToStorage(id);
+
     const allControls = checklistSchema.flatMap((g) =>
       g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
     );
 
     const result = await generateChecklistFromAI(vendorName, allControls);
 
-    const id = draftId || vendorNameToSlug(vendorName);
     const assessmentData = {
       id,
       vendorName,
