@@ -151,12 +151,21 @@ export default function AssessmentDetail() {
           </TabsContent>
 
           <TabsContent value="docs">
+            {rerunning && (
+              <Card className="mb-4 border-accent/30">
+                <CardContent className="pt-4 pb-4 flex items-center gap-3">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <p className="text-sm">Re-running checklist with updated documents…</p>
+                </CardContent>
+              </Card>
+            )}
             <DocsLinksSection
               files={assessment.uploadedFiles}
               links={assessment.links}
               onUpdateFiles={(files) => updateAssessment(assessment.id, { uploadedFiles: files })}
               onUpdateLinks={(links) => updateAssessment(assessment.id, { links })}
               assessmentId={assessment.id}
+              onRerunChecklist={handleRerunChecklist}
             />
           </TabsContent>
 
