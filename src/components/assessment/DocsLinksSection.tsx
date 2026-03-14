@@ -428,6 +428,8 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
+      </AlertDialog>
+
       {/* Document preview dialog */}
       <Dialog open={!!previewUrl} onOpenChange={(open) => !open && setPreviewUrl(null)}>
         <DialogContent className="max-w-4xl w-[90vw] h-[85vh] flex flex-col p-0">
