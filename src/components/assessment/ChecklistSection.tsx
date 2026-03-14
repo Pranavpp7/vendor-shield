@@ -12,6 +12,8 @@ type Props = {
   uploadedFiles?: UploadedFile[];
   links?: string[];
   onNavigateToDocs?: () => void;
+  onRerunChecklist?: () => void;
+  rerunning?: boolean;
 };
 
 function StatusIcon({ status }: { status: ControlResult["status"] }) {
