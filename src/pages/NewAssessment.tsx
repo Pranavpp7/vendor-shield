@@ -46,20 +46,21 @@ export default function NewAssessment() {
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const dropped = Array.from(e.dataTransfer.files).map((f) => ({
-      name: f.name,
-      size: f.size,
-    }));
-    setFiles((prev) => [...prev, ...dropped]);
+    const dropped = Array.from(e.dataTransfer.files);
+    setRawFiles((prev) => [...prev, ...dropped]);
+    setFiles((prev) => [...prev, ...dropped.map((f) => ({ name: f.name, size: f.size }))]);
   }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
-    const selected = Array.from(e.target.files).map((f) => ({
-      name: f.name,
-      size: f.size,
-    }));
-    setFiles((prev) => [...prev, ...selected]);
+    const selected = Array.from(e.target.files);
+    setRawFiles((prev) => [...prev, ...selected]);
+    setFiles((prev) => [...prev, ...selected.map((f) => ({ name: f.name, size: f.size }))]);
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, j) => j !== index));
+    setRawFiles((prev) => prev.filter((_, j) => j !== index));
   };
 
   const addLink = () => {
