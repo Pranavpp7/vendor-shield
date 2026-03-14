@@ -24,6 +24,7 @@ type DocumentRecord = {
   file_name: string;
   file_size: number;
   status: string;
+  storage_path: string | null;
   created_at: string;
 };
 
