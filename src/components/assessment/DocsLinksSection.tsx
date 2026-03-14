@@ -14,6 +14,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FileText, Link as LinkIcon, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2, Eye, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -46,6 +52,9 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [reprocessingId, setReprocessingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ docId: string; fileIndex: number; fileName: string } | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewName, setPreviewName] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     if (!assessmentId) return;
@@ -290,9 +299,19 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                           size="icon"
                           className="h-6 w-6"
                           title="Preview document"
-                          onClick={() => {
-                            const { data } = supabase.storage.from("vendor-documents").getPublicUrl(docRecord.storage_path!);
-                            window.open(data.publicUrl, "_blank");
+                          disabled={previewLoading}
+                          onClick={async () => {
+                            setPreviewLoading(true);
+                            setPreviewName(f.name);
+                            const { data, error } = await supabase.storage
+                              .from("vendor-documents")
+                              .createSignedUrl(docRecord.storage_path!, 300);
+                            setPreviewLoading(false);
+                            if (error || !data?.signedUrl) {
+                              toast.error("Failed to load preview");
+                              return;
+                            }
+                            setPreviewUrl(data.signedUrl);
                           }}
                         >
                           <Eye className="h-3 w-3" />
@@ -410,6 +429,22 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Document preview dialog */}
+      <Dialog open={!!previewUrl} onOpenChange={(open) => !open && setPreviewUrl(null)}>
+        <DialogContent className="max-w-4xl w-[90vw] h-[85vh] flex flex-col p-0">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle className="text-sm truncate">{previewName}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 p-4 pt-0">
+            <iframe
+              src={previewUrl || ""}
+              className="w-full h-full rounded-md border"
+              title={previewName}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
