@@ -142,7 +142,7 @@ export default function NewAssessment() {
       g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
     );
 
-    const result = await generateChecklistFromAI(vendorName, allControls);
+    const result = await generateChecklistFromAI(vendorName, allControls, id);
 
     const assessmentData = {
       id,
