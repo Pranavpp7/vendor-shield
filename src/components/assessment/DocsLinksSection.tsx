@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Link as LinkIcon, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2 } from "lucide-react";
+import { FileText, Link as LinkIcon, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2, Eye, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ type DocumentRecord = {
   file_name: string;
   file_size: number;
   status: string;
+  storage_path: string | null;
   created_at: string;
 };
 
@@ -55,7 +56,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     if (!assessmentId) return;
     const { data } = await supabase
       .from("documents")
-      .select("id, file_name, file_size, status, created_at")
+      .select("id, file_name, file_size, status, storage_path, created_at")
       .eq("assessment_id", assessmentId)
       .order("created_at", { ascending: false });
     if (data) setDocuments(data as DocumentRecord[]);
@@ -282,6 +283,38 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                     {docRecord && statusBadge(docRecord.status)}
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {docRecord?.storage_path && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          title="Preview document"
+                          onClick={() => {
+                            const { data } = supabase.storage.from("vendor-documents").getPublicUrl(docRecord.storage_path!);
+                            window.open(data.publicUrl, "_blank");
+                          }}
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          title="Download document"
+                          onClick={async () => {
+                            const { data, error } = await supabase.storage.from("vendor-documents").download(docRecord.storage_path!);
+                            if (error || !data) { toast.error("Download failed"); return; }
+                            const url = URL.createObjectURL(data);
+                            const a = document.createElement("a");
+                            a.href = url; a.download = f.name; a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
                     {docRecord && (docRecord.status === "error" || docRecord.status === "ready") && (
                       <Button
                         variant="ghost"
