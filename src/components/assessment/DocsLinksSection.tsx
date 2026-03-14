@@ -255,6 +255,9 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4" /> Documents ({files.length})
               </CardTitle>
+              {assessmentId && documents.length > 0 && (
+                <IndexingPipelineFlow assessmentId={assessmentId} documents={documents.map(d => ({ id: d.id, file_name: d.file_name, status: d.status }))} />
+              )}
               <Button
                 variant="outline"
                 size="sm"
