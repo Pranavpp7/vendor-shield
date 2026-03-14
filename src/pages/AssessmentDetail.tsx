@@ -11,8 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, AlertCircle } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle, Loader2 } from "lucide-react";
 import { ChatMessage } from "@/types/assessment";
+import { checklistSchema } from "@/data/checklistSchema";
+import { generateChecklistFromAI } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function AssessmentDetail() {
   const { vendorSlug } = useParams();
