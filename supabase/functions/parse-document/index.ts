@@ -86,13 +86,13 @@ serve(async (req) => {
     let rawText: string;
     const contentType = doc.content_type || "text/plain";
 
-    if (contentType.includes("text/") || contentType.includes("json") || contentType.includes("csv") || contentType.includes("xml") || contentType.includes("yaml")) {
-      rawText = await fileData.text();
-    } else {
+    if (contentType.includes("pdf")) {
       const arrayBuffer = await fileData.arrayBuffer();
-      const decoder = new TextDecoder("utf-8", { fatal: false });
-      const rawContent = decoder.decode(arrayBuffer);
-      rawText = extractTextFromContent(rawContent, contentType);
+      const pdf = await getDocumentProxy(new Uint8Array(arrayBuffer));
+      const { text: pdfText } = await extractText(pdf, { mergePages: true });
+      rawText = pdfText;
+    } else {
+      rawText = await fileData.text();
     }
 
     if (!rawText || rawText.trim().length < 10) {
