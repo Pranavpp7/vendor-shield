@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { extractText, getDocumentProxy } from "npm:unpdf";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,45 +24,6 @@ function splitIntoChunks(text: string, chunkSize = 500, overlap = 100): string[]
   return chunks;
 }
 
-function extractTextFromContent(content: string, contentType: string): string {
-  if (contentType.includes("text/") || contentType.includes("json") || contentType.includes("xml") || contentType.includes("csv")) {
-    return content;
-  }
-
-  if (contentType.includes("pdf")) {
-    const textParts: string[] = [];
-    const btEtRegex = /BT\s*([\s\S]*?)\s*ET/g;
-    let match;
-    while ((match = btEtRegex.exec(content)) !== null) {
-      const block = match[1];
-      const tjRegex = /\(([^)]*)\)\s*Tj/g;
-      let tjMatch;
-      while ((tjMatch = tjRegex.exec(block)) !== null) {
-        textParts.push(tjMatch[1]);
-      }
-      const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
-      let tjArrMatch;
-      while ((tjArrMatch = tjArrayRegex.exec(block)) !== null) {
-        const inner = tjArrMatch[1];
-        const strings = inner.match(/\(([^)]*)\)/g);
-        if (strings) {
-          textParts.push(strings.map(s => s.slice(1, -1)).join(""));
-        }
-      }
-    }
-
-    if (textParts.length > 0) {
-      return textParts.join(" ").replace(/\\n/g, "\n").replace(/\s+/g, " ").trim();
-    }
-
-    const readable = content.replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s+/g, " ").trim();
-    const sentences = readable.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    return sentences.join(". ").trim();
-  }
-
-  return content.replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s+/g, " ").trim();
-}
-
 async function getEmbedding(text: string, apiKey: string): Promise<number[] | null> {
   try {
     const response = await fetch(`${GEMINI_EMBED_URL}?key=${apiKey}`, {
@@ -70,6 +32,7 @@ async function getEmbedding(text: string, apiKey: string): Promise<number[] | nu
       body: JSON.stringify({
         model: "models/gemini-embedding-001",
         content: { parts: [{ text }] },
+        taskType: "RETRIEVAL_DOCUMENT",
       }),
     });
 
@@ -123,13 +86,13 @@ serve(async (req) => {
     let rawText: string;
     const contentType = doc.content_type || "text/plain";
 
-    if (contentType.includes("text/") || contentType.includes("json") || contentType.includes("csv") || contentType.includes("xml") || contentType.includes("yaml")) {
-      rawText = await fileData.text();
-    } else {
+    if (contentType.includes("pdf")) {
       const arrayBuffer = await fileData.arrayBuffer();
-      const decoder = new TextDecoder("utf-8", { fatal: false });
-      const rawContent = decoder.decode(arrayBuffer);
-      rawText = extractTextFromContent(rawContent, contentType);
+      const pdf = await getDocumentProxy(new Uint8Array(arrayBuffer));
+      const { text: pdfText } = await extractText(pdf, { mergePages: true });
+      rawText = pdfText;
+    } else {
+      rawText = await fileData.text();
     }
 
     if (!rawText || rawText.trim().length < 10) {
