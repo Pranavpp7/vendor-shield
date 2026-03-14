@@ -56,7 +56,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     if (!assessmentId) return;
     const { data } = await supabase
       .from("documents")
-      .select("id, file_name, file_size, status, created_at")
+      .select("id, file_name, file_size, status, storage_path, created_at")
       .eq("assessment_id", assessmentId)
       .order("created_at", { ascending: false });
     if (data) setDocuments(data as DocumentRecord[]);
