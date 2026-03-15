@@ -10,7 +10,7 @@ type Props = {
   revealedCount?: number;
   uploadedFiles?: UploadedFile[];
   links?: string[];
-  onNavigateToDocs?: () => void;
+  onNavigateToDocs?: (evidenceSource?: string) => void;
   onRerunChecklist?: () => void;
   rerunning?: boolean;
 };
