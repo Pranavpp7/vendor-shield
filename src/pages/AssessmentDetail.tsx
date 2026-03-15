@@ -27,6 +27,7 @@ export default function AssessmentDetail() {
   const { getAssessmentBySlug, updateAssessment } = useAssessments();
   const { user } = useAuth();
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const { allControls: checklistAllControls } = useChecklistSchema();
   const [rerunning, setRerunning] = useState(false);
   const [activeTab, setActiveTab] = useState("checklist");
   const [highlightDoc, setHighlightDoc] = useState<string | null>(null);
