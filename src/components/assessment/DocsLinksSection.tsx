@@ -430,7 +430,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {(assessmentId ? documents.length === 0 : files.length === 0) && (
+            {(assessmentId ? documents.filter(d => d.source_type !== 'url').length === 0 : files.length === 0) && (
               <p className="text-xs text-muted-foreground text-center py-4">No documents uploaded yet</p>
             )}
 
