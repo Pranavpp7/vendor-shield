@@ -440,9 +440,19 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                 return (
                   <div key={doc.id} ref={(el) => { if (el) fileRefs.current.set(i, el); else fileRefs.current.delete(i); }} className={`flex items-center justify-between p-2 rounded-md text-sm group transition-all duration-500 ${highlightedIndex === i ? "bg-accent/20 ring-2 ring-accent/40" : "bg-muted/50"}`}>
                     <div className="flex items-center gap-2 min-w-0">
-                      <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      <span className="truncate">{doc.file_name}</span>
-                      <span className="text-xs text-muted-foreground">({((doc.file_size || 0) / 1024).toFixed(1)} KB)</span>
+                      {doc.source_type === "url" ? (
+                        <Globe className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+                      ) : (
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      )}
+                      {doc.source_type === "url" && doc.source_url ? (
+                        <a href={doc.source_url} target="_blank" rel="noopener noreferrer" className="truncate text-accent hover:underline text-xs">{doc.file_name}</a>
+                      ) : (
+                        <span className="truncate">{doc.file_name}</span>
+                      )}
+                      {doc.source_type !== "url" && (
+                        <span className="text-xs text-muted-foreground">({((doc.file_size || 0) / 1024).toFixed(1)} KB)</span>
+                      )}
                       {doc.created_at && (
                         <span className="text-[10px] text-muted-foreground/70" title={new Date(doc.created_at).toLocaleString()}>
                           {new Date(doc.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}{' '}
