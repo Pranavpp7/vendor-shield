@@ -131,13 +131,43 @@ export default function NewAssessment() {
     navigate("/assessments");
   };
 
+  const [statusMessage, setStatusMessage] = useState("");
+
+  const waitForDocumentsReady = async (assessmentId: string, maxWaitMs = 120000) => {
+    const pollInterval = 3000;
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      const { data: docs } = await supabase
+        .from("documents")
+        .select("id, status")
+        .eq("assessment_id", assessmentId);
+      if (!docs || docs.length === 0) return true;
+      const pending = docs.filter((d) => d.status !== "ready" && d.status !== "error");
+      if (pending.length === 0) return true;
+      setStatusMessage(`Indexing documents… (${docs.length - pending.length}/${docs.length} ready)`);
+      await new Promise((r) => setTimeout(r, pollInterval));
+    }
+    return false;
+  };
+
   const startAssessment = async () => {
     setLoading(true);
     const id = draftId || vendorNameToSlug(vendorName);
 
     // Upload files to storage first
+    setStatusMessage("Uploading files…");
     await uploadFilesToStorage(id);
 
+    // Wait for documents to be indexed before running AI checklist
+    if (rawFiles.length > 0) {
+      setStatusMessage("Waiting for documents to be indexed…");
+      const allReady = await waitForDocumentsReady(id);
+      if (!allReady) {
+        toast({ title: "Some documents still indexing", description: "The checklist will run with available data. You can re-run it later from the assessment page." });
+      }
+    }
+
+    setStatusMessage("Running AI checklist…");
     const allControls = checklistSchema.flatMap((g) =>
       g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
     );
