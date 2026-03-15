@@ -312,7 +312,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
               const docRecord = documents.find(d => d.file_name === f.name);
               const isReprocessing = docRecord && reprocessingId === docRecord.id;
               return (
-                <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm group">
+                <div key={i} ref={(el) => { if (el) fileRefs.current.set(i, el); else fileRefs.current.delete(i); }} className={`flex items-center justify-between p-2 rounded-md text-sm group transition-all duration-500 ${highlightedIndex === i ? "bg-accent/20 ring-2 ring-accent/40" : "bg-muted/50"}`}>
                   <div className="flex items-center gap-2 min-w-0">
                     <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                     <span className="truncate">{f.name}</span>
