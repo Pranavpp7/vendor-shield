@@ -407,7 +407,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                       title="Delete document"
                       onClick={() => {
                         if (docRecord) {
-                          setDeleteTarget({ docId: docRecord.id, fileIndex: i, fileName: f.name });
+                          setDeleteTarget({ docId: docRecord.id, fileName: f.name });
                         } else {
                           onUpdateFiles(files.filter((_, j) => j !== i));
                         }
