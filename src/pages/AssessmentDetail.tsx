@@ -69,7 +69,6 @@ export default function AssessmentDetail() {
     }
   };
 
-  const assessment = getAssessmentBySlug(vendorSlug || "");
 
   if (!assessment) {
     return (
