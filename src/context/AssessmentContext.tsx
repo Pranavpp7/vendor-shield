@@ -106,12 +106,39 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteAssessment = async (id: string) => {
-    const { error } = await supabase.from("assessments").delete().eq("id", id);
-    if (error) {
-      console.error("Failed to delete assessment:", error);
-      return;
+    try {
+      // Get documents to delete storage files
+      const { data: docs } = await supabase
+        .from("documents")
+        .select("id, storage_path")
+        .eq("assessment_id", id);
+
+      // Delete document chunks for all documents
+      if (docs && docs.length > 0) {
+        const docIds = docs.map(d => d.id);
+        await supabase.from("document_chunks").delete().in("document_id", docIds);
+
+        // Delete storage files
+        const storagePaths = docs.map(d => d.storage_path).filter(Boolean) as string[];
+        if (storagePaths.length > 0) {
+          await supabase.storage.from("vendor-documents").remove(storagePaths);
+        }
+      }
+
+      // Delete documents
+      await supabase.from("documents").delete().eq("assessment_id", id);
+
+      // Delete assessment runs
+      await supabase.from("assessment_runs").delete().eq("assessment_id", id);
+
+      // Delete the assessment itself
+      const { error } = await supabase.from("assessments").delete().eq("id", id);
+      if (error) throw error;
+
+      setAssessments((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      console.error("Failed to delete assessment:", err);
     }
-    setAssessments((prev) => prev.filter((a) => a.id !== id));
   };
 
   const getAssessment = (id: string) => assessments.find((a) => a.id === id);

@@ -257,9 +257,9 @@ export default function Assessments() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Assessment</AlertDialogTitle>
+                                <AlertDialogTitle>Permanently Delete Assessment</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Delete the assessment for <strong>{a.vendorName}</strong>? This cannot be undone.
+                                  This will permanently delete the assessment for <strong>{a.vendorName}</strong>, including all uploaded documents, indexed data, and run history. This action cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -268,7 +268,7 @@ export default function Assessments() {
                                   onClick={() => deleteAssessment(a.id)}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >
-                                  Delete
+                                  Delete Permanently
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
