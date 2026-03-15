@@ -555,7 +555,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <LinkIcon className="h-4 w-4" /> Links ({links.length})
+              <LinkIcon className="h-4 w-4" /> Links ({assessmentId ? documents.filter(d => d.source_type === "url").length : links.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -571,8 +571,11 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                 <Plus className="h-3 w-3" />
               </Button>
             </div>
-            {links.length === 0 && (
+            {!assessmentId && links.length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-4">No links added yet</p>
+            )}
+            {assessmentId && documents.filter(d => d.source_type === "url").length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">No links added yet. URLs will appear in the Documents list once indexed.</p>
             )}
             {links.map((l, i) => (
               <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm group">
