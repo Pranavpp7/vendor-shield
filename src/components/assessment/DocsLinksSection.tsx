@@ -122,7 +122,23 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     if (!data || requestSeq !== loadSeqRef.current) return;
 
     const typed = data as DocumentRecord[];
-    setDocuments(typed);
+
+    setDocuments((prev) => {
+      const unresolvedOptimistic = prev.filter(
+        (doc) =>
+          doc.id.startsWith("temp-") &&
+          !typed.some(
+            (serverDoc) =>
+              serverDoc.file_name === doc.file_name &&
+              (serverDoc.file_size || 0) === (doc.file_size || 0)
+          )
+      );
+
+      return [...unresolvedOptimistic, ...typed].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    });
+
     onUpdateFiles(
       typed.map((d) => ({
         name: d.file_name,
