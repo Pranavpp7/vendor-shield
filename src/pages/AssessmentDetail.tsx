@@ -127,7 +127,7 @@ export default function AssessmentDetail() {
           </Card>
         </div>
 
-        <Tabs defaultValue="checklist" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="checklist">Checklist</TabsTrigger>
             <TabsTrigger value="docs" data-value="docs">Documents & Links</TabsTrigger>
