@@ -24,6 +24,7 @@ export default function AssessmentDetail() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [rerunning, setRerunning] = useState(false);
   const [activeTab, setActiveTab] = useState("checklist");
+  const [highlightDoc, setHighlightDoc] = useState<string | null>(null);
 
   const handleRerunChecklist = async () => {
     if (!assessment) return;
