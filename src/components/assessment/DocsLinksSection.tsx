@@ -46,7 +46,7 @@ type Props = {
   onClearHighlight?: () => void;
 };
 
-export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId, onRerunChecklist }: Props) {
+export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId, onRerunChecklist, highlightDoc, onClearHighlight }: Props) {
   const { user } = useAuth();
   const [linkInput, setLinkInput] = useState("");
   const [editingLink, setEditingLink] = useState<number | null>(null);
@@ -58,6 +58,28 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
+  const fileRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // Handle highlight from evidence source click
+  useEffect(() => {
+    if (!highlightDoc) return;
+    const idx = files.findIndex(f => f.name.toLowerCase().includes(highlightDoc.toLowerCase()) || highlightDoc.toLowerCase().includes(f.name.toLowerCase()));
+    if (idx !== -1) {
+      setHighlightedIndex(idx);
+      setTimeout(() => {
+        fileRefs.current.get(idx)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      // Clear highlight after 3 seconds
+      const timer = setTimeout(() => {
+        setHighlightedIndex(null);
+        onClearHighlight?.();
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else {
+      onClearHighlight?.();
+    }
+  }, [highlightDoc]);
 
   useEffect(() => {
     if (!assessmentId) return;
