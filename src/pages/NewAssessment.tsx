@@ -21,6 +21,7 @@ export default function NewAssessment() {
   const { addAssessment, getAssessment, updateAssessment } = useAssessments();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { allControls: checklistAllControls } = useChecklistSchema();
   const [draftId, setDraftId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [vendorName, setVendorName] = useState("");
