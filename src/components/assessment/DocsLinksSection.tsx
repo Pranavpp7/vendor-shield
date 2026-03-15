@@ -402,7 +402,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Documents ({assessmentId ? documents.length : files.length})
+                <FileText className="h-4 w-4" /> Documents ({assessmentId ? documents.filter(d => d.source_type !== 'url').length : files.length})
               </CardTitle>
               {assessmentId && documents.length > 0 && (
                 <IndexingPipelineFlow assessmentId={assessmentId} documents={documents.map(d => ({ id: d.id, file_name: d.file_name, status: d.status }))} />
