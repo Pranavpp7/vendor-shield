@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, FileText, AlertCircle, Loader2, Info, History } from "lucide-react";
 import { ChatMessage } from "@/types/assessment";
-import { checklistSchema } from "@/data/checklistSchema";
+import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
 import { saveRunSnapshot } from "@/lib/runHistory";
 import { toast } from "sonner";

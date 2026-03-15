@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { vendorNameToSlug } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
-import { checklistSchema } from "@/data/checklistSchema";
+import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
 import { saveRunSnapshot } from "@/lib/runHistory";
 import { Button } from "@/components/ui/button";

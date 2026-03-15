@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
-import { checklistSchema } from "@/data/checklistSchema";
+import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
 import { saveRunSnapshot } from "@/lib/runHistory";
 import { toast } from "sonner";
