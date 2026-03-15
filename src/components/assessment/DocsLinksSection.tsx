@@ -303,21 +303,30 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     e.target.value = "";
   };
 
-  const reprocessDocument = async (docId: string, fileName: string) => {
-    setReprocessingId(docId);
+  const reprocessDocument = async (doc: DocumentRecord) => {
+    setReprocessingId(doc.id);
     try {
-      await supabase.from("documents").update({ status: "pending" }).eq("id", docId);
-      loadDocuments();
-
-      const { error } = await supabase.functions.invoke("parse-document", {
-        body: { documentId: docId },
-      });
-
-      if (error) throw error;
-      toast.success(`Re-processing ${fileName}`);
+      if (doc.source_type === "url" && doc.source_url) {
+        // For URL docs, delete old record + chunks and re-submit to parse-url
+        await supabase.from("document_chunks").delete().eq("document_id", doc.id);
+        await supabase.from("documents").delete().eq("id", doc.id);
+        const { error } = await supabase.functions.invoke("parse-url", {
+          body: { url: doc.source_url, assessmentId: assessmentId, userId: user?.id },
+        });
+        if (error) throw error;
+        toast.success(`Re-processing ${doc.source_url}`);
+      } else {
+        await supabase.from("documents").update({ status: "pending" }).eq("id", doc.id);
+        loadDocuments();
+        const { error } = await supabase.functions.invoke("parse-document", {
+          body: { documentId: doc.id },
+        });
+        if (error) throw error;
+        toast.success(`Re-processing ${doc.file_name}`);
+      }
     } catch (err: any) {
       console.error("Reprocess error:", err);
-      toast.error(`Failed to re-process ${fileName}: ${err.message}`);
+      toast.error(`Failed to re-process: ${err.message}`);
     } finally {
       setReprocessingId(null);
       loadDocuments();
