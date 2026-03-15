@@ -268,7 +268,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
       case "ready":
         return <Badge variant="outline" className="text-[10px] gap-1 text-risk-low border-risk-low/30"><CheckCircle className="h-2.5 w-2.5" />Indexed</Badge>;
       case "processing":
-        return <Badge variant="outline" className="text-[10px] gap-1 text-amber-500 border-amber-500/30"><Loader2 className="h-2.5 w-2.5 animate-spin" />Processing</Badge>;
+        return <Badge variant="outline" className="text-[10px] gap-1 text-accent border-accent/30"><Loader2 className="h-2.5 w-2.5 animate-spin" />Processing</Badge>;
       case "pending":
         return <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground"><Loader2 className="h-2.5 w-2.5 animate-spin" />Pending</Badge>;
       case "error":
@@ -303,7 +303,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Documents ({files.length})
+                <FileText className="h-4 w-4" /> Documents ({assessmentId ? documents.length : files.length})
               </CardTitle>
               {assessmentId && documents.length > 0 && (
                 <IndexingPipelineFlow assessmentId={assessmentId} documents={documents.map(d => ({ id: d.id, file_name: d.file_name, status: d.status }))} />
@@ -331,94 +331,109 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {files.length === 0 && (
+            {(assessmentId ? documents.length === 0 : files.length === 0) && (
               <p className="text-xs text-muted-foreground text-center py-4">No documents uploaded yet</p>
             )}
-            {files.map((f, i) => {
-              const docRecord = documents.find(d => d.file_name === f.name);
-              const isReprocessing = docRecord && reprocessingId === docRecord.id;
-              return (
-                <div key={i} ref={(el) => { if (el) fileRefs.current.set(i, el); else fileRefs.current.delete(i); }} className={`flex items-center justify-between p-2 rounded-md text-sm group transition-all duration-500 ${highlightedIndex === i ? "bg-accent/20 ring-2 ring-accent/40" : "bg-muted/50"}`}>
+
+            {assessmentId ? (
+              documents.map((doc, i) => {
+                const isReprocessing = reprocessingId === doc.id;
+                return (
+                  <div key={doc.id} ref={(el) => { if (el) fileRefs.current.set(i, el); else fileRefs.current.delete(i); }} className={`flex items-center justify-between p-2 rounded-md text-sm group transition-all duration-500 ${highlightedIndex === i ? "bg-accent/20 ring-2 ring-accent/40" : "bg-muted/50"}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate">{doc.file_name}</span>
+                      <span className="text-xs text-muted-foreground">({((doc.file_size || 0) / 1024).toFixed(1)} KB)</span>
+                      {statusBadge(doc.status)}
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {doc.storage_path && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            title="Preview document"
+                            disabled={previewLoading}
+                            onClick={async () => {
+                              setPreviewLoading(true);
+                              setPreviewName(doc.file_name);
+                              const { data, error } = await supabase.storage
+                                .from("vendor-documents")
+                                .createSignedUrl(doc.storage_path!, 300);
+                              setPreviewLoading(false);
+                              if (error || !data?.signedUrl) {
+                                toast.error("Failed to load preview");
+                                return;
+                              }
+                              setPreviewUrl(data.signedUrl);
+                            }}
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            title="Download document"
+                            onClick={async () => {
+                              const { data, error } = await supabase.storage.from("vendor-documents").download(doc.storage_path!);
+                              if (error || !data) { toast.error("Download failed"); return; }
+                              const url = URL.createObjectURL(data);
+                              const a = document.createElement("a");
+                              a.href = url; a.download = doc.file_name; a.click();
+                              URL.revokeObjectURL(url);
+                            }}
+                          >
+                            <Download className="h-3 w-3" />
+                          </Button>
+                        </>
+                      )}
+                      {(doc.status === "error" || doc.status === "ready") && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          title="Re-process document"
+                          disabled={!!isReprocessing}
+                          onClick={() => reprocessDocument(doc.id, doc.file_name)}
+                        >
+                          <RefreshCw className={`h-3 w-3 ${isReprocessing ? "animate-spin" : ""}`} />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive hover:text-destructive"
+                        title="Delete document"
+                        onClick={() => setDeleteTarget({ docId: doc.id, fileName: doc.file_name })}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              files.map((f, i) => (
+                <div key={`${f.name}-${i}`} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm">
                   <div className="flex items-center gap-2 min-w-0">
                     <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                     <span className="truncate">{f.name}</span>
                     <span className="text-xs text-muted-foreground">({(f.size / 1024).toFixed(1)} KB)</span>
-                    {docRecord && statusBadge(docRecord.status)}
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {docRecord?.storage_path && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          title="Preview document"
-                          disabled={previewLoading}
-                          onClick={async () => {
-                            setPreviewLoading(true);
-                            setPreviewName(f.name);
-                            const { data, error } = await supabase.storage
-                              .from("vendor-documents")
-                              .createSignedUrl(docRecord.storage_path!, 300);
-                            setPreviewLoading(false);
-                            if (error || !data?.signedUrl) {
-                              toast.error("Failed to load preview");
-                              return;
-                            }
-                            setPreviewUrl(data.signedUrl);
-                          }}
-                        >
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          title="Download document"
-                          onClick={async () => {
-                            const { data, error } = await supabase.storage.from("vendor-documents").download(docRecord.storage_path!);
-                            if (error || !data) { toast.error("Download failed"); return; }
-                            const url = URL.createObjectURL(data);
-                            const a = document.createElement("a");
-                            a.href = url; a.download = f.name; a.click();
-                            URL.revokeObjectURL(url);
-                          }}
-                        >
-                          <Download className="h-3 w-3" />
-                        </Button>
-                      </>
-                    )}
-                    {docRecord && (docRecord.status === "error" || docRecord.status === "ready") && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        title="Re-process document"
-                        disabled={!!isReprocessing}
-                        onClick={() => reprocessDocument(docRecord.id, f.name)}
-                      >
-                        <RefreshCw className={`h-3 w-3 ${isReprocessing ? "animate-spin" : ""}`} />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-destructive hover:text-destructive"
-                      title="Delete document"
-                      onClick={() => {
-                        if (docRecord) {
-                          setDeleteTarget({ docId: docRecord.id, fileName: f.name });
-                        } else {
-                          onUpdateFiles(files.filter((_, j) => j !== i));
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-destructive hover:text-destructive"
+                    title="Delete document"
+                    onClick={() => onUpdateFiles(files.filter((_, j) => j !== i))}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 </div>
-              );
-            })}
+              ))
+            )}
           </CardContent>
         </Card>
 
