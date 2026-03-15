@@ -193,6 +193,11 @@ export default function NewAssessment() {
     if (draftId) await updateAssessment(draftId, assessmentData);
     else await addAssessment(assessmentData);
 
+    // Save run snapshot for history tracking
+    if (user) {
+      await saveRunSnapshot(id, user.id, result.score, result.riskLevel, result.controls);
+    }
+
     navigate(`/assessments/${id}`);
   };
 
