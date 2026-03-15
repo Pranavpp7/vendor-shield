@@ -153,7 +153,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
 
     setUploading(true);
     const selectedFiles = Array.from(e.target.files);
-    const newFiles: { name: string; size: string | number }[] = [];
+    const newFiles: { name: string; size: number }[] = [];
 
     // Upload all files in parallel
     const uploadPromises = selectedFiles.map(async (file) => {
