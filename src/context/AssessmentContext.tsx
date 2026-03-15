@@ -105,35 +105,65 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const deleteStorageFilesByPrefix = async (prefix: string) => {
+    const storage = supabase.storage.from("vendor-documents");
+
+    while (true) {
+      const { data: listed, error: listError } = await storage.list(prefix, { limit: 100 });
+      if (listError) throw listError;
+      if (!listed || listed.length === 0) break;
+
+      const paths = listed
+        .filter((item) => Boolean(item.name))
+        .map((item) => `${prefix}/${item.name}`);
+
+      if (paths.length === 0) break;
+
+      const { error: removeError } = await storage.remove(paths);
+      if (removeError) throw removeError;
+
+      if (listed.length < 100) break;
+    }
+  };
+
   const deleteAssessment = async (id: string) => {
     try {
-      // Get documents to delete storage files
-      const { data: docs } = await supabase
+      // Delete all files in the assessment folder first, including orphaned files
+      await deleteStorageFilesByPrefix(id);
+
+      // Get documents to delete chunk records
+      const { data: docs, error: docsFetchError } = await supabase
         .from("documents")
-        .select("id, storage_path")
+        .select("id")
         .eq("assessment_id", id);
+      if (docsFetchError) throw docsFetchError;
 
-      // Delete document chunks for all documents
       if (docs && docs.length > 0) {
-        const docIds = docs.map(d => d.id);
-        await supabase.from("document_chunks").delete().in("document_id", docIds);
-
-        // Delete storage files
-        const storagePaths = docs.map(d => d.storage_path).filter(Boolean) as string[];
-        if (storagePaths.length > 0) {
-          await supabase.storage.from("vendor-documents").remove(storagePaths);
-        }
+        const docIds = docs.map((d) => d.id);
+        const { error: chunksDeleteError } = await supabase
+          .from("document_chunks")
+          .delete()
+          .in("document_id", docIds);
+        if (chunksDeleteError) throw chunksDeleteError;
       }
 
-      // Delete documents
-      await supabase.from("documents").delete().eq("assessment_id", id);
+      const { error: docsDeleteError } = await supabase
+        .from("documents")
+        .delete()
+        .eq("assessment_id", id);
+      if (docsDeleteError) throw docsDeleteError;
 
-      // Delete assessment runs
-      await supabase.from("assessment_runs").delete().eq("assessment_id", id);
+      const { error: runsDeleteError } = await supabase
+        .from("assessment_runs")
+        .delete()
+        .eq("assessment_id", id);
+      if (runsDeleteError) throw runsDeleteError;
 
-      // Delete the assessment itself
-      const { error } = await supabase.from("assessments").delete().eq("id", id);
-      if (error) throw error;
+      const { error: assessmentDeleteError } = await supabase
+        .from("assessments")
+        .delete()
+        .eq("id", id);
+      if (assessmentDeleteError) throw assessmentDeleteError;
 
       setAssessments((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
