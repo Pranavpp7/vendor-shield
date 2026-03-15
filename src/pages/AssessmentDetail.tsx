@@ -23,6 +23,7 @@ export default function AssessmentDetail() {
   const { getAssessmentBySlug, updateAssessment } = useAssessments();
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [rerunning, setRerunning] = useState(false);
+  const [activeTab, setActiveTab] = useState("checklist");
 
   const handleRerunChecklist = async () => {
     if (!assessment) return;
@@ -126,7 +127,7 @@ export default function AssessmentDetail() {
           </Card>
         </div>
 
-        <Tabs defaultValue="checklist" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="checklist">Checklist</TabsTrigger>
             <TabsTrigger value="docs" data-value="docs">Documents & Links</TabsTrigger>
@@ -142,8 +143,7 @@ export default function AssessmentDetail() {
                   uploadedFiles={assessment.uploadedFiles}
                   links={assessment.links}
                   onNavigateToDocs={() => {
-                    const docsTab = document.querySelector('[data-value="docs"]') as HTMLButtonElement;
-                    docsTab?.click();
+                    setActiveTab("docs");
                   }}
                   onRerunChecklist={handleRerunChecklist}
                   rerunning={rerunning}
