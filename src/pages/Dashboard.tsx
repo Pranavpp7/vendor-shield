@@ -30,6 +30,7 @@ import { useAuth } from "@/context/AuthContext";
 export default function Dashboard() {
   const navigate = useNavigate();
   const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
+  const { user } = useAuth();
   const [rerunningId, setRerunningId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [riskFilter, setRiskFilter] = useState<string>("all");
