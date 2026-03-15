@@ -65,8 +65,7 @@ export default function Dashboard() {
     setRerunningId(id);
     try {
       await updateAssessment(id, { status: "Running" });
-      const allCtrl = checklistAllControls;
-      const result = await generateChecklistFromAI(assessment.vendorName, allControls, id);
+      const result = await generateChecklistFromAI(assessment.vendorName, checklistAllControls, id);
       await updateAssessment(id, {
         controls: result.controls,
         score: result.score,
