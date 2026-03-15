@@ -23,6 +23,7 @@ export default function AssessmentDetail() {
   const { getAssessmentBySlug, updateAssessment } = useAssessments();
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [rerunning, setRerunning] = useState(false);
+  const [activeTab, setActiveTab] = useState("checklist");
 
   const handleRerunChecklist = async () => {
     if (!assessment) return;
