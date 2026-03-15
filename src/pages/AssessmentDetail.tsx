@@ -25,11 +25,13 @@ export default function AssessmentDetail() {
   const { vendorSlug } = useParams();
   const navigate = useNavigate();
   const { getAssessmentBySlug, updateAssessment } = useAssessments();
+  const { user } = useAuth();
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [rerunning, setRerunning] = useState(false);
   const [activeTab, setActiveTab] = useState("checklist");
   const [highlightDoc, setHighlightDoc] = useState<string | null>(null);
   const [docsStillIndexing, setDocsStillIndexing] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
 
   const assessment = getAssessmentBySlug(vendorSlug || "");
 
