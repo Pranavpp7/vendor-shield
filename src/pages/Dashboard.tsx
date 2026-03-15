@@ -31,6 +31,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
   const { user } = useAuth();
+  const { allControls: checklistAllControls } = useChecklistSchema();
   const [rerunningId, setRerunningId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [riskFilter, setRiskFilter] = useState<string>("all");
