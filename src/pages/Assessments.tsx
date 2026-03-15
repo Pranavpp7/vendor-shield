@@ -19,15 +19,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Plus, Search, Eye, Trash2, FileEdit, SortAsc, SortDesc,
+  Plus, Search, Eye, Trash2, FileEdit, SortAsc, SortDesc, RotateCcw, Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
+import { checklistSchema } from "@/data/checklistSchema";
+import { generateChecklistFromAI } from "@/lib/api";
+import { toast } from "sonner";
 
 type SortKey = "vendorName" | "score" | "createdAt";
 
 export default function Assessments() {
   const navigate = useNavigate();
-  const { assessments, deleteAssessment } = useAssessments();
+  const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
+  const [rerunningId, setRerunningId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");

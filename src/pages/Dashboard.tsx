@@ -18,12 +18,17 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp } from "lucide-react";
+import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp, RotateCcw, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
+import { checklistSchema } from "@/data/checklistSchema";
+import { generateChecklistFromAI } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { assessments, deleteAssessment } = useAssessments();
+  const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
+  const [rerunningId, setRerunningId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [riskFilter, setRiskFilter] = useState<string>("all");
   const [compareOpen, setCompareOpen] = useState(false);
