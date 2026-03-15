@@ -64,9 +64,7 @@ export default function Dashboard() {
     setRerunningId(id);
     try {
       await updateAssessment(id, { status: "Running" });
-      const allControls = checklistSchema.flatMap((g) =>
-        g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
-      );
+      const allCtrl = checklistAllControls;
       const result = await generateChecklistFromAI(assessment.vendorName, allControls, id);
       await updateAssessment(id, {
         controls: result.controls,
