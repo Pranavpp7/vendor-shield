@@ -26,6 +26,27 @@ export default function AssessmentDetail() {
   const [rerunning, setRerunning] = useState(false);
   const [activeTab, setActiveTab] = useState("checklist");
   const [highlightDoc, setHighlightDoc] = useState<string | null>(null);
+  const [docsStillIndexing, setDocsStillIndexing] = useState(false);
+
+  const assessment = getAssessmentBySlug(vendorSlug || "");
+
+  // Check if any documents are still being indexed
+  useEffect(() => {
+    if (!assessment) return;
+    const checkIndexing = async () => {
+      const { data: docs } = await supabase
+        .from("documents")
+        .select("id, status")
+        .eq("assessment_id", assessment.id);
+      if (docs && docs.length > 0) {
+        const pending = docs.filter((d) => d.status !== "ready" && d.status !== "error");
+        setDocsStillIndexing(pending.length > 0);
+      }
+    };
+    checkIndexing();
+    const interval = setInterval(checkIndexing, 5000);
+    return () => clearInterval(interval);
+  }, [assessment?.id]);
 
   const handleRerunChecklist = async () => {
     if (!assessment) return;
