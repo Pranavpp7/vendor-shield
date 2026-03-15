@@ -167,9 +167,10 @@ Always respond with valid JSON only, no markdown code blocks.` + controlEvidence
         : `You are generating a preliminary vendor security checklist assessment. No documents have been uploaded yet, so mark most controls as "needs_info" since there is no evidence to evaluate.
 RULES:
 - Without documents, most controls should be "needs_info" status.
-- Only mark obviously publicly verifiable items (like well-known certifications) as "passed" if the vendor is well-known.
-- In the aiExplanation, note that no supporting documents have been provided.
-- Set evidenceSource to "No documents uploaded".
+- Only mark obviously publicly verifiable items (like well-known certifications or publicly documented product features) as "passed" if the vendor is well-known AND you can cite a specific public source.
+- When marking a control as "passed" based on public knowledge, you MUST set evidenceSource to a real, valid public URL where this information can be verified (e.g., the vendor's official documentation page, trust/security page, or compliance page). For example: "https://www.darwinbox.com/security" or "https://trust.servicenow.com".
+- When a control is "needs_info", set evidenceSource to "No documents uploaded".
+- In the aiExplanation, clearly state this is based on publicly available information and cite the source.
 Always respond with valid JSON only, no markdown code blocks.`;
 
       messages = [
