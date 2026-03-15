@@ -320,7 +320,7 @@ export default function NewAssessment() {
                   {loading || uploading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {uploading ? "Uploading Files…" : "Running Assessment…"}
+                      {statusMessage || (uploading ? "Uploading Files…" : "Running Assessment…")}
                     </>
                   ) : (
                     "Start Assessment"
