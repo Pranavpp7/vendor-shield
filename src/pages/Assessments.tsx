@@ -19,15 +19,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Plus, Search, Eye, Trash2, FileEdit, SortAsc, SortDesc,
+  Plus, Search, Eye, Trash2, FileEdit, SortAsc, SortDesc, RotateCcw, Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
+import { checklistSchema } from "@/data/checklistSchema";
+import { generateChecklistFromAI } from "@/lib/api";
+import { toast } from "sonner";
 
 type SortKey = "vendorName" | "score" | "createdAt";
 
 export default function Assessments() {
   const navigate = useNavigate();
-  const { assessments, deleteAssessment } = useAssessments();
+  const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
+  const [rerunningId, setRerunningId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -38,6 +43,30 @@ export default function Assessments() {
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc((p) => !p);
     else { setSortKey(key); setSortAsc(true); }
+  };
+
+  const handleRerun = async (id: string) => {
+    const assessment = assessments.find((a) => a.id === id);
+    if (!assessment) return;
+    setRerunningId(id);
+    try {
+      await updateAssessment(id, { status: "Running" });
+      const allControls = checklistSchema.flatMap((g) =>
+        g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
+      );
+      const result = await generateChecklistFromAI(assessment.vendorName, allControls, id);
+      await updateAssessment(id, {
+        controls: result.controls,
+        score: result.score,
+        riskLevel: result.riskLevel as "Low" | "Medium" | "High",
+        status: "Completed",
+      });
+      toast.success(`Re-run complete for ${assessment.vendorName}`);
+    } catch {
+      toast.error("Failed to re-run assessment.");
+    } finally {
+      setRerunningId(null);
+    }
   };
 
   const filtered = useMemo(() => {
@@ -131,6 +160,21 @@ export default function Assessments() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <Card className="shadow-sm">
             <CardContent className="p-0">
+              {loading ? (
+                <div className="space-y-3 p-6">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-4 flex-1" />
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -181,6 +225,21 @@ export default function Assessments() {
                               View
                             </Button>
                           )}
+                          {a.status === "Completed" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={rerunningId === a.id}
+                              onClick={() => handleRerun(a.id)}
+                              className="text-muted-foreground hover:text-accent"
+                            >
+                              {rerunningId === a.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RotateCcw className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
@@ -221,6 +280,7 @@ export default function Assessments() {
                   )}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </motion.div>

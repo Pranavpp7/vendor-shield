@@ -18,12 +18,17 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp } from "lucide-react";
+import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp, RotateCcw, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
+import { checklistSchema } from "@/data/checklistSchema";
+import { generateChecklistFromAI } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { assessments, deleteAssessment } = useAssessments();
+  const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
+  const [rerunningId, setRerunningId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [riskFilter, setRiskFilter] = useState<string>("all");
   const [compareOpen, setCompareOpen] = useState(false);
@@ -48,6 +53,30 @@ export default function Dashboard() {
   const handleDelete = (id: string) => {
     deleteAssessment(id);
     setSelectedIds((prev) => prev.filter((x) => x !== id));
+  };
+
+  const handleRerun = async (id: string) => {
+    const assessment = assessments.find((a) => a.id === id);
+    if (!assessment) return;
+    setRerunningId(id);
+    try {
+      await updateAssessment(id, { status: "Running" });
+      const allControls = checklistSchema.flatMap((g) =>
+        g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
+      );
+      const result = await generateChecklistFromAI(assessment.vendorName, allControls, id);
+      await updateAssessment(id, {
+        controls: result.controls,
+        score: result.score,
+        riskLevel: result.riskLevel as "Low" | "Medium" | "High",
+        status: "Completed",
+      });
+      toast.success(`Re-run complete for ${assessment.vendorName}`);
+    } catch {
+      toast.error("Failed to re-run assessment.");
+    } finally {
+      setRerunningId(null);
+    }
   };
 
   const statCards = [
@@ -122,6 +151,21 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
+            {loading ? (
+              <div className="space-y-3 py-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                ))}
+              </div>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -170,6 +214,21 @@ export default function Dashboard() {
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
+                        {a.status === "Completed" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={rerunningId === a.id}
+                            onClick={() => handleRerun(a.id)}
+                            className="text-muted-foreground hover:text-accent"
+                          >
+                            {rerunningId === a.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
@@ -211,6 +270,7 @@ export default function Dashboard() {
                 )}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
       </div>
