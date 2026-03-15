@@ -180,10 +180,28 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     return () => clearInterval(interval);
   }, [documents]);
 
-  const addLink = () => {
-    if (linkInput.trim()) {
-      onUpdateLinks([...links, linkInput.trim()]);
-      setLinkInput("");
+  const addLink = async () => {
+    const url = linkInput.trim();
+    if (!url) return;
+    setLinkInput("");
+
+    if (assessmentId && user) {
+      // Submit to parse-url edge function — it creates the document record
+      toast.info(`Submitting ${url} for indexing…`);
+      try {
+        const { error } = await supabase.functions.invoke("parse-url", {
+          body: { url, assessmentId, userId: user.id },
+        });
+        if (error) throw error;
+        toast.success(`URL submitted for indexing`);
+        loadDocuments();
+      } catch (err: any) {
+        console.error("parse-url error:", err);
+        toast.error(`Failed to index URL: ${err.message}`);
+      }
+    } else {
+      // Pre-creation: just store in local links array
+      onUpdateLinks([...links, url]);
     }
   };
 
