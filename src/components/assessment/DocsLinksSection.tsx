@@ -435,7 +435,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             )}
 
             {assessmentId ? (
-              documents.map((doc, i) => {
+              documents.filter(d => d.source_type !== 'url').map((doc, i) => {
                 const isReprocessing = reprocessingId === doc.id;
                 return (
                   <div key={doc.id} ref={(el) => { if (el) fileRefs.current.set(i, el); else fileRefs.current.delete(i); }} className={`flex items-center justify-between p-2 rounded-md text-sm group transition-all duration-500 ${highlightedIndex === i ? "bg-accent/20 ring-2 ring-accent/40" : "bg-muted/50"}`}>
