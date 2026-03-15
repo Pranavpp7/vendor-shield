@@ -33,6 +33,8 @@ type DocumentRecord = {
   status: string;
   storage_path: string | null;
   created_at: string;
+  source_type?: string;
+  source_url?: string;
 };
 
 type Props = {
