@@ -10,7 +10,7 @@ type Props = {
   revealedCount?: number;
   uploadedFiles?: UploadedFile[];
   links?: string[];
-  onNavigateToDocs?: () => void;
+  onNavigateToDocs?: (evidenceSource?: string) => void;
   onRerunChecklist?: () => void;
   rerunning?: boolean;
 };
@@ -143,7 +143,7 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                                 className="flex items-center gap-1.5 mt-1 group/evidence cursor-pointer hover:opacity-80 transition-opacity"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onNavigateToDocs?.();
+                                  onNavigateToDocs?.(control.evidenceSource);
                                 }}
                               >
                                 <FileText className="h-3 w-3 text-muted-foreground" />

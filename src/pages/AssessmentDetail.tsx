@@ -24,6 +24,7 @@ export default function AssessmentDetail() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [rerunning, setRerunning] = useState(false);
   const [activeTab, setActiveTab] = useState("checklist");
+  const [highlightDoc, setHighlightDoc] = useState<string | null>(null);
 
   const handleRerunChecklist = async () => {
     if (!assessment) return;
@@ -142,7 +143,8 @@ export default function AssessmentDetail() {
                   controls={assessment.controls}
                   uploadedFiles={assessment.uploadedFiles}
                   links={assessment.links}
-                  onNavigateToDocs={() => {
+                  onNavigateToDocs={(evidenceSource) => {
+                    setHighlightDoc(evidenceSource || null);
                     setActiveTab("docs");
                   }}
                   onRerunChecklist={handleRerunChecklist}
@@ -168,6 +170,8 @@ export default function AssessmentDetail() {
               onUpdateLinks={(links) => updateAssessment(assessment.id, { links })}
               assessmentId={assessment.id}
               onRerunChecklist={handleRerunChecklist}
+              highlightDoc={highlightDoc}
+              onClearHighlight={() => setHighlightDoc(null)}
             />
           </TabsContent>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { UploadedFile } from "@/types/assessment";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,9 +42,11 @@ type Props = {
   onUpdateLinks: (links: string[]) => void;
   assessmentId?: string;
   onRerunChecklist?: () => void;
+  highlightDoc?: string | null;
+  onClearHighlight?: () => void;
 };
 
-export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId, onRerunChecklist }: Props) {
+export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId, onRerunChecklist, highlightDoc, onClearHighlight }: Props) {
   const { user } = useAuth();
   const [linkInput, setLinkInput] = useState("");
   const [editingLink, setEditingLink] = useState<number | null>(null);
@@ -56,6 +58,28 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
+  const fileRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // Handle highlight from evidence source click
+  useEffect(() => {
+    if (!highlightDoc) return;
+    const idx = files.findIndex(f => f.name.toLowerCase().includes(highlightDoc.toLowerCase()) || highlightDoc.toLowerCase().includes(f.name.toLowerCase()));
+    if (idx !== -1) {
+      setHighlightedIndex(idx);
+      setTimeout(() => {
+        fileRefs.current.get(idx)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      // Clear highlight after 3 seconds
+      const timer = setTimeout(() => {
+        setHighlightedIndex(null);
+        onClearHighlight?.();
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else {
+      onClearHighlight?.();
+    }
+  }, [highlightDoc]);
 
   useEffect(() => {
     if (!assessmentId) return;
@@ -288,7 +312,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
               const docRecord = documents.find(d => d.file_name === f.name);
               const isReprocessing = docRecord && reprocessingId === docRecord.id;
               return (
-                <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm group">
+                <div key={i} ref={(el) => { if (el) fileRefs.current.set(i, el); else fileRefs.current.delete(i); }} className={`flex items-center justify-between p-2 rounded-md text-sm group transition-all duration-500 ${highlightedIndex === i ? "bg-accent/20 ring-2 ring-accent/40" : "bg-muted/50"}`}>
                   <div className="flex items-center gap-2 min-w-0">
                     <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                     <span className="truncate">{f.name}</span>
