@@ -64,22 +64,27 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   // Handle highlight from evidence source click
   useEffect(() => {
     if (!highlightDoc) return;
-    const idx = files.findIndex(f => f.name.toLowerCase().includes(highlightDoc.toLowerCase()) || highlightDoc.toLowerCase().includes(f.name.toLowerCase()));
+    const idx = files.findIndex(f => {
+      const fName = f.name.toLowerCase();
+      const hl = highlightDoc.toLowerCase();
+      return fName.includes(hl) || hl.includes(fName);
+    });
     if (idx !== -1) {
       setHighlightedIndex(idx);
-      setTimeout(() => {
+      // Delay scroll to allow DOM to render refs
+      const scrollTimer = setTimeout(() => {
         fileRefs.current.get(idx)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
+      }, 300);
       // Clear highlight after 3 seconds
-      const timer = setTimeout(() => {
+      const clearTimer = setTimeout(() => {
         setHighlightedIndex(null);
         onClearHighlight?.();
       }, 3000);
-      return () => clearTimeout(timer);
+      return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer); };
     } else {
       onClearHighlight?.();
     }
-  }, [highlightDoc]);
+  }, [highlightDoc, files]);
 
   useEffect(() => {
     if (!assessmentId) return;
