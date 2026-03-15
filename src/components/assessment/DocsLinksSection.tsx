@@ -267,7 +267,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             status: "pending",
             user_id: user?.id,
           })
-          .select("id, file_name, file_size, status, storage_path, created_at")
+          .select("id, file_name, file_size, status, storage_path, created_at, source_type, source_url")
           .single();
 
         if (docErr || !docRecord) throw docErr || new Error("Failed to create document record");
