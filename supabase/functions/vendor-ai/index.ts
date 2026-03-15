@@ -74,10 +74,21 @@ async function retrievePerControlRAG(
       const { data: chunks } = await supabase.rpc("search_document_chunks", {
         p_assessment_id: assessmentId,
         p_query_embedding: JSON.stringify(embedding),
-        p_limit: 3,
+        p_limit: 24,
       });
+
       if (chunks && chunks.length > 0) {
-        return chunks.map((c: any) => `[${c.file_name}, Section ${c.chunk_index + 1}, ${(c.similarity * 100).toFixed(0)}% match]: ${c.content}`).join("\n");
+        const uniqueDocChunks = new Map<string, any>();
+        for (const chunk of chunks) {
+          if (!uniqueDocChunks.has(chunk.file_name)) {
+            uniqueDocChunks.set(chunk.file_name, chunk);
+          }
+          if (uniqueDocChunks.size >= 8) break;
+        }
+
+        return Array.from(uniqueDocChunks.values())
+          .map((c: any) => `[${c.file_name}, Section ${c.chunk_index + 1}, ${(c.similarity * 100).toFixed(0)}% match]: ${c.content}`)
+          .join("\n");
       }
     }
   } catch (err) {
