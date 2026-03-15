@@ -25,7 +25,9 @@ import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { checklistSchema } from "@/data/checklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
+import { saveRunSnapshot } from "@/lib/runHistory";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 type SortKey = "vendorName" | "score" | "createdAt";
 
