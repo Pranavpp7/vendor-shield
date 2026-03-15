@@ -64,22 +64,38 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   // Handle highlight from evidence source click
   useEffect(() => {
     if (!highlightDoc) return;
-    const idx = files.findIndex(f => f.name.toLowerCase().includes(highlightDoc.toLowerCase()) || highlightDoc.toLowerCase().includes(f.name.toLowerCase()));
+    // Skip non-file evidence sources
+    const skip = ["no evidence found", "no documents uploaded", "service unavailable", "parse error"];
+    if (skip.some(s => highlightDoc.toLowerCase().includes(s))) {
+      onClearHighlight?.();
+      return;
+    }
+    
+    const hl = highlightDoc.toLowerCase();
+    const idx = files.findIndex(f => {
+      const fName = f.name.toLowerCase();
+      // Match if either contains the other, or if the evidence source filename (without extension) matches
+      const hlBase = hl.replace(/\.[^.]+$/, "");
+      const fBase = fName.replace(/\.[^.]+$/, "");
+      return fName.includes(hl) || hl.includes(fName) || fBase.includes(hlBase) || hlBase.includes(fBase);
+    });
+    
     if (idx !== -1) {
       setHighlightedIndex(idx);
-      setTimeout(() => {
+      const scrollTimer = setTimeout(() => {
         fileRefs.current.get(idx)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
-      // Clear highlight after 3 seconds
-      const timer = setTimeout(() => {
+      }, 300);
+      const clearTimer = setTimeout(() => {
         setHighlightedIndex(null);
         onClearHighlight?.();
       }, 3000);
-      return () => clearTimeout(timer);
+      return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer); };
     } else {
+      // No match found - still highlight nothing but don't clear immediately
+      // so the tab switch still works
       onClearHighlight?.();
     }
-  }, [highlightDoc]);
+  }, [highlightDoc, files]);
 
   useEffect(() => {
     if (!assessmentId) return;
