@@ -153,8 +153,10 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
 
     setUploading(true);
     const selectedFiles = Array.from(e.target.files);
+    const newFiles: { name: string; size: string | number }[] = [];
 
-    for (const file of selectedFiles) {
+    // Upload all files in parallel
+    const uploadPromises = selectedFiles.map(async (file) => {
       try {
         const storagePath = `${assessmentId}/${Date.now()}-${file.name}`;
 
@@ -180,21 +182,26 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
 
         if (docErr) throw docErr;
 
+        // Fire parse in background
         supabase.functions.invoke("parse-document", {
           body: { documentId: docRecord.id },
-        }).then(() => {
-          loadDocuments();
-        }).catch((err) => {
+        }).then(() => loadDocuments()).catch((err) => {
           console.error("Parse error:", err);
           loadDocuments();
         });
 
-        onUpdateFiles([...files, { name: file.name, size: file.size }]);
+        newFiles.push({ name: file.name, size: file.size });
         toast.success(`Uploaded ${file.name}`);
       } catch (err: any) {
         console.error("Upload error:", err);
         toast.error(`Failed to upload ${file.name}: ${err.message}`);
       }
+    });
+
+    await Promise.all(uploadPromises);
+
+    if (newFiles.length > 0) {
+      onUpdateFiles([...files, ...newFiles]);
     }
 
     setUploading(false);
