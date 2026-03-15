@@ -382,7 +382,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                 variant="outline"
                 size="sm"
                 disabled={uploading}
-                onClick={() => document.getElementById("detail-file-upload")?.click()}
+                onClick={() => uploadInputRef.current?.click()}
               >
                 {uploading ? (
                   <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Uploading…</>
@@ -391,7 +391,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                 )}
               </Button>
               <input
-                id="detail-file-upload"
+                ref={uploadInputRef}
                 type="file"
                 className="hidden"
                 multiple
