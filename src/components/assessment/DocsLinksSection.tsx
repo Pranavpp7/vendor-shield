@@ -268,7 +268,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
       case "ready":
         return <Badge variant="outline" className="text-[10px] gap-1 text-risk-low border-risk-low/30"><CheckCircle className="h-2.5 w-2.5" />Indexed</Badge>;
       case "processing":
-        return <Badge variant="outline" className="text-[10px] gap-1 text-amber-500 border-amber-500/30"><Loader2 className="h-2.5 w-2.5 animate-spin" />Processing</Badge>;
+        return <Badge variant="outline" className="text-[10px] gap-1 text-accent border-accent/30"><Loader2 className="h-2.5 w-2.5 animate-spin" />Processing</Badge>;
       case "pending":
         return <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground"><Loader2 className="h-2.5 w-2.5 animate-spin" />Pending</Badge>;
       case "error":
