@@ -12,7 +12,7 @@ import {
   Layers, Database, Cloud, Brain, FileText, MessageSquare, Shield,
   Globe, Lock, Settings, BarChart3, ArrowRight, Play, Loader2,
   CheckCircle2, XCircle, Clock, Link2, Upload, Search, Bot,
-  Zap, Eye, FileSearch, Server
+  Zap, Eye, FileSearch, Server, ClipboardList
 } from "lucide-react";
 
 /* ─── system layers ─── */
