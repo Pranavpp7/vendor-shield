@@ -66,6 +66,10 @@ export default function AssessmentDetail() {
         score: result.score,
         riskLevel: result.riskLevel as "Low" | "Medium" | "High",
       });
+      if (user) {
+        await saveRunSnapshot(assessment.id, user.id, result.score, result.riskLevel, result.controls);
+        setHistoryKey((k) => k + 1);
+      }
       toast.success("Checklist re-run complete with latest document data.");
     } catch {
       toast.error("Failed to re-run checklist.");
