@@ -109,7 +109,17 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
       .select("id, file_name, file_size, status, storage_path, created_at")
       .eq("assessment_id", assessmentId)
       .order("created_at", { ascending: false });
-    if (data) setDocuments(data as DocumentRecord[]);
+
+    if (data) {
+      const typed = data as DocumentRecord[];
+      setDocuments(typed);
+      onUpdateFiles(
+        typed.map((d) => ({
+          name: d.file_name,
+          size: d.file_size || 0,
+        }))
+      );
+    }
   };
 
   useEffect(() => {
@@ -153,7 +163,6 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
 
     setUploading(true);
     const selectedFiles = Array.from(e.target.files);
-    const newFiles: { name: string; size: number }[] = [];
 
     // Upload all files in parallel
     const uploadPromises = selectedFiles.map(async (file) => {
@@ -190,7 +199,6 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
           loadDocuments();
         });
 
-        newFiles.push({ name: file.name, size: file.size });
         toast.success(`Uploaded ${file.name}`);
       } catch (err: any) {
         console.error("Upload error:", err);
@@ -200,12 +208,8 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
 
     await Promise.all(uploadPromises);
 
-    if (newFiles.length > 0) {
-      onUpdateFiles([...files, ...newFiles]);
-    }
-
     setUploading(false);
-    loadDocuments();
+    await loadDocuments();
     e.target.value = "";
   };
 
