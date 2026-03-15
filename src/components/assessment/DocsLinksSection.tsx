@@ -107,11 +107,16 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     if (!assessmentId) return;
 
     const requestSeq = ++loadSeqRef.current;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("documents")
       .select("id, file_name, file_size, status, storage_path, created_at")
       .eq("assessment_id", assessmentId)
       .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Failed to load documents:", error);
+      return;
+    }
 
     if (!data || requestSeq !== loadSeqRef.current) return;
 
@@ -124,6 +129,30 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
       }))
     );
   };
+
+  useEffect(() => {
+    if (!assessmentId) return;
+
+    const channel = supabase
+      .channel(`documents-${assessmentId}-${crypto.randomUUID()}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "documents",
+          filter: `assessment_id=eq.${assessmentId}`,
+        },
+        () => {
+          loadDocuments();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [assessmentId]);
 
   useEffect(() => {
     const processing = documents.some(d => d.status === "pending" || d.status === "processing");
@@ -166,6 +195,19 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
 
     setUploading(true);
     const selectedFiles = Array.from(e.target.files);
+
+    // Optimistically show every selected file immediately in the UI
+    const now = new Date().toISOString();
+    const optimisticDocs: DocumentRecord[] = selectedFiles.map((file) => ({
+      id: `temp-${crypto.randomUUID()}`,
+      file_name: file.name,
+      file_size: file.size,
+      status: "pending",
+      storage_path: null,
+      created_at: now,
+    }));
+    const optimisticIds = new Set(optimisticDocs.map((d) => d.id));
+    setDocuments((prev) => [...optimisticDocs, ...prev]);
 
     const uploadResults = await Promise.all(selectedFiles.map(async (file) => {
       try {
@@ -210,15 +252,14 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     }));
 
     const insertedDocs = uploadResults.filter((doc): doc is DocumentRecord => doc !== null);
-    if (insertedDocs.length > 0) {
-      setDocuments((prev) => {
-        const merged = [...insertedDocs, ...prev];
-        const byId = new Map(merged.map((d) => [d.id, d]));
-        return Array.from(byId.values()).sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      });
-    }
+    setDocuments((prev) => {
+      const withoutOptimistic = prev.filter((d) => !optimisticIds.has(d.id));
+      const merged = [...insertedDocs, ...withoutOptimistic];
+      const byId = new Map(merged.map((d) => [d.id, d]));
+      return Array.from(byId.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    });
 
     setUploading(false);
     await loadDocuments();
