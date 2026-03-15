@@ -196,6 +196,19 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     setUploading(true);
     const selectedFiles = Array.from(e.target.files);
 
+    // Optimistically show every selected file immediately in the UI
+    const now = new Date().toISOString();
+    const optimisticDocs: DocumentRecord[] = selectedFiles.map((file) => ({
+      id: `temp-${crypto.randomUUID()}`,
+      file_name: file.name,
+      file_size: file.size,
+      status: "pending",
+      storage_path: null,
+      created_at: now,
+    }));
+    const optimisticIds = new Set(optimisticDocs.map((d) => d.id));
+    setDocuments((prev) => [...optimisticDocs, ...prev]);
+
     const uploadResults = await Promise.all(selectedFiles.map(async (file) => {
       try {
         const storagePath = `${assessmentId}/${Date.now()}-${crypto.randomUUID()}-${file.name}`;
@@ -239,15 +252,14 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     }));
 
     const insertedDocs = uploadResults.filter((doc): doc is DocumentRecord => doc !== null);
-    if (insertedDocs.length > 0) {
-      setDocuments((prev) => {
-        const merged = [...insertedDocs, ...prev];
-        const byId = new Map(merged.map((d) => [d.id, d]));
-        return Array.from(byId.values()).sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      });
-    }
+    setDocuments((prev) => {
+      const withoutOptimistic = prev.filter((d) => !optimisticIds.has(d.id));
+      const merged = [...insertedDocs, ...withoutOptimistic];
+      const byId = new Map(merged.map((d) => [d.id, d]));
+      return Array.from(byId.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    });
 
     setUploading(false);
     await loadDocuments();
