@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
@@ -11,11 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle, Loader2, Info } from "lucide-react";
 import { ChatMessage } from "@/types/assessment";
 import { checklistSchema } from "@/data/checklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function AssessmentDetail() {
   const { vendorSlug } = useParams();
@@ -25,6 +26,27 @@ export default function AssessmentDetail() {
   const [rerunning, setRerunning] = useState(false);
   const [activeTab, setActiveTab] = useState("checklist");
   const [highlightDoc, setHighlightDoc] = useState<string | null>(null);
+  const [docsStillIndexing, setDocsStillIndexing] = useState(false);
+
+  const assessment = getAssessmentBySlug(vendorSlug || "");
+
+  // Check if any documents are still being indexed
+  useEffect(() => {
+    if (!assessment) return;
+    const checkIndexing = async () => {
+      const { data: docs } = await supabase
+        .from("documents")
+        .select("id, status")
+        .eq("assessment_id", assessment.id);
+      if (docs && docs.length > 0) {
+        const pending = docs.filter((d) => d.status !== "ready" && d.status !== "error");
+        setDocsStillIndexing(pending.length > 0);
+      }
+    };
+    checkIndexing();
+    const interval = setInterval(checkIndexing, 5000);
+    return () => clearInterval(interval);
+  }, [assessment?.id]);
 
   const handleRerunChecklist = async () => {
     if (!assessment) return;
@@ -47,7 +69,6 @@ export default function AssessmentDetail() {
     }
   };
 
-  const assessment = getAssessmentBySlug(vendorSlug || "");
 
   if (!assessment) {
     return (
@@ -137,6 +158,29 @@ export default function AssessmentDetail() {
           </TabsList>
 
           <TabsContent value="checklist">
+            {docsStillIndexing && (
+              <Card className="mb-4 border-accent/30 bg-accent/5">
+                <CardContent className="pt-4 pb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                    <p className="text-sm">Documents are still being indexed. Re-run the checklist once indexing completes for accurate results.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {!docsStillIndexing && assessment.controls.length > 0 && assessment.controls.every(c => c.status === "needs_info") && (
+              <Card className="mb-4 border-amber-500/30 bg-amber-500/5">
+                <CardContent className="pt-4 pb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Info className="h-4 w-4 text-amber-500" />
+                    <p className="text-sm">All controls show "Needs Info". If you've uploaded documents, try re-running the checklist to incorporate them.</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={handleRerunChecklist} disabled={rerunning}>
+                    {rerunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Re-run Now"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
             <Card>
               <CardContent className="pt-6">
                 <ChecklistSection
