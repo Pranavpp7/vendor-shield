@@ -124,8 +124,8 @@ export default function NewAssessment() {
       uploadedFiles: files,
       links,
     };
-    if (draftId) updateAssessment(draftId, data);
-    else addAssessment(data);
+    if (draftId) await updateAssessment(draftId, data);
+    else await addAssessment(data);
     await uploadFilesToStorage(id);
     toast({ title: "Draft saved", description: `Assessment for ${vendorName} saved as draft.` });
     navigate("/assessments");
