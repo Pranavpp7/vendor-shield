@@ -153,7 +153,7 @@ export default function NewAssessment() {
 
   const startAssessment = async () => {
     setLoading(true);
-    const id = draftId || vendorNameToSlug(vendorName);
+    const id = draftId || `${vendorNameToSlug(vendorName)}-${crypto.randomUUID().slice(0, 8)}`;
 
     // Upload files to storage first
     setStatusMessage("Uploading files…");
