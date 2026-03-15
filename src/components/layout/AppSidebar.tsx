@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ClipboardList, PlusCircle, LogOut, Shield, Info } from "lucide-react";
+import { LayoutDashboard, ClipboardList, PlusCircle, LogOut, Shield, Info, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
@@ -22,6 +22,7 @@ const navItems = [
   { title: "Assessments", url: "/assessments", icon: ClipboardList },
   { title: "New Assessment", url: "/assessment/new", icon: PlusCircle },
   { title: "Architecture", url: "/architecture", icon: Info },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {

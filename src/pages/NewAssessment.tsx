@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { vendorNameToSlug } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
-import { checklistSchema } from "@/data/checklistSchema";
+import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
 import { saveRunSnapshot } from "@/lib/runHistory";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ export default function NewAssessment() {
   const { addAssessment, getAssessment, updateAssessment } = useAssessments();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { allControls: checklistAllControls } = useChecklistSchema();
   const [draftId, setDraftId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [vendorName, setVendorName] = useState("");
@@ -181,11 +182,7 @@ export default function NewAssessment() {
     }
 
     setStatusMessage("Running AI checklist…");
-    const allControls = checklistSchema.flatMap((g) =>
-      g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
-    );
-
-    const result = await generateChecklistFromAI(vendorName, allControls, id);
+    const result = await generateChecklistFromAI(vendorName, checklistAllControls, id);
 
     const assessmentData = {
       id,

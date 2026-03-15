@@ -13,6 +13,7 @@ import NewAssessment from "./pages/NewAssessment";
 import AssessmentDetail from "./pages/AssessmentDetail";
 import NotFound from "./pages/NotFound";
 import Architecture from "./pages/Architecture";
+import SettingsPage from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
               <Route path="/assessment/new" element={<ProtectedRoute><NewAssessment /></ProtectedRoute>} />
               <Route path="/assessments/:vendorSlug" element={<ProtectedRoute><AssessmentDetail /></ProtectedRoute>} />
               <Route path="/architecture" element={<ProtectedRoute><Architecture /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

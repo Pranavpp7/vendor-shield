@@ -21,7 +21,7 @@ import {
 import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp, RotateCcw, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
-import { checklistSchema } from "@/data/checklistSchema";
+import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
 import { saveRunSnapshot } from "@/lib/runHistory";
 import { toast } from "sonner";
@@ -31,6 +31,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
   const { user } = useAuth();
+  const { allControls: checklistAllControls } = useChecklistSchema();
   const [rerunningId, setRerunningId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [riskFilter, setRiskFilter] = useState<string>("all");
@@ -64,10 +65,7 @@ export default function Dashboard() {
     setRerunningId(id);
     try {
       await updateAssessment(id, { status: "Running" });
-      const allControls = checklistSchema.flatMap((g) =>
-        g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
-      );
-      const result = await generateChecklistFromAI(assessment.vendorName, allControls, id);
+      const result = await generateChecklistFromAI(assessment.vendorName, checklistAllControls, id);
       await updateAssessment(id, {
         controls: result.controls,
         score: result.score,

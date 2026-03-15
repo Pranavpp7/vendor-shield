@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, FileText, AlertCircle, Loader2, Info, History } from "lucide-react";
 import { ChatMessage } from "@/types/assessment";
-import { checklistSchema } from "@/data/checklistSchema";
+import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
 import { saveRunSnapshot } from "@/lib/runHistory";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ export default function AssessmentDetail() {
   const { getAssessmentBySlug, updateAssessment } = useAssessments();
   const { user } = useAuth();
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const { allControls: checklistAllControls } = useChecklistSchema();
   const [rerunning, setRerunning] = useState(false);
   const [activeTab, setActiveTab] = useState("checklist");
   const [highlightDoc, setHighlightDoc] = useState<string | null>(null);
@@ -57,10 +58,7 @@ export default function AssessmentDetail() {
     if (!assessment) return;
     setRerunning(true);
     try {
-      const allControls = checklistSchema.flatMap((g) =>
-        g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
-      );
-      const result = await generateChecklistFromAI(assessment.vendorName, allControls, assessment.id);
+      const result = await generateChecklistFromAI(assessment.vendorName, checklistAllControls, assessment.id);
       updateAssessment(assessment.id, {
         controls: result.controls,
         score: result.score,
