@@ -22,6 +22,7 @@ const navItems = [
   { title: "Assessments", url: "/assessments", icon: ClipboardList },
   { title: "New Assessment", url: "/assessment/new", icon: PlusCircle },
   { title: "Architecture", url: "/architecture", icon: Info },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
