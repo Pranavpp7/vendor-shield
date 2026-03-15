@@ -182,11 +182,7 @@ export default function NewAssessment() {
     }
 
     setStatusMessage("Running AI checklist…");
-    const allControls = checklistSchema.flatMap((g) =>
-      g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
-    );
-
-    const result = await generateChecklistFromAI(vendorName, allControls, id);
+    const result = await generateChecklistFromAI(vendorName, checklistAllControls, id);
 
     const assessmentData = {
       id,
