@@ -143,7 +143,8 @@ export default function AssessmentDetail() {
                   controls={assessment.controls}
                   uploadedFiles={assessment.uploadedFiles}
                   links={assessment.links}
-                  onNavigateToDocs={() => {
+                  onNavigateToDocs={(evidenceSource) => {
+                    setHighlightDoc(evidenceSource || null);
                     setActiveTab("docs");
                   }}
                   onRerunChecklist={handleRerunChecklist}
