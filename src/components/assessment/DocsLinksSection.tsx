@@ -571,30 +571,55 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                 <Plus className="h-3 w-3" />
               </Button>
             </div>
-            {!assessmentId && links.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">No links added yet</p>
-            )}
-            {assessmentId && documents.filter(d => d.source_type === "url").length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">No links added yet. URLs will appear in the Documents list once indexed.</p>
-            )}
-            {links.map((l, i) => (
-              <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm group">
-                {editingLink === i ? (
-                  <div className="flex gap-1 flex-1 mr-2">
-                    <Input value={editLinkValue} onChange={(e) => setEditLinkValue(e.target.value)} className="h-7 text-xs" onKeyDown={(e) => e.key === "Enter" && saveEditLink()} />
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={saveEditLink}><Check className="h-3 w-3" /></Button>
-                  </div>
-                ) : (
-                  <>
-                    <a href={l} target="_blank" rel="noopener noreferrer" className="truncate text-accent hover:underline">{l}</a>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEditLink(i)}><Pencil className="h-3 w-3" /></Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeLink(i)}><X className="h-3 w-3" /></Button>
+            {(() => {
+              const urlDocs = assessmentId ? documents.filter(d => d.source_type === "url") : [];
+              const allLinks = assessmentId ? urlDocs : links.map((l, i) => ({ url: l, index: i }));
+              
+              if (allLinks.length === 0) {
+                return <p className="text-xs text-muted-foreground text-center py-4">No links added yet</p>;
+              }
+
+              if (assessmentId) {
+                return urlDocs.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm group">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Globe className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+                      <a href={doc.source_url || "#"} target="_blank" rel="noopener noreferrer" className="truncate text-accent hover:underline text-xs">{doc.source_url || doc.file_name}</a>
+                      {statusBadge(doc.status)}
                     </div>
-                  </>
-                )}
-              </div>
-            ))}
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {(doc.status === "error" || doc.status === "ready") && (
+                        <Button variant="ghost" size="icon" className="h-6 w-6" title="Re-index" disabled={reprocessingId === doc.id} onClick={() => reprocessDocument(doc)}>
+                          <RefreshCw className={`h-3 w-3 ${reprocessingId === doc.id ? "animate-spin" : ""}`} />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" title="Delete" onClick={() => setDeleteTarget({ docId: doc.id, fileName: doc.file_name })}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ));
+              }
+
+              return links.map((l, i) => (
+                <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm group">
+                  {editingLink === i ? (
+                    <div className="flex gap-1 flex-1 mr-2">
+                      <Input value={editLinkValue} onChange={(e) => setEditLinkValue(e.target.value)} className="h-7 text-xs" onKeyDown={(e) => e.key === "Enter" && saveEditLink()} />
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={saveEditLink}><Check className="h-3 w-3" /></Button>
+                    </div>
+                  ) : (
+                    <>
+                      <a href={l} target="_blank" rel="noopener noreferrer" className="truncate text-accent hover:underline">{l}</a>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEditLink(i)}><Pencil className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeLink(i)}><X className="h-3 w-3" /></Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ));
+            })()}
           </CardContent>
         </Card>
       </div>
