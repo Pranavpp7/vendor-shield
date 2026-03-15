@@ -151,6 +151,21 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
+            {loading ? (
+              <div className="space-y-3 py-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                ))}
+              </div>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -199,6 +214,21 @@ export default function Dashboard() {
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
+                        {a.status === "Completed" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={rerunningId === a.id}
+                            onClick={() => handleRerun(a.id)}
+                            className="text-muted-foreground hover:text-accent"
+                          >
+                            {rerunningId === a.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
@@ -240,6 +270,7 @@ export default function Dashboard() {
                 )}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
       </div>
