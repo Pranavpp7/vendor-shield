@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
@@ -11,11 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle, Loader2, Info } from "lucide-react";
 import { ChatMessage } from "@/types/assessment";
 import { checklistSchema } from "@/data/checklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function AssessmentDetail() {
   const { vendorSlug } = useParams();
