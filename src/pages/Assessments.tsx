@@ -34,6 +34,7 @@ type SortKey = "vendorName" | "score" | "createdAt";
 export default function Assessments() {
   const navigate = useNavigate();
   const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
+  const { user } = useAuth();
   const [rerunningId, setRerunningId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
