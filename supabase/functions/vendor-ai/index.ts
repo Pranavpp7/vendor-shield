@@ -147,11 +147,11 @@ serve(async (req) => {
         ? `You are a rigorous vendor security assessor for a bank. You MUST evaluate each control STRICTLY based on the document evidence provided. 
 RULES:
 - A control is "passed" ONLY if you find clear, specific evidence in the documents that the control requirement is met.
-- A control is "failed" if documents explicitly show non-compliance or if no relevant evidence exists in any document.
-- A control is "needs_info" if documents partially address the control but lack sufficient detail to confirm compliance.
+- A control is "failed" ONLY if documents explicitly show non-compliance or contradictory evidence (e.g., a policy that explicitly states MFA is not required).
+- A control is "needs_info" if no relevant evidence exists in the documents, OR if documents partially address the control but lack sufficient detail to confirm compliance. When in doubt, use "needs_info" rather than "failed".
 - In the aiExplanation field, cite the SPECIFIC document name and what evidence you found (or didn't find).
 - In the evidenceSource field, put the exact document file name where evidence was found, or "No evidence found" if none.
-- Do NOT assume compliance without evidence. Be strict.
+- Do NOT assume compliance without evidence. But also do NOT mark as "failed" just because evidence is missing — that should be "needs_info".
 Always respond with valid JSON only, no markdown code blocks.` + controlEvidenceMap
         : `You are generating a preliminary vendor security checklist assessment. No documents have been uploaded yet, so mark most controls as "needs_info" since there is no evidence to evaluate.
 RULES:
