@@ -56,30 +56,29 @@ serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey);
     const bucket = "vendor-documents";
 
-    const { data: objects, error: objectsError } = await admin
-      .schema("storage")
-      .from("objects")
-      .select("name, owner")
-      .eq("bucket_id", bucket)
-      .like("name", `${normalizedAssessmentId}/%`);
+    // List files using Storage API
+    const allObjectPaths: string[] = [];
+    let offset = 0;
+    const pageSize = 100;
+    while (true) {
+      const { data: listed, error: listError } = await admin.storage
+        .from(bucket)
+        .list(normalizedAssessmentId, { limit: pageSize, offset });
+      if (listError) throw listError;
+      if (!listed || listed.length === 0) break;
 
-    if (objectsError) throw objectsError;
-
-    const containsForeignFiles = (objects || []).some(
-      (obj) => obj.owner && obj.owner !== user.id
-    );
-
-    if (containsForeignFiles) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      for (const item of listed) {
+        if (item.name) {
+          allObjectPaths.push(`${normalizedAssessmentId}/${item.name}`);
+        }
+      }
+      if (listed.length < pageSize) break;
+      offset += pageSize;
     }
 
-    const objectPaths = (objects || []).map((obj) => obj.name).filter(Boolean) as string[];
-
-    for (let i = 0; i < objectPaths.length; i += 100) {
-      const batch = objectPaths.slice(i, i + 100);
+    // Remove files in batches
+    for (let i = 0; i < allObjectPaths.length; i += 100) {
+      const batch = allObjectPaths.slice(i, i + 100);
       const { error: removeError } = await admin.storage.from(bucket).remove(batch);
       if (removeError) throw removeError;
     }
