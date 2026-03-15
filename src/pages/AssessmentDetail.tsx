@@ -269,6 +269,10 @@ export default function AssessmentDetail() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="history">
+            <RunHistoryPanel key={historyKey} assessmentId={assessment.id} />
+          </TabsContent>
         </Tabs>
       </div>
 
