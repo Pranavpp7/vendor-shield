@@ -160,6 +160,21 @@ export default function Assessments() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <Card className="shadow-sm">
             <CardContent className="p-0">
+              {loading ? (
+                <div className="space-y-3 p-6">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-4 flex-1" />
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -210,6 +225,21 @@ export default function Assessments() {
                               View
                             </Button>
                           )}
+                          {a.status === "Completed" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={rerunningId === a.id}
+                              onClick={() => handleRerun(a.id)}
+                              className="text-muted-foreground hover:text-accent"
+                            >
+                              {rerunningId === a.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RotateCcw className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
@@ -250,6 +280,7 @@ export default function Assessments() {
                   )}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </motion.div>
