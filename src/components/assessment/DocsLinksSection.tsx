@@ -253,10 +253,9 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
         await supabase.storage.from("vendor-documents").remove([docData.storage_path]);
       }
       
-      // Remove from local files
-      onUpdateFiles(files.filter((_, j) => j !== deleteTarget.fileIndex));
+      // Sync files from DB source of truth
       toast.success(`Deleted ${deleteTarget.fileName}`);
-      loadDocuments();
+      await loadDocuments();
     } catch (err: any) {
       toast.error(`Failed to delete: ${err.message}`);
     } finally {
