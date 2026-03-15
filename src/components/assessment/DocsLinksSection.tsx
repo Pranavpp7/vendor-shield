@@ -105,22 +105,24 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
 
   const loadDocuments = async () => {
     if (!assessmentId) return;
+
+    const requestSeq = ++loadSeqRef.current;
     const { data } = await supabase
       .from("documents")
       .select("id, file_name, file_size, status, storage_path, created_at")
       .eq("assessment_id", assessmentId)
       .order("created_at", { ascending: false });
 
-    if (data) {
-      const typed = data as DocumentRecord[];
-      setDocuments(typed);
-      onUpdateFiles(
-        typed.map((d) => ({
-          name: d.file_name,
-          size: d.file_size || 0,
-        }))
-      );
-    }
+    if (!data || requestSeq !== loadSeqRef.current) return;
+
+    const typed = data as DocumentRecord[];
+    setDocuments(typed);
+    onUpdateFiles(
+      typed.map((d) => ({
+        name: d.file_name,
+        size: d.file_size || 0,
+      }))
+    );
   };
 
   useEffect(() => {
@@ -165,10 +167,9 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     setUploading(true);
     const selectedFiles = Array.from(e.target.files);
 
-    // Upload all files in parallel
-    const uploadPromises = selectedFiles.map(async (file) => {
+    const uploadResults = await Promise.all(selectedFiles.map(async (file) => {
       try {
-        const storagePath = `${assessmentId}/${Date.now()}-${file.name}`;
+        const storagePath = `${assessmentId}/${Date.now()}-${crypto.randomUUID()}-${file.name}`;
 
         const { error: uploadErr } = await supabase.storage
           .from("vendor-documents")
@@ -187,27 +188,37 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             status: "pending",
             user_id: user?.id,
           })
-          .select("id")
+          .select("id, file_name, file_size, status, storage_path, created_at")
           .single();
 
-        if (docErr) throw docErr;
+        if (docErr || !docRecord) throw docErr || new Error("Failed to create document record");
 
-        // Fire parse in background
+        // Fire parse in background for each document
         supabase.functions.invoke("parse-document", {
           body: { documentId: docRecord.id },
-        }).then(() => loadDocuments()).catch((err) => {
+        }).catch((err) => {
           console.error("Parse error:", err);
-          loadDocuments();
         });
 
         toast.success(`Uploaded ${file.name}`);
+        return docRecord as DocumentRecord;
       } catch (err: any) {
         console.error("Upload error:", err);
         toast.error(`Failed to upload ${file.name}: ${err.message}`);
+        return null;
       }
-    });
+    }));
 
-    await Promise.all(uploadPromises);
+    const insertedDocs = uploadResults.filter((doc): doc is DocumentRecord => doc !== null);
+    if (insertedDocs.length > 0) {
+      setDocuments((prev) => {
+        const merged = [...insertedDocs, ...prev];
+        const byId = new Map(merged.map((d) => [d.id, d]));
+        return Array.from(byId.values()).sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      });
+    }
 
     setUploading(false);
     await loadDocuments();
