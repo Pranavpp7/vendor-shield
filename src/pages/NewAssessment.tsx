@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
 import { checklistSchema } from "@/data/checklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
+import { saveRunSnapshot } from "@/lib/runHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -191,6 +192,11 @@ export default function NewAssessment() {
 
     if (draftId) await updateAssessment(draftId, assessmentData);
     else await addAssessment(assessmentData);
+
+    // Save run snapshot for history tracking
+    if (user) {
+      await saveRunSnapshot(id, user.id, result.score, result.riskLevel, result.controls);
+    }
 
     navigate(`/assessments/${id}`);
   };

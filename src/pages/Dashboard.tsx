@@ -23,11 +23,14 @@ import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { checklistSchema } from "@/data/checklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
+import { saveRunSnapshot } from "@/lib/runHistory";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
+  const { user } = useAuth();
   const [rerunningId, setRerunningId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [riskFilter, setRiskFilter] = useState<string>("all");
@@ -71,6 +74,9 @@ export default function Dashboard() {
         riskLevel: result.riskLevel as "Low" | "Medium" | "High",
         status: "Completed",
       });
+      if (user) {
+        await saveRunSnapshot(id, user.id, result.score, result.riskLevel, result.controls);
+      }
       toast.success(`Re-run complete for ${assessment.vendorName}`);
     } catch {
       toast.error("Failed to re-run assessment.");

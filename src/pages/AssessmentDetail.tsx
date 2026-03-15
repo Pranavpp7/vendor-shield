@@ -11,22 +11,27 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, AlertCircle, Loader2, Info } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle, Loader2, Info, History } from "lucide-react";
 import { ChatMessage } from "@/types/assessment";
 import { checklistSchema } from "@/data/checklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
+import { saveRunSnapshot } from "@/lib/runHistory";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { RunHistoryPanel } from "@/components/assessment/RunHistoryPanel";
 
 export default function AssessmentDetail() {
   const { vendorSlug } = useParams();
   const navigate = useNavigate();
   const { getAssessmentBySlug, updateAssessment } = useAssessments();
+  const { user } = useAuth();
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [rerunning, setRerunning] = useState(false);
   const [activeTab, setActiveTab] = useState("checklist");
   const [highlightDoc, setHighlightDoc] = useState<string | null>(null);
   const [docsStillIndexing, setDocsStillIndexing] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
 
   const assessment = getAssessmentBySlug(vendorSlug || "");
 
@@ -61,6 +66,10 @@ export default function AssessmentDetail() {
         score: result.score,
         riskLevel: result.riskLevel as "Low" | "Medium" | "High",
       });
+      if (user) {
+        await saveRunSnapshot(assessment.id, user.id, result.score, result.riskLevel, result.controls);
+        setHistoryKey((k) => k + 1);
+      }
       toast.success("Checklist re-run complete with latest document data.");
     } catch {
       toast.error("Failed to re-run checklist.");
@@ -155,6 +164,10 @@ export default function AssessmentDetail() {
             <TabsTrigger value="docs" data-value="docs">Documents & Links</TabsTrigger>
             <TabsTrigger value="chat">Chat & Insights</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
+            <TabsTrigger value="history">
+              <History className="h-3.5 w-3.5 mr-1.5" />
+              History
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="checklist">
@@ -255,6 +268,10 @@ export default function AssessmentDetail() {
                 <p className="text-xs text-muted-foreground mt-2">Changes are auto-saved</p>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="history">
+            <RunHistoryPanel key={historyKey} assessmentId={assessment.id} />
           </TabsContent>
         </Tabs>
       </div>

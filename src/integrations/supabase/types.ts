@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      assessment_runs: {
+        Row: {
+          assessment_id: string
+          controls: Json
+          failed_count: number
+          id: string
+          needs_info_count: number
+          passed_count: number
+          risk_level: string
+          run_at: string
+          score: number
+          user_id: string
+        }
+        Insert: {
+          assessment_id: string
+          controls?: Json
+          failed_count?: number
+          id?: string
+          needs_info_count?: number
+          passed_count?: number
+          risk_level?: string
+          run_at?: string
+          score?: number
+          user_id: string
+        }
+        Update: {
+          assessment_id?: string
+          controls?: Json
+          failed_count?: number
+          id?: string
+          needs_info_count?: number
+          passed_count?: number
+          risk_level?: string
+          run_at?: string
+          score?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       assessments: {
         Row: {
           chat_history: Json
