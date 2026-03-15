@@ -159,8 +159,8 @@ export default function NewAssessment() {
       links,
     };
 
-    if (draftId) updateAssessment(draftId, assessmentData);
-    else addAssessment(assessmentData);
+    if (draftId) await updateAssessment(draftId, assessmentData);
+    else await addAssessment(assessmentData);
 
     navigate(`/assessments/${id}`);
   };
