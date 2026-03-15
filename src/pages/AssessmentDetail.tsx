@@ -164,6 +164,10 @@ export default function AssessmentDetail() {
             <TabsTrigger value="docs" data-value="docs">Documents & Links</TabsTrigger>
             <TabsTrigger value="chat">Chat & Insights</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
+            <TabsTrigger value="history">
+              <History className="h-3.5 w-3.5 mr-1.5" />
+              History
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="checklist">
