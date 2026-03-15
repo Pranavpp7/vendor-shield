@@ -414,6 +414,12 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                       <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                       <span className="truncate">{doc.file_name}</span>
                       <span className="text-xs text-muted-foreground">({((doc.file_size || 0) / 1024).toFixed(1)} KB)</span>
+                      {doc.created_at && (
+                        <span className="text-[10px] text-muted-foreground/70" title={new Date(doc.created_at).toLocaleString()}>
+                          {new Date(doc.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}{' '}
+                          {new Date(doc.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                       {statusBadge(doc.status)}
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
