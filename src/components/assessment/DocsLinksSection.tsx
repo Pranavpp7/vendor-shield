@@ -511,7 +511,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                           className="h-6 w-6"
                           title="Re-process document"
                           disabled={!!isReprocessing}
-                          onClick={() => reprocessDocument(doc.id, doc.file_name)}
+                          onClick={() => reprocessDocument(doc)}
                         >
                           <RefreshCw className={`h-3 w-3 ${isReprocessing ? "animate-spin" : ""}`} />
                         </Button>
