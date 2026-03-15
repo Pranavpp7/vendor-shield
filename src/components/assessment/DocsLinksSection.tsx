@@ -112,7 +112,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     const requestSeq = ++loadSeqRef.current;
     const { data, error } = await supabase
       .from("documents")
-      .select("id, file_name, file_size, status, storage_path, created_at")
+      .select("id, file_name, file_size, status, storage_path, created_at, source_type, source_url")
       .eq("assessment_id", assessmentId)
       .order("created_at", { ascending: false });
 
