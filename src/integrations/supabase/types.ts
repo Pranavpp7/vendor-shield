@@ -104,6 +104,27 @@ export type Database = {
         }
         Relationships: []
       }
+      checklist_schemas: {
+        Row: {
+          id: string
+          schema: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          schema?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          schema?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       document_chunks: {
         Row: {
           chunk_index: number
