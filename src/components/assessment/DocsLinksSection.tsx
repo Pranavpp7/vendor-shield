@@ -60,6 +60,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const [previewLoading, setPreviewLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const fileRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const loadSeqRef = useRef(0);
 
   // Handle highlight from evidence source click
   useEffect(() => {
