@@ -57,13 +57,15 @@ export default function Assessments() {
       const allControls = checklistSchema.flatMap((g) =>
         g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
       );
-      const result = await generateChecklistFromAI(assessment.vendorName, allControls, id);
       await updateAssessment(id, {
         controls: result.controls,
         score: result.score,
         riskLevel: result.riskLevel as "Low" | "Medium" | "High",
         status: "Completed",
       });
+      if (user) {
+        await saveRunSnapshot(id, user.id, result.score, result.riskLevel, result.controls);
+      }
       toast.success(`Re-run complete for ${assessment.vendorName}`);
     } catch {
       toast.error("Failed to re-run assessment.");
