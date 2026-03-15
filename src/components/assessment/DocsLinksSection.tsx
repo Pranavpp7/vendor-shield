@@ -107,11 +107,16 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     if (!assessmentId) return;
 
     const requestSeq = ++loadSeqRef.current;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("documents")
       .select("id, file_name, file_size, status, storage_path, created_at")
       .eq("assessment_id", assessmentId)
       .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Failed to load documents:", error);
+      return;
+    }
 
     if (!data || requestSeq !== loadSeqRef.current) return;
 
@@ -124,6 +129,30 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
       }))
     );
   };
+
+  useEffect(() => {
+    if (!assessmentId) return;
+
+    const channel = supabase
+      .channel(`documents-${assessmentId}-${crypto.randomUUID()}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "documents",
+          filter: `assessment_id=eq.${assessmentId}`,
+        },
+        () => {
+          loadDocuments();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [assessmentId]);
 
   useEffect(() => {
     const processing = documents.some(d => d.status === "pending" || d.status === "processing");
