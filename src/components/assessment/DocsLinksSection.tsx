@@ -60,6 +60,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const [previewLoading, setPreviewLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const fileRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const loadSeqRef = useRef(0);
 
   // Handle highlight from evidence source click
@@ -121,7 +122,23 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     if (!data || requestSeq !== loadSeqRef.current) return;
 
     const typed = data as DocumentRecord[];
-    setDocuments(typed);
+
+    setDocuments((prev) => {
+      const unresolvedOptimistic = prev.filter(
+        (doc) =>
+          doc.id.startsWith("temp-") &&
+          !typed.some(
+            (serverDoc) =>
+              serverDoc.file_name === doc.file_name &&
+              (serverDoc.file_size || 0) === (doc.file_size || 0)
+          )
+      );
+
+      return [...unresolvedOptimistic, ...typed].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    });
+
     onUpdateFiles(
       typed.map((d) => ({
         name: d.file_name,
@@ -365,7 +382,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                 variant="outline"
                 size="sm"
                 disabled={uploading}
-                onClick={() => document.getElementById("detail-file-upload")?.click()}
+                onClick={() => uploadInputRef.current?.click()}
               >
                 {uploading ? (
                   <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Uploading…</>
@@ -374,7 +391,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                 )}
               </Button>
               <input
-                id="detail-file-upload"
+                ref={uploadInputRef}
                 type="file"
                 className="hidden"
                 multiple
