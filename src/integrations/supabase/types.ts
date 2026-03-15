@@ -147,6 +147,8 @@ export type Database = {
           file_name: string
           file_size: number | null
           id: string
+          source_type: string
+          source_url: string | null
           status: string
           storage_path: string | null
           user_id: string | null
@@ -158,6 +160,8 @@ export type Database = {
           file_name: string
           file_size?: number | null
           id?: string
+          source_type?: string
+          source_url?: string | null
           status?: string
           storage_path?: string | null
           user_id?: string | null
@@ -169,6 +173,8 @@ export type Database = {
           file_name?: string
           file_size?: number | null
           id?: string
+          source_type?: string
+          source_url?: string | null
           status?: string
           storage_path?: string | null
           user_id?: string | null

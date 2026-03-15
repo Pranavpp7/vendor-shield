@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Link as LinkIcon, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2, Eye, Download } from "lucide-react";
+import { FileText, Link as LinkIcon, Globe, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2, Eye, Download } from "lucide-react";
 import { IndexingPipelineFlow } from "./IndexingPipelineFlow";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -33,6 +33,8 @@ type DocumentRecord = {
   status: string;
   storage_path: string | null;
   created_at: string;
+  source_type?: string;
+  source_url?: string;
 };
 
 type Props = {
@@ -110,7 +112,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     const requestSeq = ++loadSeqRef.current;
     const { data, error } = await supabase
       .from("documents")
-      .select("id, file_name, file_size, status, storage_path, created_at")
+      .select("id, file_name, file_size, status, storage_path, created_at, source_type, source_url")
       .eq("assessment_id", assessmentId)
       .order("created_at", { ascending: false });
 
@@ -178,10 +180,28 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     return () => clearInterval(interval);
   }, [documents]);
 
-  const addLink = () => {
-    if (linkInput.trim()) {
-      onUpdateLinks([...links, linkInput.trim()]);
-      setLinkInput("");
+  const addLink = async () => {
+    const url = linkInput.trim();
+    if (!url) return;
+    setLinkInput("");
+
+    if (assessmentId && user) {
+      // Submit to parse-url edge function — it creates the document record
+      toast.info(`Submitting ${url} for indexing…`);
+      try {
+        const { error } = await supabase.functions.invoke("parse-url", {
+          body: { url, assessmentId, userId: user.id },
+        });
+        if (error) throw error;
+        toast.success(`URL submitted for indexing`);
+        loadDocuments();
+      } catch (err: any) {
+        console.error("parse-url error:", err);
+        toast.error(`Failed to index URL: ${err.message}`);
+      }
+    } else {
+      // Pre-creation: just store in local links array
+      onUpdateLinks([...links, url]);
     }
   };
 
@@ -247,7 +267,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
             status: "pending",
             user_id: user?.id,
           })
-          .select("id, file_name, file_size, status, storage_path, created_at")
+          .select("id, file_name, file_size, status, storage_path, created_at, source_type, source_url")
           .single();
 
         if (docErr || !docRecord) throw docErr || new Error("Failed to create document record");
@@ -283,21 +303,30 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     e.target.value = "";
   };
 
-  const reprocessDocument = async (docId: string, fileName: string) => {
-    setReprocessingId(docId);
+  const reprocessDocument = async (doc: DocumentRecord) => {
+    setReprocessingId(doc.id);
     try {
-      await supabase.from("documents").update({ status: "pending" }).eq("id", docId);
-      loadDocuments();
-
-      const { error } = await supabase.functions.invoke("parse-document", {
-        body: { documentId: docId },
-      });
-
-      if (error) throw error;
-      toast.success(`Re-processing ${fileName}`);
+      if (doc.source_type === "url" && doc.source_url) {
+        // For URL docs, delete old record + chunks and re-submit to parse-url
+        await supabase.from("document_chunks").delete().eq("document_id", doc.id);
+        await supabase.from("documents").delete().eq("id", doc.id);
+        const { error } = await supabase.functions.invoke("parse-url", {
+          body: { url: doc.source_url, assessmentId: assessmentId, userId: user?.id },
+        });
+        if (error) throw error;
+        toast.success(`Re-processing ${doc.source_url}`);
+      } else {
+        await supabase.from("documents").update({ status: "pending" }).eq("id", doc.id);
+        loadDocuments();
+        const { error } = await supabase.functions.invoke("parse-document", {
+          body: { documentId: doc.id },
+        });
+        if (error) throw error;
+        toast.success(`Re-processing ${doc.file_name}`);
+      }
     } catch (err: any) {
       console.error("Reprocess error:", err);
-      toast.error(`Failed to re-process ${fileName}: ${err.message}`);
+      toast.error(`Failed to re-process: ${err.message}`);
     } finally {
       setReprocessingId(null);
       loadDocuments();
@@ -411,9 +440,19 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                 return (
                   <div key={doc.id} ref={(el) => { if (el) fileRefs.current.set(i, el); else fileRefs.current.delete(i); }} className={`flex items-center justify-between p-2 rounded-md text-sm group transition-all duration-500 ${highlightedIndex === i ? "bg-accent/20 ring-2 ring-accent/40" : "bg-muted/50"}`}>
                     <div className="flex items-center gap-2 min-w-0">
-                      <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      <span className="truncate">{doc.file_name}</span>
-                      <span className="text-xs text-muted-foreground">({((doc.file_size || 0) / 1024).toFixed(1)} KB)</span>
+                      {doc.source_type === "url" ? (
+                        <Globe className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+                      ) : (
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      )}
+                      {doc.source_type === "url" && doc.source_url ? (
+                        <a href={doc.source_url} target="_blank" rel="noopener noreferrer" className="truncate text-accent hover:underline text-xs">{doc.file_name}</a>
+                      ) : (
+                        <span className="truncate">{doc.file_name}</span>
+                      )}
+                      {doc.source_type !== "url" && (
+                        <span className="text-xs text-muted-foreground">({((doc.file_size || 0) / 1024).toFixed(1)} KB)</span>
+                      )}
                       {doc.created_at && (
                         <span className="text-[10px] text-muted-foreground/70" title={new Date(doc.created_at).toLocaleString()}>
                           {new Date(doc.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}{' '}
@@ -472,7 +511,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                           className="h-6 w-6"
                           title="Re-process document"
                           disabled={!!isReprocessing}
-                          onClick={() => reprocessDocument(doc.id, doc.file_name)}
+                          onClick={() => reprocessDocument(doc)}
                         >
                           <RefreshCw className={`h-3 w-3 ${isReprocessing ? "animate-spin" : ""}`} />
                         </Button>
@@ -516,7 +555,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <LinkIcon className="h-4 w-4" /> Links ({links.length})
+              <LinkIcon className="h-4 w-4" /> Links ({assessmentId ? documents.filter(d => d.source_type === "url").length : links.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -532,8 +571,11 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                 <Plus className="h-3 w-3" />
               </Button>
             </div>
-            {links.length === 0 && (
+            {!assessmentId && links.length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-4">No links added yet</p>
+            )}
+            {assessmentId && documents.filter(d => d.source_type === "url").length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">No links added yet. URLs will appear in the Documents list once indexed.</p>
             )}
             {links.map((l, i) => (
               <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm group">

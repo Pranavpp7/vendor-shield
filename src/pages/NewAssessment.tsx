@@ -159,8 +159,20 @@ export default function NewAssessment() {
     setStatusMessage("Uploading files…");
     await uploadFilesToStorage(id);
 
-    // Wait for documents to be indexed before running AI checklist
-    if (rawFiles.length > 0) {
+    // Submit links to parse-url
+    if (links.length > 0) {
+      setStatusMessage("Submitting links for indexing…");
+      await Promise.all(
+        links.map((url) =>
+          supabase.functions.invoke("parse-url", {
+            body: { url, assessmentId: id, userId: user?.id },
+          }).catch((err) => console.error("parse-url error:", err))
+        )
+      );
+    }
+
+    // Wait for all documents (files + URLs) to be indexed before running AI checklist
+    if (rawFiles.length > 0 || links.length > 0) {
       setStatusMessage("Waiting for documents to be indexed…");
       const allReady = await waitForDocumentsReady(id);
       if (!allReady) {
