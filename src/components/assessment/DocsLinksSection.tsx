@@ -42,6 +42,8 @@ type Props = {
   onUpdateLinks: (links: string[]) => void;
   assessmentId?: string;
   onRerunChecklist?: () => void;
+  highlightDoc?: string | null;
+  onClearHighlight?: () => void;
 };
 
 export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId, onRerunChecklist }: Props) {
