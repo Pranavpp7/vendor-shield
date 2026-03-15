@@ -170,6 +170,8 @@ export default function AssessmentDetail() {
               onUpdateLinks={(links) => updateAssessment(assessment.id, { links })}
               assessmentId={assessment.id}
               onRerunChecklist={handleRerunChecklist}
+              highlightDoc={highlightDoc}
+              onClearHighlight={() => setHighlightDoc(null)}
             />
           </TabsContent>
 
