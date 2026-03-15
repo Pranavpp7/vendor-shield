@@ -55,10 +55,7 @@ export default function Assessments() {
     setRerunningId(id);
     try {
       await updateAssessment(id, { status: "Running" });
-      const allControls = checklistSchema.flatMap((g) =>
-        g.controls.map((c) => ({ id: c.id, category: g.category, name: c.name }))
-      );
-      const result = await generateChecklistFromAI(assessment.vendorName, allControls, id);
+      const result = await generateChecklistFromAI(assessment.vendorName, checklistAllControls, id);
       await updateAssessment(id, {
         controls: result.controls,
         score: result.score,
