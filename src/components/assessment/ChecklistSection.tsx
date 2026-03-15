@@ -141,33 +141,44 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                             {control.evidenceSource && control.evidenceSource !== "No evidence found" && control.evidenceSource !== "No documents uploaded" && (
                               (() => {
                                 const isUrl = control.evidenceSource!.startsWith("http");
-                                return isUrl ? (
-                                  <a
-                                    href={control.evidenceSource}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 mt-1 group/evidence cursor-pointer hover:opacity-80 transition-opacity"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20 group-hover/evidence:border-accent/40 transition-colors truncate max-w-[300px]">
-                                      {control.evidenceSource}
+                                return (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                                      isUrl
+                                        ? "bg-primary/10 text-primary border border-primary/20"
+                                        : "bg-accent/10 text-accent border border-accent/20"
+                                    }`}>
+                                      {isUrl ? <Globe className="h-2.5 w-2.5" /> : <FileText className="h-2.5 w-2.5" />}
+                                      {isUrl ? "Public Source" : "Uploaded Document"}
                                     </span>
-                                  </a>
-                                ) : (
-                                  <button
-                                    className="flex items-center gap-1.5 mt-1 group/evidence cursor-pointer hover:opacity-80 transition-opacity"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onNavigateToDocs?.(control.evidenceSource);
-                                    }}
-                                  >
-                                    <FileText className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20 group-hover/evidence:border-accent/40 transition-colors">
-                                      {control.evidenceSource}
-                                    </span>
-                                    <ExternalLink className="h-2.5 w-2.5 text-muted-foreground" />
-                                  </button>
+                                    {isUrl ? (
+                                      <a
+                                        href={control.evidenceSource}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 group/evidence cursor-pointer hover:opacity-80 transition-opacity"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <span className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors truncate max-w-[250px] underline underline-offset-2">
+                                          {control.evidenceSource}
+                                        </span>
+                                        <ExternalLink className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
+                                      </a>
+                                    ) : (
+                                      <button
+                                        className="flex items-center gap-1 group/evidence cursor-pointer hover:opacity-80 transition-opacity"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onNavigateToDocs?.(control.evidenceSource);
+                                        }}
+                                      >
+                                        <span className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2">
+                                          {control.evidenceSource}
+                                        </span>
+                                        <ExternalLink className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
+                                      </button>
+                                    )}
+                                  </div>
                                 );
                               })()
                             )}
