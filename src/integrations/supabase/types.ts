@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      assessments: {
+        Row: {
+          chat_history: Json
+          controls: Json
+          created_at: string
+          criticality: string
+          id: string
+          links: Json
+          notes: string
+          risk_level: string
+          score: number
+          status: string
+          updated_at: string | null
+          uploaded_files: Json
+          user_id: string
+          vendor_name: string
+        }
+        Insert: {
+          chat_history?: Json
+          controls?: Json
+          created_at: string
+          criticality?: string
+          id: string
+          links?: Json
+          notes?: string
+          risk_level?: string
+          score?: number
+          status?: string
+          updated_at?: string | null
+          uploaded_files?: Json
+          user_id: string
+          vendor_name: string
+        }
+        Update: {
+          chat_history?: Json
+          controls?: Json
+          created_at?: string
+          criticality?: string
+          id?: string
+          links?: Json
+          notes?: string
+          risk_level?: string
+          score?: number
+          status?: string
+          updated_at?: string | null
+          uploaded_files?: Json
+          user_id?: string
+          vendor_name?: string
+        }
+        Relationships: []
+      }
       document_chunks: {
         Row: {
           chunk_index: number
