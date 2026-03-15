@@ -35,6 +35,7 @@ export default function Assessments() {
   const navigate = useNavigate();
   const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
   const { user } = useAuth();
+  const { allControls: checklistAllControls } = useChecklistSchema();
   const [rerunningId, setRerunningId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
