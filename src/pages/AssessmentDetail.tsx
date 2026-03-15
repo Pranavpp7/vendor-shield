@@ -143,8 +143,7 @@ export default function AssessmentDetail() {
                   uploadedFiles={assessment.uploadedFiles}
                   links={assessment.links}
                   onNavigateToDocs={() => {
-                    const docsTab = document.querySelector('[data-value="docs"]') as HTMLButtonElement;
-                    docsTab?.click();
+                    setActiveTab("docs");
                   }}
                   onRerunChecklist={handleRerunChecklist}
                   rerunning={rerunning}
