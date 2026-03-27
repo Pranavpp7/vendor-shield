@@ -4,7 +4,7 @@ import { vendorNameToSlug } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
 import { useChecklistSchema } from "@/hooks/useChecklistSchema";
-import { generateChecklistFromAI } from "@/lib/api";
+import { generateChecklistFromAI, ingestDocument, ingestUrl } from "@/lib/api";
 import { saveRunSnapshot } from "@/lib/runHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,35 +72,12 @@ export default function NewAssessment() {
     }
   };
 
-  const uploadFilesToStorage = async (assessmentId: string) => {
+  const uploadFilesToBackend = async (assessmentId: string) => {
     if (rawFiles.length === 0) return;
     setUploading(true);
     for (const file of rawFiles) {
       try {
-        const storagePath = `${assessmentId}/${Date.now()}-${file.name}`;
-        const { error: uploadErr } = await supabase.storage
-          .from("vendor-documents")
-          .upload(storagePath, file);
-        if (uploadErr) throw uploadErr;
-
-        const { data: docRecord, error: docErr } = await supabase
-          .from("documents")
-          .insert({
-            assessment_id: assessmentId,
-            file_name: file.name,
-            file_size: file.size,
-            content_type: file.type || "application/octet-stream",
-            storage_path: storagePath,
-            status: "pending",
-            user_id: user?.id,
-          })
-          .select("id")
-          .single();
-        if (docErr) throw docErr;
-
-        supabase.functions.invoke("parse-document", {
-          body: { documentId: docRecord.id },
-        }).catch((err) => console.error("Parse error:", err));
+        await ingestDocument(file, assessmentId, vendorName, user?.id);
       } catch (err: any) {
         console.error("Upload error:", err);
         toast({ title: "Upload failed", description: `Failed to upload ${file.name}: ${err.message}`, variant: "destructive" });
@@ -128,7 +105,7 @@ export default function NewAssessment() {
     };
     if (draftId) await updateAssessment(draftId, data);
     else await addAssessment(data);
-    await uploadFilesToStorage(id);
+    await uploadFilesToBackend(id);
     toast({ title: "Draft saved", description: `Assessment for ${vendorName} saved as draft.` });
     navigate("/assessments");
   };
@@ -156,18 +133,16 @@ export default function NewAssessment() {
     setLoading(true);
     const id = draftId || `${vendorNameToSlug(vendorName)}-${crypto.randomUUID().slice(0, 8)}`;
 
-    // Upload files to storage first
+    // Upload files via FastAPI
     setStatusMessage("Uploading files…");
-    await uploadFilesToStorage(id);
+    await uploadFilesToBackend(id);
 
-    // Submit links to parse-url
+    // Submit links via FastAPI
     if (links.length > 0) {
       setStatusMessage("Submitting links for indexing…");
       await Promise.all(
         links.map((url) =>
-          supabase.functions.invoke("parse-url", {
-            body: { url, assessmentId: id, userId: user?.id },
-          }).catch((err) => console.error("parse-url error:", err))
+          ingestUrl(url, id, vendorName).catch((err) => console.error("URL ingest error:", err))
         )
       );
     }

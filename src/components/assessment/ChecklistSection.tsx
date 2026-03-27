@@ -23,6 +23,13 @@ function StatusIcon({ status }: { status: ControlResult["status"] }) {
       </div>
     );
   }
+  if (status === "partial") {
+    return (
+      <div className="h-5 w-5 rounded-full bg-orange-500/15 flex items-center justify-center flex-shrink-0">
+        <AlertCircle className="h-3 w-3 text-orange-500" />
+      </div>
+    );
+  }
   if (status === "needs_info") {
     return (
       <div className="h-5 w-5 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
@@ -39,6 +46,7 @@ function StatusIcon({ status }: { status: ControlResult["status"] }) {
 
 function statusLabel(status: ControlResult["status"]) {
   if (status === "passed") return "Passed";
+  if (status === "partial") return "Partial";
   if (status === "needs_info") return "Needs Info";
   return "Failed";
 }
@@ -100,6 +108,7 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                         {isRevealed && (
                           <span className={`text-[11px] font-medium ${
                             control.status === "passed" ? "text-risk-low" :
+                            control.status === "partial" ? "text-orange-500" :
                             control.status === "needs_info" ? "text-amber-500" :
                             "text-risk-high"
                           }`}>

@@ -1,4 +1,11 @@
-export type ControlStatus = "passed" | "failed" | "needs_info";
+export type ControlStatus = "passed" | "failed" | "needs_info" | "partial";
+
+export type Citation = {
+  document: string;
+  page?: number;
+  excerpt: string;
+  similarity?: number;
+};
 
 export type ControlResult = {
   id: string;
@@ -9,6 +16,7 @@ export type ControlResult = {
   comment: string;
   aiExplanation?: string;
   evidenceSource?: string;
+  citations?: Citation[];
 };
 
 export type ChatMessage = {
@@ -20,6 +28,16 @@ export type ChatMessage = {
 export type UploadedFile = {
   name: string;
   size: number;
+};
+
+export type DomainScore = {
+  domain: string;
+  score: number;
+  total_controls: number;
+  passed: number;
+  partial: number;
+  failed: number;
+  no_evidence: number;
 };
 
 export type Assessment = {
@@ -35,4 +53,7 @@ export type Assessment = {
   chatHistory: ChatMessage[];
   uploadedFiles: UploadedFile[];
   links: string[];
+  domainScores?: DomainScore[];
+  gapsSummary?: string;
 };
+

@@ -1,73 +1,186 @@
-# Welcome to your Lovable project
+# VendorShield — AI-Powered Vendor Risk Assessment Platform
 
-## Project info
+An AI-powered vendor risk assessment system that compares uploaded vendor security/compliance documents against an internal control checklist using RAG (Retrieval-Augmented Generation).
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 🏗️ Architecture
 
-## How can I edit this code?
+```
+Frontend (React + Vite)          FastAPI Backend (Python)
+├── shadcn/ui components         ├── Document Ingestion (PDF/URL)
+├── Tailwind CSS                 ├── Snowflake Arctic Embed (local)
+├── Supabase Auth                ├── Pinecone Vector Store
+└── Assessment Dashboard         ├── LangChain + LangGraph
+                                 ├── Groq API (Llama 3.3 70B)
+                                 └── MCP Server (JSON-RPC)
+```
 
-There are several ways of editing your application.
+## ⚙️ Tech Stack
 
-**Use Lovable**
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 18, Vite, TypeScript, Tailwind CSS, shadcn/ui |
+| **Backend** | FastAPI (Python), Swagger UI at `/docs` |
+| **LLM** | Llama 3.3 70B via Groq API |
+| **Embeddings** | Snowflake Arctic Embed M (768d, runs locally) |
+| **Vector DB** | Pinecone (serverless, namespace per assessment) |
+| **AI Framework** | LangChain + LangGraph |
+| **Auth & DB** | Supabase (PostgreSQL + Auth + Storage) |
+| **Protocol** | MCP (Model Context Protocol) for AI agent integration |
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## 🚀 Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- **Python 3.10+**
+- **Node.js 18+**
+- API keys: [Groq](https://console.groq.com), [Pinecone](https://app.pinecone.io), [Supabase](https://supabase.com)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 1. Backend Setup
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+cd backend
+python -m venv venv
 
-Follow these steps:
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+source venv/bin/activate
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+pip install -r requirements.txt
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Copy and fill in your API keys
+cp .env.example .env
+# Edit .env with your GROQ_API_KEY, PINECONE_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Start the server
+uvicorn main:app --reload --port 8000
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+First startup will download the Snowflake Arctic embedding model (~400MB, one-time).
+
+### 2. Frontend Setup
+
+```bash
+# From project root
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### 3. Access the Application
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- **Frontend UI**: http://localhost:8080
+- **Swagger API Docs**: http://localhost:8000/docs
+- **MCP Endpoint**: POST http://localhost:8000/mcp
 
-**Use GitHub Codespaces**
+## 📋 API Endpoints
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Documents
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/documents/upload` | Upload PDF/DOCX → extract → chunk → embed → Pinecone |
+| POST | `/api/documents/ingest-url` | Ingest URL content into Pinecone |
+| GET | `/api/documents/{assessment_id}` | List documents for an assessment |
+| DELETE | `/api/documents/{document_id}` | Delete document + vectors |
 
-## What technologies are used for this project?
+### Assessments
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/assessments/run` | Run full assessment (LangGraph workflow) |
+| POST | `/api/assessments/{id}/rerun` | Re-run with latest docs |
+| GET | `/api/assessments/{id}/report` | Get assessment report |
 
-This project is built with:
+### Chat
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/chat` | RAG-powered Q&A over vendor docs |
+| POST | `/api/chat/summary` | Generate executive summary |
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Controls
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/controls` | Get internal control checklist |
 
-## How can I deploy this project?
+### MCP
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/mcp` | MCP JSON-RPC endpoint for AI agents |
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## 🤖 MCP Tools
 
-## Can I connect a custom domain to my Lovable project?
+The MCP server exposes these tools for external AI agents (Claude, GPT, etc.):
 
-Yes, you can!
+- `list_assessments` — List all vendor assessments
+- `get_documents` — List documents for an assessment
+- `query_documents` — Semantic search in vendor docs
+- `ask_question` — RAG-powered Q&A
+- `run_assessment` — Trigger full risk assessment
+- `get_assessment_report` — Get complete results
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 🔄 Assessment Pipeline (LangGraph)
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```
+check_documents → evaluate_controls → aggregate_scores → generate_summary
+```
+
+1. **Check Documents**: Verify if indexed documents exist in Pinecone
+2. **Evaluate Controls**: For each of 20 internal controls:
+   - Embed control name → search Pinecone for evidence
+   - Inject evidence into prompt → Groq Llama evaluates
+   - Returns: Pass / Partial / Fail / No Evidence + rationale + citations
+3. **Aggregate Scores**: Weighted scoring per domain, overall risk level
+4. **Generate Summary**: LLM-generated executive summary with recommendations
+
+## 📁 Project Structure
+
+```
+vendor-shield-1/
+├── backend/                    # FastAPI backend
+│   ├── main.py                 # App entry point
+│   ├── config.py               # Settings (env vars)
+│   ├── models/
+│   │   ├── schemas.py          # Pydantic models
+│   │   └── controls.py         # Internal control checklist
+│   ├── services/
+│   │   ├── extraction.py       # PDF/URL text extraction
+│   │   ├── chunking.py         # Text chunking
+│   │   ├── embedding.py        # Snowflake Arctic Embed
+│   │   ├── pinecone_store.py   # Pinecone operations
+│   │   ├── ingestion.py        # Ingestion orchestrator
+│   │   ├── retrieval.py        # Per-control evidence retrieval
+│   │   ├── evaluation.py       # LangChain + Groq evaluation
+│   │   ├── aggregation.py      # Score computation
+│   │   └── chat.py             # RAG chat service
+│   ├── chains/
+│   │   └── assessment_graph.py # LangGraph assessment workflow
+│   ├── routers/
+│   │   ├── documents.py        # Document endpoints
+│   │   ├── assessments.py      # Assessment endpoints
+│   │   ├── controls.py         # Controls endpoints
+│   │   └── chat.py             # Chat endpoints
+│   └── mcp/
+│       └── server.py           # MCP server
+├── src/                        # React frontend
+│   ├── pages/                  # UI pages
+│   ├── components/             # Reusable components
+│   ├── lib/api.ts              # FastAPI client
+│   └── types/                  # TypeScript types
+├── supabase/                   # Supabase migrations
+└── package.json
+```
+
+## 🔑 Environment Variables
+
+### Backend (`backend/.env`)
+```
+GROQ_API_KEY=gsk_...
+PINECONE_API_KEY=pcsk_...
+SUPABASE_URL=https://...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+### Frontend (`.env`)
+```
+VITE_SUPABASE_URL=https://...
+VITE_SUPABASE_PUBLISHABLE_KEY=...
+VITE_API_BASE_URL=http://localhost:8000
+```

@@ -22,7 +22,7 @@ const layers = [
     icon: Layers,
     color: "bg-primary/10 text-primary",
     items: [
-      "Login / Signup with email verification (Lovable Cloud Auth)",
+      "Login / Signup with email verification (Supabase Auth)",
       "Dashboard with real-time assessment stats & risk distribution",
       "Assessment CRUD — create, evaluate, compare runs, generate summaries",
       "Document & URL ingestion with live indexing pipeline indicator",
@@ -37,11 +37,12 @@ const layers = [
     icon: Cloud,
     color: "bg-accent/10 text-accent",
     items: [
-      "parse-document — PDF/text extraction → chunking → Gemini embeddings → pgvector",
-      "parse-url — web scraping → HTML stripping → chunking → embeddings → pgvector",
-      "vendor-ai — per-control RAG retrieval → AI checklist evaluation, chat, summaries",
-      "mcp-server — MCP Streamable HTTP protocol for external AI agents",
-      "cleanup-assessment-assets — cascading deletion of storage & chunks",
+      "FastAPI backend with Swagger UI — /docs endpoint",
+      "Document ingestion — PDF/text extraction → chunking → Snowflake Arctic embeddings → Pinecone",
+      "URL ingestion — web scraping → HTML stripping → chunking → embeddings → Pinecone",
+      "Assessment engine — LangGraph workflow: per-control RAG retrieval → Groq Llama evaluation",
+      "MCP server — JSON-RPC over HTTP for external AI agent integration",
+      "Chat — RAG-powered Q&A using LangChain + Groq",
     ],
   },
   {
@@ -53,7 +54,7 @@ const layers = [
       "assessments — full assessment state incl. controls, chat history, scores",
       "assessment_runs — historical snapshots for run-over-run comparison",
       "documents — file/URL metadata with processing status tracking",
-      "document_chunks — text chunks with pgvector embeddings (768-dim)",
+      "document_chunks — text chunks stored in Pinecone (768-dim Snowflake Arctic)",
       "checklist_schemas — per-user customizable control templates",
       "vendor-documents bucket — encrypted file storage with RLS",
     ],
@@ -63,10 +64,10 @@ const layers = [
     icon: Brain,
     color: "bg-destructive/10 text-destructive",
     items: [
-      "Ingestion: Upload/URL → parse → 500-word chunks (100-word overlap) → Gemini embedding-001",
-      "Indexing: pgvector storage with HNSW index for fast cosine similarity",
+      "Ingestion: Upload/URL → parse → 500-word chunks (100-word overlap) → Snowflake Arctic Embed",
+      "Indexing: Pinecone vector storage with cosine similarity (namespace per assessment)",
       "Retrieval: Per-control semantic search → top-24 chunks from ≤8 unique sources",
-      "Generation: Context injection → Gemini Flash → evidence-cited responses",
+      "Generation: Context injection → Groq Llama 3.3 70B → evidence-cited responses",
       "Public source fallback: well-known vendor features cited with live URLs",
     ],
   },
@@ -79,12 +80,13 @@ const techStack = [
   { name: "Tailwind CSS", category: "Styling" },
   { name: "shadcn/ui", category: "Components" },
   { name: "Tanstack Query", category: "Data" },
-  { name: "Lovable Cloud", category: "Backend" },
-  { name: "pgvector", category: "Vector DB" },
-  { name: "Gemini embedding-001", category: "Embeddings" },
-  { name: "Gemini Flash", category: "LLM" },
+  { name: "FastAPI", category: "Backend" },
+  { name: "Pinecone", category: "Vector DB" },
+  { name: "Snowflake Arctic Embed", category: "Embeddings" },
+  { name: "Llama 3.3 70B (Groq)", category: "LLM" },
+  { name: "LangChain + LangGraph", category: "AI Framework" },
   { name: "MCP Protocol", category: "Integration" },
-  { name: "Deno Edge Functions", category: "Runtime" },
+  { name: "Python + Uvicorn", category: "Runtime" },
 ];
 
 /* ─── API Playground ─── */
@@ -242,7 +244,7 @@ function EndpointTester() {
               {isLoading("parse-url") ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />} Run
             </Button>
           </div>
-          <CardDescription className="text-xs">Scrapes a URL, chunks text, generates Gemini embeddings, stores in pgvector</CardDescription>
+          <CardDescription className="text-xs">Scrapes a URL, chunks text, generates Snowflake Arctic embeddings, stores in Pinecone</CardDescription>
         </CardHeader>
         <CardContent>
           <Input value={docUrl} onChange={(e) => setDocUrl(e.target.value)} placeholder="https://example.com/security" className="text-xs h-8" />
@@ -341,7 +343,7 @@ export default function Architecture() {
             Vendor Shield — System Architecture
           </h1>
           <p className="text-muted-foreground mt-2 max-w-2xl">
-            End-to-end vendor risk assessment platform built on Lovable with AI-powered checklist evaluation, 
+            End-to-end vendor risk assessment platform built with FastAPI + LangChain + Groq, featuring AI-powered checklist evaluation, 
             RAG-based document intelligence, and MCP integration for external AI agents.
           </p>
         </div>
@@ -440,7 +442,7 @@ export default function Architecture() {
                     { icon: FileText, label: "PDF & text document upload with real-time indexing" },
                     { icon: Link2, label: "URL scraping and indexing into RAG pipeline" },
                     { icon: Brain, label: "AI-powered checklist evaluation per control" },
-                    { icon: Search, label: "Semantic vector search (pgvector + cosine similarity)" },
+                    { icon: Search, label: "Semantic vector search (Pinecone + cosine similarity)" },
                     { icon: MessageSquare, label: "RAG-grounded AI chat per assessment" },
                     { icon: BarChart3, label: "Run history with side-by-side comparison" },
                     { icon: Eye, label: "Executive summary generation with document citations" },
@@ -470,7 +472,7 @@ export default function Architecture() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium">
-                  {["Upload PDF/Text", "→", "parse-document", "→", "Extract Text (unpdf)", "→", "Chunk (500w / 100 overlap)", "→", "Gemini embedding-001", "→", "pgvector Storage", "→", "Status: ready"].map((step, i) =>
+                  {["Upload PDF/Text", "→", "FastAPI", "→", "Extract Text (pypdf)", "→", "Chunk (500w / 100 overlap)", "→", "Snowflake Arctic Embed", "→", "Pinecone", "→", "Status: ready"].map((step, i) =>
                     step === "→" ? (
                       <ArrowRight key={i} className="h-4 w-4 text-muted-foreground" />
                     ) : (
@@ -490,7 +492,7 @@ export default function Architecture() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium">
-                  {["Paste URL", "→", "parse-url", "→", "Fetch & Strip HTML", "→", "Chunk (500w / 100 overlap)", "→", "Gemini embedding-001", "→", "pgvector Storage", "→", "Status: ready"].map((step, i) =>
+                  {["Paste URL", "→", "FastAPI", "→", "Fetch & Strip HTML", "→", "Chunk (500w / 100 overlap)", "→", "Snowflake Arctic Embed", "→", "Pinecone", "→", "Status: ready"].map((step, i) =>
                     step === "→" ? (
                       <ArrowRight key={i} className="h-4 w-4 text-muted-foreground" />
                     ) : (
@@ -510,7 +512,7 @@ export default function Architecture() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium">
-                  {["Run Checklist", "→", "Per-Control Embedding", "→", "Cosine Similarity (top-24)", "→", "≤8 Unique Sources", "→", "Context Injection", "→", "Gemini Flash", "→", "Pass / Fail / Needs Info"].map((step, i) =>
+                  {["Run Checklist", "→", "Per-Control Embedding", "→", "Cosine Similarity (top-24)", "→", "≤8 Unique Sources", "→", "Context Injection", "→", "Groq Llama 3.3 70B", "→", "Pass / Partial / Fail / No Evidence"].map((step, i) =>
                     step === "→" ? (
                       <ArrowRight key={i} className="h-4 w-4 text-muted-foreground" />
                     ) : (

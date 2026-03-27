@@ -1,0 +1,36 @@
+[project]
+name = "vendorshield-backend"
+version = "1.0.0"
+description = "AI-powered vendor risk assessment system using LangChain, Groq, and Pinecone"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[standard]",
+    "uvicorn[standard]",
+    "python-multipart",
+    "pinecone-client",
+    "sentence-transformers",
+    "torch",
+    "groq",
+    "langchain>=0.3.0",
+    "langchain-groq",
+    "langchain-community",
+    "langchain-pinecone",
+    "langgraph",
+    "pypdf",
+    "beautifulsoup4",
+    "httpx",
+    "python-dotenv",
+    "supabase",
+    "pydantic-settings",
+    "python-docx",
+    "mcp[cli]",
+]
+
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+]
