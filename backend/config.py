@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     pinecone_index_name: str = "vendor-shield"
 
     # --- Embedding ---
-    embedding_model: str = "Snowflake/snowflake-arctic-embed-m"
-    embedding_dimensions: int = 768
+    embedding_model: str = "BAAI/bge-large-en-v1.5"
+    embedding_dimensions: int = 1024
 
     # --- Supabase ---
     supabase_url: str

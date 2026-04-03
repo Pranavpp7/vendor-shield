@@ -3,7 +3,7 @@
 AI-powered vendor risk assessment system using:
 - LangChain/LangGraph for AI orchestration
 - Groq (Llama 3.3 70B) for LLM inference
-- Snowflake Arctic Embed for embeddings (local)
+- BGE-large-en-v1.5 for embeddings (local)
 - Pinecone for vector search
 - MCP protocol for external AI agent integration
 
@@ -110,7 +110,7 @@ async def api_info():
         "mcp": "/mcp",
         "stack": {
             "llm": "Llama 3.3 70B (Groq)",
-            "embeddings": "Snowflake Arctic Embed M (local)",
+            "embeddings": "BGE-large-en-v1.5 (local, 1024 dim)",
             "vector_db": "Pinecone",
             "framework": "LangChain + LangGraph",
             "protocol": "MCP (Model Context Protocol)",

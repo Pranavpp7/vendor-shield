@@ -3,7 +3,7 @@
 from pinecone import Pinecone, ServerlessSpec
 from config import get_settings
 from services.chunking import Chunk
-from services.embedding import embed_text, embed_batch
+from services.embedding import embed_text, embed_batch, embed_passage
 import logging
 
 logger = logging.getLogger(__name__)
