@@ -6,7 +6,6 @@ Graph: check_documents → evaluate_controls → aggregate_scores → generate_s
 import logging
 from typing import TypedDict
 from langgraph.graph import StateGraph, END
-from supabase import create_client
 from config import get_settings
 from models.schemas import (
     ControlDefinition, ControlResult, DomainScore, RiskLevel,
@@ -37,18 +36,15 @@ class AssessmentState(TypedDict):
 # --- Node Functions ---
 
 async def check_documents(state: AssessmentState) -> dict:
-    """Check if the assessment has indexed documents in Supabase."""
-    settings = get_settings()
-    supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
-    result = (
-        supabase.table("documents")
-        .select("id")
-        .eq("assessment_id", state["assessment_id"])
-        .eq("status", "ready")
-        .limit(1)
-        .execute()
-    )
-    has_docs = len(result.data) > 0
+    """Check if the assessment has indexed documents in Pinecone."""
+    from services.pinecone_store import get_index
+    try:
+        index = get_index()
+        stats = index.describe_index_stats()
+        ns_stats = stats.get("namespaces", {}).get(state["assessment_id"], {})
+        has_docs = ns_stats.get("vector_count", 0) > 0
+    except Exception:
+        has_docs = False
     logger.info(f"Assessment {state['assessment_id']}: has_documents={has_docs}")
     return {"has_documents": has_docs}
 

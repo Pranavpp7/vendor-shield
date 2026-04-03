@@ -29,16 +29,7 @@ async def run_assessment_endpoint(req: AssessmentRunRequest):
 async def rerun_assessment(assessment_id: str, vendor_name: str = ""):
     """Re-run assessment with latest document data."""
     if not vendor_name:
-        # Try to get vendor name from Supabase
-        from supabase import create_client
-        from config import get_settings
-        settings = get_settings()
-        supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
-        result = supabase.table("assessments").select("vendor_name").eq("id", assessment_id).single().execute()
-        if result.data:
-            vendor_name = result.data["vendor_name"]
-        else:
-            raise HTTPException(status_code=404, detail="Assessment not found")
+        raise HTTPException(status_code=400, detail="vendor_name is required")
 
     try:
         result = await run_assessment(
@@ -48,19 +39,3 @@ async def rerun_assessment(assessment_id: str, vendor_name: str = ""):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/{assessment_id}/report")
-async def get_assessment_report(assessment_id: str):
-    """Get the latest assessment report from Supabase."""
-    from supabase import create_client
-    from config import get_settings
-
-    settings = get_settings()
-    supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
-    result = supabase.table("assessments").select("*").eq("id", assessment_id).single().execute()
-
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    return result.data

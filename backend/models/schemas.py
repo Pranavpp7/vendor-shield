@@ -100,6 +100,9 @@ class DocumentUploadResponse(BaseModel):
     chunks_created: int
     embeddings_generated: bool
     status: str
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    source_url: Optional[str] = None
 
 
 class AssessmentResponse(BaseModel):

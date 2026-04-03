@@ -224,6 +224,7 @@ export default function AssessmentDetail() {
               onUpdateFiles={(files) => updateAssessment(assessment.id, { uploadedFiles: files })}
               onUpdateLinks={(links) => updateAssessment(assessment.id, { links })}
               assessmentId={assessment.id}
+              vendorName={assessment.vendorName}
               onRerunChecklist={handleRerunChecklist}
               highlightDoc={highlightDoc}
               onClearHighlight={() => setHighlightDoc(null)}

@@ -17,9 +17,9 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-large-en-v1.5"
     embedding_dimensions: int = 1024
 
-    # --- Supabase ---
-    supabase_url: str
-    supabase_service_role_key: str
+    # --- Supabase (optional — frontend handles document metadata) ---
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
 
     # --- Chunking ---
     chunk_size: int = 500  # words

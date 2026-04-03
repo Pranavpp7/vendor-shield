@@ -43,12 +43,13 @@ type Props = {
   onUpdateFiles: (files: UploadedFile[]) => void;
   onUpdateLinks: (links: string[]) => void;
   assessmentId?: string;
+  vendorName?: string;
   onRerunChecklist?: () => void;
   highlightDoc?: string | null;
   onClearHighlight?: () => void;
 };
 
-export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId, onRerunChecklist, highlightDoc, onClearHighlight }: Props) {
+export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId, vendorName, onRerunChecklist, highlightDoc, onClearHighlight }: Props) {
   const { user } = useAuth();
   const [linkInput, setLinkInput] = useState("");
   const [editingLink, setEditingLink] = useState<number | null>(null);
@@ -186,17 +187,15 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     setLinkInput("");
 
     if (assessmentId && user) {
-      // Submit to parse-url edge function — it creates the document record
+      // Submit to FastAPI ingest-url endpoint
       toast.info(`Submitting ${url} for indexing…`);
       try {
-        const { error } = await supabase.functions.invoke("parse-url", {
-          body: { url, assessmentId, userId: user.id },
-        });
-        if (error) throw error;
+        const { ingestUrl } = await import("@/lib/api");
+        await ingestUrl(url, assessmentId, vendorName || "Unknown Vendor");
         toast.success(`URL submitted for indexing`);
         loadDocuments();
       } catch (err: any) {
-        console.error("parse-url error:", err);
+        console.error("ingest-url error:", err);
         toast.error(`Failed to index URL: ${err.message}`);
       }
     } else {
@@ -246,41 +245,20 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     const optimisticIds = new Set(optimisticDocs.map((d) => d.id));
     setDocuments((prev) => [...optimisticDocs, ...prev]);
 
+    // Upload each file via FastAPI /api/documents/upload
+    const { ingestDocument } = await import("@/lib/api");
     const uploadResults = await Promise.all(selectedFiles.map(async (file) => {
       try {
-        const storagePath = `${assessmentId}/${Date.now()}-${crypto.randomUUID()}-${file.name}`;
-
-        const { error: uploadErr } = await supabase.storage
-          .from("vendor-documents")
-          .upload(storagePath, file);
-
-        if (uploadErr) throw uploadErr;
-
-        const { data: docRecord, error: docErr } = await supabase
-          .from("documents")
-          .insert({
-            assessment_id: assessmentId,
-            file_name: file.name,
-            file_size: file.size,
-            content_type: file.type || "application/octet-stream",
-            storage_path: storagePath,
-            status: "pending",
-            user_id: user?.id,
-          })
-          .select("id, file_name, file_size, status, storage_path, created_at, source_type, source_url")
-          .single();
-
-        if (docErr || !docRecord) throw docErr || new Error("Failed to create document record");
-
-        // Fire parse in background for each document
-        supabase.functions.invoke("parse-document", {
-          body: { documentId: docRecord.id },
-        }).catch((err) => {
-          console.error("Parse error:", err);
-        });
-
+        const result = await ingestDocument(file, assessmentId, vendorName || "Unknown Vendor", user?.id);
         toast.success(`Uploaded ${file.name}`);
-        return docRecord as DocumentRecord;
+        return {
+          id: result.document_id,
+          file_name: file.name,
+          file_size: file.size,
+          status: result.status || "ready",
+          storage_path: null,
+          created_at: now,
+        } as DocumentRecord;
       } catch (err: any) {
         console.error("Upload error:", err);
         toast.error(`Failed to upload ${file.name}: ${err.message}`);
@@ -307,22 +285,15 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     setReprocessingId(doc.id);
     try {
       if (doc.source_type === "url" && doc.source_url) {
-        // For URL docs, delete old record + chunks and re-submit to parse-url
-        await supabase.from("document_chunks").delete().eq("document_id", doc.id);
-        await supabase.from("documents").delete().eq("id", doc.id);
-        const { error } = await supabase.functions.invoke("parse-url", {
-          body: { url: doc.source_url, assessmentId: assessmentId, userId: user?.id },
-        });
-        if (error) throw error;
+        // For URL docs, delete via FastAPI and re-ingest
+        await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
+        const { ingestUrl } = await import("@/lib/api");
+        await ingestUrl(doc.source_url, assessmentId || "", vendorName || "Unknown Vendor");
         toast.success(`Re-processing ${doc.source_url}`);
       } else {
-        await supabase.from("documents").update({ status: "pending" }).eq("id", doc.id);
-        loadDocuments();
-        const { error } = await supabase.functions.invoke("parse-document", {
-          body: { documentId: doc.id },
-        });
-        if (error) throw error;
-        toast.success(`Re-processing ${doc.file_name}`);
+        // For file docs, delete and notify user to re-upload
+        await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
+        toast.info(`Deleted ${doc.file_name}. Please re-upload to re-process.`);
       }
     } catch (err: any) {
       console.error("Reprocess error:", err);
@@ -336,23 +307,10 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      // Get storage path before deleting the record
-      const { data: docData } = await supabase
-        .from("documents")
-        .select("storage_path")
-        .eq("id", deleteTarget.docId)
-        .single();
-
-      // Delete from DB (chunks cascade via FK)
-      await supabase.from("document_chunks").delete().eq("document_id", deleteTarget.docId);
-      await supabase.from("documents").delete().eq("id", deleteTarget.docId);
-
-      // Delete from storage bucket
-      if (docData?.storage_path) {
-        await supabase.storage.from("vendor-documents").remove([docData.storage_path]);
-      }
+      // Delete via FastAPI endpoint (handles DB + Pinecone cleanup)
+      const response = await fetch(`/api/documents/${deleteTarget.docId}`, { method: "DELETE" });
+      if (!response.ok) throw new Error(`Delete failed: ${response.status}`);
       
-      // Sync files from DB source of truth
       toast.success(`Deleted ${deleteTarget.fileName}`);
       await loadDocuments();
     } catch (err: any) {

@@ -49,43 +49,12 @@ async def ingest_url_endpoint(req: URLIngestRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{assessment_id}")
-async def list_documents(assessment_id: str):
-    """List all documents for an assessment."""
-    from supabase import create_client
-    from config import get_settings
-
-    settings = get_settings()
-    supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
-    result = (
-        supabase.table("documents")
-        .select("id, file_name, file_size, content_type, status, created_at, source_url")
-        .eq("assessment_id", assessment_id)
-        .order("created_at", desc=True)
-        .execute()
-    )
-    return {"documents": result.data}
-
-
 @router.delete("/{document_id}")
-async def delete_document(document_id: str):
-    """Delete a document and its vectors from Pinecone."""
-    from supabase import create_client
-    from config import get_settings
+async def delete_document(document_id: str, assessment_id: str = ""):
+    """Delete a document's vectors from Pinecone."""
     from services.pinecone_store import delete_by_document
 
-    settings = get_settings()
-    supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
-
-    # Get document to find assessment_id
-    doc = supabase.table("documents").select("assessment_id").eq("id", document_id).single().execute()
-    if not doc.data:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    # Delete vectors from Pinecone
-    delete_by_document(doc.data["assessment_id"], document_id)
-
-    # Delete from Supabase
-    supabase.table("documents").delete().eq("id", document_id).execute()
+    if assessment_id:
+        delete_by_document(assessment_id, document_id)
 
     return {"success": True, "message": f"Document {document_id} deleted"}
