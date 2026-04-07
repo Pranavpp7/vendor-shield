@@ -286,13 +286,13 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     try {
       if (doc.source_type === "url" && doc.source_url) {
         // For URL docs, delete via FastAPI and re-ingest
-        await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
+        await fetch(`/api/documents/${doc.id}?assessment_id=${assessmentId || ""}`, { method: "DELETE" });
         const { ingestUrl } = await import("@/lib/api");
         await ingestUrl(doc.source_url, assessmentId || "", vendorName || "Unknown Vendor");
         toast.success(`Re-processing ${doc.source_url}`);
       } else {
         // For file docs, delete and notify user to re-upload
-        await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
+        await fetch(`/api/documents/${doc.id}?assessment_id=${assessmentId || ""}`, { method: "DELETE" });
         toast.info(`Deleted ${doc.file_name}. Please re-upload to re-process.`);
       }
     } catch (err: any) {
@@ -305,11 +305,11 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !assessmentId) return;
     try {
-      // Delete via FastAPI endpoint (handles DB + Pinecone cleanup)
-      const response = await fetch(`/api/documents/${deleteTarget.docId}`, { method: "DELETE" });
-      if (!response.ok) throw new Error(`Delete failed: ${response.status}`);
+      // Import the API function
+      const { deleteDocument } = await import("@/lib/api");
+      await deleteDocument(deleteTarget.docId, assessmentId);
       
       toast.success(`Deleted ${deleteTarget.fileName}`);
       await loadDocuments();

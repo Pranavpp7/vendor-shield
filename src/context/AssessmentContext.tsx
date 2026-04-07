@@ -128,16 +128,14 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
 
   const deleteAssessment = async (id: string) => {
     try {
-      const { error: cleanupFunctionError } = await supabase.functions.invoke("cleanup-assessment-assets", {
-        body: { assessmentId: id },
-      });
-
-      if (!cleanupFunctionError) {
-        setAssessments((prev) => prev.filter((a) => a.id !== id));
-        return;
-      }
-
-      console.warn("Server cleanup failed, falling back to client cleanup:", cleanupFunctionError);
+      // Use the new FastAPI endpoint
+      const { deleteAssessment: deleteAssessmentAPI } = await import("@/lib/api");
+      await deleteAssessmentAPI(id);
+      
+      setAssessments((prev) => prev.filter((a) => a.id !== id));
+      return;
+    } catch (error) {
+      console.warn("Server cleanup via FastAPI failed, falling back to client cleanup:", error);
 
       // Delete all files in the assessment folder first, including orphaned files
       await deleteStorageFilesByPrefix(id);
