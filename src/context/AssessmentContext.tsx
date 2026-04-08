@@ -137,46 +137,48 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.warn("Server cleanup via FastAPI failed, falling back to client cleanup:", error);
 
-      // Delete all files in the assessment folder first, including orphaned files
-      await deleteStorageFilesByPrefix(id);
+      try {
+        // Delete all files in the assessment folder first, including orphaned files
+        await deleteStorageFilesByPrefix(id);
 
-      // Get documents to delete chunk records
-      const { data: docs, error: docsFetchError } = await supabase
-        .from("documents")
-        .select("id")
-        .eq("assessment_id", id);
-      if (docsFetchError) throw docsFetchError;
+        // Get documents to delete chunk records
+        const { data: docs, error: docsFetchError } = await supabase
+          .from("documents")
+          .select("id")
+          .eq("assessment_id", id);
+        if (docsFetchError) throw docsFetchError;
 
-      if (docs && docs.length > 0) {
-        const docIds = docs.map((d) => d.id);
-        const { error: chunksDeleteError } = await supabase
-          .from("document_chunks")
+        if (docs && docs.length > 0) {
+          const docIds = docs.map((d) => d.id);
+          const { error: chunksDeleteError } = await supabase
+            .from("document_chunks")
+            .delete()
+            .in("document_id", docIds);
+          if (chunksDeleteError) throw chunksDeleteError;
+        }
+
+        const { error: docsDeleteError } = await supabase
+          .from("documents")
           .delete()
-          .in("document_id", docIds);
-        if (chunksDeleteError) throw chunksDeleteError;
+          .eq("assessment_id", id);
+        if (docsDeleteError) throw docsDeleteError;
+
+        const { error: runsDeleteError } = await supabase
+          .from("assessment_runs")
+          .delete()
+          .eq("assessment_id", id);
+        if (runsDeleteError) throw runsDeleteError;
+
+        const { error: assessmentDeleteError } = await supabase
+          .from("assessments")
+          .delete()
+          .eq("id", id);
+        if (assessmentDeleteError) throw assessmentDeleteError;
+
+        setAssessments((prev) => prev.filter((a) => a.id !== id));
+      } catch (err) {
+        console.error("Failed to delete assessment:", err);
       }
-
-      const { error: docsDeleteError } = await supabase
-        .from("documents")
-        .delete()
-        .eq("assessment_id", id);
-      if (docsDeleteError) throw docsDeleteError;
-
-      const { error: runsDeleteError } = await supabase
-        .from("assessment_runs")
-        .delete()
-        .eq("assessment_id", id);
-      if (runsDeleteError) throw runsDeleteError;
-
-      const { error: assessmentDeleteError } = await supabase
-        .from("assessments")
-        .delete()
-        .eq("id", id);
-      if (assessmentDeleteError) throw assessmentDeleteError;
-
-      setAssessments((prev) => prev.filter((a) => a.id !== id));
-    } catch (err) {
-      console.error("Failed to delete assessment:", err);
     }
   };
 

@@ -161,3 +161,23 @@ export async function ingestUrl(
   if (!response.ok) throw new Error(`URL ingestion failed: ${response.status}`);
   return response.json();
 }
+
+export async function deleteDocument(documentId: string, assessmentId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/documents/${documentId}?assessment_id=${assessmentId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Delete failed: ${response.status}`);
+  }
+}
+
+export async function deleteAssessment(assessmentId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/assessments/${assessmentId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Delete failed: ${response.status}`);
+  }
+}

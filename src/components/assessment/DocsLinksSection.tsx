@@ -25,6 +25,7 @@ import { IndexingPipelineFlow } from "./IndexingPipelineFlow";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { deleteDocument } from "@/lib/api";
 
 type DocumentRecord = {
   id: string;
@@ -307,8 +308,6 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const confirmDelete = async () => {
     if (!deleteTarget || !assessmentId) return;
     try {
-      // Import the API function
-      const { deleteDocument } = await import("@/lib/api");
       await deleteDocument(deleteTarget.docId, assessmentId);
       
       toast.success(`Deleted ${deleteTarget.fileName}`);
