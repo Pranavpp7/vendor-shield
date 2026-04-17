@@ -123,7 +123,7 @@ async def handle_get_documents(args: dict) -> str:
     supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
     result = (
         supabase.table("documents")
-        .select("id, file_name, file_size, content_type, status, created_at")
+        .select("id, file_name, file_size, source_type, status, created_at")
         .eq("assessment_id", args["assessment_id"])
         .order("created_at", desc=True)
         .execute()
