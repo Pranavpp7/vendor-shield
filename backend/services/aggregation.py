@@ -1,116 +1,123 @@
-"""Score aggregation and summary generation."""
+"""
+Layer 3: Score Aggregation — calculates final assessment scores.
+
+RESPONSIBILITY:
+    Takes the list of 20 scored ControlResult objects from evaluation.py,
+    calls calculate_scores() from controls.py to compute domain and overall
+    scores, builds a markdown gaps summary, and assembles the final
+    AssessmentResponse.
+
+    No LLM calls, no retrieval, no database writes.  Pure computation
+    over already-scored results.
+
+IMPORTS FROM: models/controls (calculate_scores),
+              models/schemas (AssessmentResponse, ControlResult, RiskLevel, ControlScore)
+IMPORTED BY:  mcp/server.py, chains/assessment_graph.py
+"""
 
 import logging
-from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
-from config import get_settings
-from models.schemas import ControlResult, ControlStatus, DomainScore, RiskLevel
+from models.controls import calculate_scores
+from models.schemas import (
+    AssessmentResponse,
+    ControlResult,
+    RiskLevel,
+    ControlScore,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def compute_scores(results: list[ControlResult]) -> tuple[int, RiskLevel, list[DomainScore]]:
-    """Compute overall score, risk level, and per-domain scores."""
+def _build_gaps_summary(control_results: list[ControlResult]) -> str:
+    """Build a markdown summary of all controls that scored FAIL or NO_EVIDENCE.
 
-    # Status weights for scoring
-    STATUS_SCORE = {
-        ControlStatus.PASS: 1.0,
-        ControlStatus.PARTIAL: 0.5,
-        ControlStatus.FAIL: 0.0,
-        ControlStatus.NO_EVIDENCE: 0.0,
-    }
+    Groups gaps by domain for readability.  Each gap entry includes the
+    control ID, title, score, and the gap description from the LLM.
+    """
+    # Collect controls with gaps
+    gaps = [
+        r for r in control_results
+        if r.score in (ControlScore.FAIL, ControlScore.NO_EVIDENCE)
+    ]
 
-    # Overall score (weighted)
-    total_weight = 0
-    weighted_score = 0
-    for r in results:
-        weight = 1.0  # could be per-control weight
-        total_weight += weight
-        weighted_score += STATUS_SCORE[r.status] * weight
-
-    overall_score = int((weighted_score / total_weight * 100)) if total_weight > 0 else 0
-
-    # Risk level
-    if overall_score >= 70:
-        risk_level = RiskLevel.LOW
-    elif overall_score >= 40:
-        risk_level = RiskLevel.MEDIUM
-    else:
-        risk_level = RiskLevel.HIGH
-
-    # Domain scores
-    categories: dict[str, list[ControlResult]] = {}
-    for r in results:
-        categories.setdefault(r.category, []).append(r)
-
-    domain_scores = []
-    for domain, controls in categories.items():
-        passed = sum(1 for c in controls if c.status == ControlStatus.PASS)
-        partial = sum(1 for c in controls if c.status == ControlStatus.PARTIAL)
-        failed = sum(1 for c in controls if c.status == ControlStatus.FAIL)
-        no_ev = sum(1 for c in controls if c.status == ControlStatus.NO_EVIDENCE)
-        total = len(controls)
-        score = int((passed + partial * 0.5) / total * 100) if total > 0 else 0
-
-        domain_scores.append(DomainScore(
-            domain=domain,
-            score=score,
-            total_controls=total,
-            passed=passed,
-            partial=partial,
-            failed=failed,
-            no_evidence=no_ev,
-        ))
-
-    return overall_score, risk_level, domain_scores
-
-
-def generate_gaps_summary(results: list[ControlResult]) -> str:
-    """Generate a text summary of gaps (non-passing controls)."""
-    gaps = [r for r in results if r.status != ControlStatus.PASS]
     if not gaps:
-        return "No gaps identified. All controls passed."
+        return "No gaps identified — all controls passed or partially passed."
 
-    lines = ["## Gaps Identified\n"]
+    # Group by domain
+    domains: dict[str, list[ControlResult]] = {}
     for r in gaps:
-        status_emoji = {"Partial": "⚠️", "Fail": "❌", "No Evidence": "❓"}.get(r.status.value, "")
-        lines.append(f"- {status_emoji} **{r.name}** ({r.category}): {r.status.value} — {r.rationale}")
+        domains.setdefault(r.domain, []).append(r)
+
+    lines = ["## Gaps Summary\n"]
+    for domain, results in domains.items():
+        lines.append(f"### {domain}\n")
+        for r in results:
+            score_label = r.score.value
+            gap_text = r.gap or "No specific gap described"
+            lines.append(
+                f"- **{r.control_id} — {r.title}** [{score_label}]\n"
+                f"  {gap_text}\n"
+            )
 
     return "\n".join(lines)
 
 
-async def generate_executive_summary(
+def aggregate_results(
+    assessment_id: str,
     vendor_name: str,
-    score: int,
-    risk_level: str,
-    results: list[ControlResult],
-    notes: str = "",
-) -> str:
-    """Use LLM to generate executive summary."""
-    settings = get_settings()
-    llm = ChatGroq(
-        api_key=settings.groq_api_key,
-        model=settings.groq_model,
-        temperature=0.7,
-        max_tokens=1000,
+    control_results: list[ControlResult],
+) -> AssessmentResponse:
+    """Aggregate scored control results into a final assessment response.
+
+    Steps:
+    1. Convert ControlResult list to dicts for calculate_scores()
+    2. Call calculate_scores() from controls.py
+    3. Build markdown gaps summary
+    4. Assemble and return AssessmentResponse
+
+    Args:
+        assessment_id: The assessment being aggregated.
+        vendor_name: Vendor name for the response.
+        control_results: List of 20 scored ControlResult objects.
+
+    Returns:
+        Complete AssessmentResponse with scores, domain breakdown, and gaps.
+    """
+    logger.info(
+        f"Aggregating {len(control_results)} control results "
+        f"for assessment {assessment_id}"
     )
 
-    controls_summary = []
-    for r in results:
-        controls_summary.append(f"{r.id} ({r.category}): {r.name} → {r.status.value} — {r.rationale}")
+    # 1. Convert to dict format that calculate_scores() expects:
+    #    [{"control_id": "IAM-001", "score": "PASS"}, ...]
+    results_dicts = [
+        {"control_id": r.control_id, "score": r.score.value}
+        for r in control_results
+    ]
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a security assessment report writer. Generate a concise executive summary. Use markdown with headers and bullet points."),
-        ("human", "Vendor: {vendor}\nScore: {score}/100\nRisk Level: {risk}\nControls:\n{controls}\nNotes: {notes}\n\nGenerate: executive overview, key findings, failed controls, recommendations."),
-    ])
+    # 2. Calculate domain and overall scores
+    scores = calculate_scores(results_dicts)
 
-    chain = prompt | llm
-    response = await chain.ainvoke({
-        "vendor": vendor_name,
-        "score": score,
-        "risk": risk_level,
-        "controls": "\n".join(controls_summary),
-        "notes": notes or "None",
-    })
+    # 3. Build gaps summary
+    gaps_summary = _build_gaps_summary(control_results)
 
-    return response.content
+    # 4. Map risk_level string to enum
+    risk_str = scores["risk_level"]
+    try:
+        risk_level = RiskLevel(risk_str)
+    except ValueError:
+        risk_level = RiskLevel.HIGH
+
+    logger.info(
+        f"Assessment {assessment_id}: "
+        f"overall={scores['overall_score']}%, risk={risk_level.value}"
+    )
+
+    return AssessmentResponse(
+        assessment_id=assessment_id,
+        vendor_name=vendor_name,
+        overall_score=scores["overall_score"],
+        risk_level=risk_level,
+        domain_scores=scores["domain_scores"],
+        control_results=control_results,
+        gaps_summary=gaps_summary,
+    )
