@@ -1,21 +1,29 @@
-"""Controls repository endpoints."""
+"""Layer 6: Controls Router — exposes the 20-control NIST checklist.
+
+RESPONSIBILITY:
+    Read-only endpoints that return the static security control
+    definitions and domain list.  No state mutations, no service calls.
+
+IMPORTS FROM: models/controls, models/schemas
+IMPORTED BY:  main.py
+"""
 
 from fastapi import APIRouter
-from models.schemas import ControlsListResponse, ControlDefinition
-from models.controls import get_all_controls, get_categories
+from models.schemas import ControlsListResponse
+from models.controls import get_all_controls, get_domains
 
 router = APIRouter(prefix="/api/controls", tags=["Controls"])
 
 
 @router.get("", response_model=ControlsListResponse)
 async def list_controls():
-    """Get all internal controls (the policy checklist)."""
+    """Get all 20 security controls and the 4 domain names."""
     controls = get_all_controls()
-    categories = get_categories()
-    return ControlsListResponse(controls=controls, categories=categories)
+    domains = get_domains()
+    return ControlsListResponse(controls=controls, domains=domains)
 
 
-@router.get("/categories")
-async def list_categories():
-    """Get list of control category names."""
-    return {"categories": get_categories()}
+@router.get("/domains")
+async def list_domains():
+    """Get the list of control domain names."""
+    return {"domains": get_domains()}
