@@ -1,13 +1,20 @@
-"""VendorShield FastAPI Backend.
+"""Layer 7: VendorShield FastAPI Application — single entry point.
 
 AI-powered vendor risk assessment system using:
 - LangChain/LangGraph for AI orchestration
 - Groq (Llama 3.3 70B) for LLM inference
 - BGE-large-en-v1.5 for embeddings (local)
-- Pinecone for vector search
+- Qdrant for vector search (local Docker)
 - MCP protocol for external AI agent integration
 
 Serves both API and the React frontend from a single server.
+
+RESPONSIBILITY:
+    Creates the FastAPI app, mounts all routers, configures middleware,
+    runs startup checks, and serves the React SPA.  No business logic.
+
+IMPORTS FROM: routers/*, mcp/server, services/embedding, storage/*
+IMPORTED BY:  uvicorn (the ASGI server)
 """
 
 import logging
@@ -17,11 +24,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-
+from config import get_settings
 from routers import documents, assessments, controls, chat
 from mcp.server import router as mcp_router
 
@@ -41,15 +45,33 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting VendorShield backend...")
 
-    # Pre-load embedding model in background (non-blocking)
+    # 1. Initialize local data directories
+    try:
+        from storage.local_store import _ensure_dirs
+        _ensure_dirs()
+        logger.info("Data directories initialized.")
+    except Exception as e:
+        logger.warning(f"Data directory init failed: {e}")
+
+    # 2. Pre-load embedding model (triggers download on first run)
     try:
         from services.embedding import get_model
-        get_model()  # Triggers download & load on first startup
+        get_model()
         logger.info("Embedding model loaded.")
     except Exception as e:
         logger.warning(f"Embedding model pre-load failed (will retry on first use): {e}")
 
-    # Check if frontend build exists
+    # 3. Check Qdrant connectivity
+    try:
+        from storage.qdrant_store import _get_client
+        _get_client()
+        logger.info("Qdrant connection verified.")
+    except Exception as e:
+        logger.warning(
+            f"Qdrant not reachable (start with: docker-compose up -d): {e}"
+        )
+
+    # 4. Check if frontend build exists
     if FRONTEND_DIR.exists():
         logger.info(f"Serving frontend from {FRONTEND_DIR}")
     else:
@@ -68,7 +90,7 @@ app = FastAPI(
     description=(
         "AI-powered vendor risk assessment system. "
         "Compares vendor security/compliance documents against internal control checklist "
-        "using RAG (Retrieval-Augmented Generation) with LangChain, Groq Llama, and Pinecone."
+        "using RAG (Retrieval-Augmented Generation) with LangChain, Groq Llama, and Qdrant."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -106,7 +128,7 @@ async def api_info():
         "stack": {
             "llm": "Llama 3.3 70B (Groq)",
             "embeddings": "BGE-large-en-v1.5 (local, 1024 dim)",
-            "vector_db": "Pinecone",
+            "vector_db": "Qdrant (local Docker)",
             "framework": "LangChain + LangGraph",
             "protocol": "MCP (Model Context Protocol)",
         },
