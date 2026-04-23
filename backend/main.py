@@ -26,7 +26,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from config import get_settings
-from routers import documents, assessments, controls, chat
+from routers import documents, assessments, controls, chat, email
 from mcp.server import router as mcp_router
 
 # Configure logging
@@ -110,6 +110,7 @@ app.include_router(documents.router)
 app.include_router(assessments.router)
 app.include_router(controls.router)
 app.include_router(chat.router)
+app.include_router(email.router)
 app.include_router(mcp_router)
 
 
