@@ -1,8 +1,21 @@
-"""Chat and summary generation endpoints."""
+"""Layer 6: Chat Router — RAG chat, summary generation, chat history.
 
+RESPONSIBILITY:
+    HTTP endpoints for chatting over vendor documents and generating
+    executive summaries.  Persists chat history to local JSON storage.
+
+IMPORTS FROM: services/chat, storage/local_store, models/schemas
+IMPORTED BY:  main.py
+"""
+
+import logging
 from fastapi import APIRouter, HTTPException
+
 from models.schemas import ChatRequest, ChatResponse, SummaryRequest, SummaryResponse
 from services.chat import chat_with_docs, generate_summary
+from storage.local_store import save_chat_message, get_chat_history
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
@@ -11,8 +24,9 @@ router = APIRouter(prefix="/api/chat", tags=["Chat"])
 async def chat_endpoint(req: ChatRequest):
     """Chat over vendor documents with RAG context.
 
-    Retrieves relevant chunks from Pinecone, enriches the prompt,
-    and responds using Groq Llama.
+    Retrieves relevant chunks from Qdrant, enriches the prompt,
+    and responds using Groq Llama 3.3 70B.  Saves the Q&A pair
+    to local chat history.
     """
     try:
         reply, sources = await chat_with_docs(
@@ -20,8 +34,14 @@ async def chat_endpoint(req: ChatRequest):
             assessment_id=req.assessment_id,
             context=req.context,
         )
+
+        # Persist chat history
+        save_chat_message(req.assessment_id, "user", req.question)
+        save_chat_message(req.assessment_id, "assistant", reply)
+
         return ChatResponse(reply=reply, sources=sources)
     except Exception as e:
+        logger.error(f"Chat failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -38,4 +58,12 @@ async def summary_endpoint(req: SummaryRequest):
         )
         return SummaryResponse(summary=summary)
     except Exception as e:
+        logger.error(f"Summary generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{assessment_id}/history")
+async def chat_history_endpoint(assessment_id: str):
+    """Get the full chat history for an assessment."""
+    history = get_chat_history(assessment_id)
+    return {"assessment_id": assessment_id, "messages": history}
