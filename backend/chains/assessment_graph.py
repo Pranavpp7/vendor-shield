@@ -17,6 +17,7 @@ IMPORTS FROM: storage/qdrant_store, services/evaluation, services/aggregation,
 IMPORTED BY:  mcp/server.py
 """
 
+import asyncio
 import logging
 from typing import TypedDict
 
@@ -81,7 +82,7 @@ async def evaluate_controls(state: AssessmentState) -> dict:
     Runs concurrently (5 threads) for 10-15x speedup.
     """
     assessment_id = state["assessment_id"]
-    results = evaluate_all_controls(assessment_id)
+    results = await asyncio.to_thread(evaluate_all_controls, assessment_id)
     logger.info(
         f"Evaluated {len(results)} controls for "
         f"vendor '{state['vendor_name']}'"
