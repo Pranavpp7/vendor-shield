@@ -233,6 +233,39 @@ def add_chunks(
     return len(points)
 
 
+def delete_document_vectors(assessment_id: str, document_name: str) -> None:
+    """Delete all vectors belonging to a specific document within an assessment.
+
+    Uses a payload filter on the document_name field.  Called when a document
+    is deleted so its chunks no longer appear in retrieval results.
+    """
+    name = _collection_name(assessment_id)
+
+    if not collection_exists(assessment_id):
+        logger.info(f"Collection {name} does not exist, nothing to delete")
+        return
+
+    client = _get_client()
+    try:
+        client.delete(
+            collection_name=name,
+            points_selector=qdrant_models.FilterSelector(
+                filter=qdrant_models.Filter(
+                    must=[
+                        qdrant_models.FieldCondition(
+                            key="document_name",
+                            match=qdrant_models.MatchValue(value=document_name),
+                        )
+                    ]
+                )
+            ),
+        )
+        logger.info(f"Deleted vectors for '{document_name}' from {name}")
+    except Exception as e:
+        logger.error(f"Error deleting vectors for '{document_name}' from {name}: {e}")
+        raise
+
+
 def similarity_search(
     assessment_id: str,
     query_vector: list[float],
