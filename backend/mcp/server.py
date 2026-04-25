@@ -7,7 +7,7 @@ RESPONSIBILITY:
     Thin JSON-RPC dispatcher.  Each tool handler delegates to the services
     and storage layers — NO business logic lives here.
 
-    The 7 tools mirror the core capabilities of the system:
+    The 8 tools mirror the core capabilities of the system:
     1. list_assessments      — browse all assessments
     2. get_documents         — list documents for an assessment
     3. query_documents       — semantic search within an assessment
@@ -15,6 +15,7 @@ RESPONSIBILITY:
     5. run_assessment        — trigger a full 20-control risk assessment
     6. get_assessment_report — fetch a completed assessment report
     7. get_controls          — list all 20 security controls and domains
+    8. send_report           — generate PDF and email it to a recipient
 
 IMPORTS FROM: storage/local_store, services/retrieval, services/chat,
               chains/assessment_graph, models/controls
@@ -289,6 +290,11 @@ async def handle_send_report(args: dict) -> str:
     assessment = get_assessment(args["assessment_id"])
     if not assessment:
         return json.dumps({"error": "Assessment not found"})
+
+    if assessment.get("status") != "completed":
+        return json.dumps({
+            "error": f"Assessment is not completed (status: {assessment.get('status', 'unknown')})"
+        })
 
     result = send_report_email(args["recipient_email"], assessment)
     return json.dumps(result, default=str)
