@@ -148,6 +148,7 @@ class AssessmentResponse(BaseModel):
     control_results: list[ControlResult]        # all 20 scored controls
     gaps_summary: str = ""                      # markdown summary of gaps
     summary: str = ""                           # LLM-generated executive summary
+    created_at: str = ""                        # ISO-8601 UTC timestamp of assessment run
 
 
 class ChatResponse(BaseModel):
