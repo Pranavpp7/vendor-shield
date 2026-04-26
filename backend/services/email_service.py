@@ -7,8 +7,8 @@ RESPONSIBILITY:
     email attachment via the Resend SDK.
 
     Two public functions:
-    - generate_pdf_report(assessment) → bytes
-    - send_report_email(to_email, assessment) → dict
+    - generate_pdf_report(assessment) -> bytes
+    - send_report_email(to_email, assessment) -> dict
 
 IMPORTS FROM: config.py (for resend_api_key)
 IMPORTED BY:  routers/email.py, mcp/server.py
@@ -24,7 +24,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.platypus import (
     SimpleDocTemplate,
     Paragraph,
@@ -38,60 +38,170 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# ── Colour Constants ─────────────────────────────────────────────────────────
+# ── Colour Constants ──────────────────────────────────────────────────────────
+# Color objects for TableStyle; hex strings for Paragraph XML <font> tags.
 
-GREEN = colors.HexColor("#16a34a")
-ORANGE = colors.HexColor("#ea580c")
-RED = colors.HexColor("#dc2626")
-DARK_BLUE = colors.HexColor("#1e3a5f")
-LIGHT_GRAY = colors.HexColor("#f3f4f6")
-WHITE = colors.white
-BLACK = colors.black
+GREEN        = colors.HexColor("#16a34a")
+ORANGE       = colors.HexColor("#ea580c")
+RED          = colors.HexColor("#dc2626")
+DARK_BLUE    = colors.HexColor("#1e3a5f")
+ACCENT_BLUE  = colors.HexColor("#2563eb")
+LIGHT_GRAY   = colors.HexColor("#f8fafc")
+FOOTER_GRAY  = colors.HexColor("#f1f5f9")
+BORDER_GRAY  = colors.HexColor("#d1d5db")
+DIVIDER_GRAY = colors.HexColor("#cbd5e1")
+TEXT_GRAY    = colors.HexColor("#6b7280")
+SLATE_GRAY   = colors.HexColor("#94a3b8")
+WHITE        = colors.white
+BLACK        = colors.black
 
-SCORE_COLORS = {
-    "PASS": GREEN,
-    "PARTIAL": ORANGE,
-    "FAIL": RED,
-    "NO_EVIDENCE": colors.HexColor("#6b7280"),
+GREEN_HEX  = "#16a34a"
+ORANGE_HEX = "#ea580c"
+RED_HEX    = "#dc2626"
+BLUE_HEX   = "#2563eb"
+SLATE_HEX  = "#94a3b8"
+
+PAGE_W = 7.0 * inch   # 8.5" letter − 0.75" × 2 margins
+EV_W   = PAGE_W       # evidence box uses full width
+
+SCORE_COLOR_MAP = {
+    "PASS":        (GREEN,      GREEN_HEX),
+    "PARTIAL":     (ORANGE,     ORANGE_HEX),
+    "FAIL":        (RED,        RED_HEX),
+    "NO_EVIDENCE": (SLATE_GRAY, SLATE_HEX),
 }
+
+_NUMERIC_SCORE = {"PASS": 1.0, "PARTIAL": 0.5, "FAIL": 0.0, "NO_EVIDENCE": 0.0}
+
+# Phrases that indicate an LLM/API error leaked into reasoning or evidence
+_ERROR_MARKERS = (
+    "LLM call failed",
+    "LLM returned",
+    "429",
+    "rate limit",
+    "unparseable",
+    "Could not evaluate",
+    "retry may help",
+)
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _risk_label(score: float) -> str:
-    """Return LOW / MEDIUM / HIGH based on score thresholds."""
     if score >= 70:
         return "LOW"
-    elif score >= 40:
+    if score >= 40:
         return "MEDIUM"
     return "HIGH"
 
 
-def _risk_color(score: float) -> colors.HexColor:
-    """Return green / orange / red based on score thresholds."""
+def _risk_color_obj(score: float) -> colors.Color:
     if score >= 70:
         return GREEN
-    elif score >= 40:
+    if score >= 40:
         return ORANGE
     return RED
 
 
-# ── PDF Generation ───────────────────────────────────────────────────────────
+def _risk_hex(score: float) -> str:
+    if score >= 70:
+        return GREEN_HEX
+    if score >= 40:
+        return ORANGE_HEX
+    return RED_HEX
+
+
+def _sanitize(text: str | None) -> str:
+    """Replace LLM/API error strings with a user-friendly fallback.
+
+    Applied to every reasoning and evidence_quote field before any text
+    is passed to ReportLab — never lets raw API error messages into the PDF.
+    """
+    if not text:
+        return ""
+    if any(m in text for m in _ERROR_MARKERS):
+        return (
+            "Unable to evaluate — document did not contain sufficient "
+            "evidence for this control."
+        )
+    return text
+
+
+# ── PDF Generation ────────────────────────────────────────────────────────────
 
 
 def generate_pdf_report(assessment: dict) -> bytes:
     """Generate a professional PDF risk report entirely in memory.
 
     Args:
-        assessment: Dict matching the assessment shape (see module docstring).
+        assessment: Full assessment dict from local JSON storage.
 
     Returns:
-        Raw PDF bytes (ready to attach to an email or stream to a client).
+        Raw PDF bytes — ready to attach to an email or stream to a client.
+        Never writes to disk.
     """
     buffer = BytesIO()
+
+    # ── Extract & sanitize data ───────────────────────────────────────────
+    vendor_name   = assessment.get("vendor_name", "Unknown Vendor")
+    overall_score = assessment.get("overall_score", 0)
+    domain_scores = assessment.get("domain_scores", {})
+    raw_controls  = assessment.get("control_results", [])
+    created_at    = assessment.get("created_at", "")
+    risk          = _risk_label(overall_score)
+    risk_col      = _risk_color_obj(overall_score)
+    risk_hex      = _risk_hex(overall_score)
+
+    try:
+        dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        date_str = dt.strftime("%B %d, %Y")
+    except Exception:
+        date_str = created_at[:10] if len(created_at) >= 10 else "N/A"
+
+    # Fix 7: sanitize ALL control text fields before touching ReportLab
+    controls = [
+        {
+            **c,
+            "reasoning":      _sanitize(c.get("reasoning")),
+            "evidence_quote": _sanitize(c.get("evidence_quote")),
+        }
+        for c in raw_controls
+    ]
+
+    # ── Canvas callback: page header on pages 2+ ──────────────────────────
+    def later_pages(canvas, doc):
+        canvas.saveState()
+        pg_w, pg_h = letter
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(TEXT_GRAY)
+        canvas.drawString(
+            0.75 * inch, pg_h - 0.38 * inch,
+            "VendorShield — Confidential",
+        )
+        canvas.drawRightString(
+            pg_w - 0.75 * inch, pg_h - 0.38 * inch,
+            vendor_name,
+        )
+        canvas.setStrokeColor(BORDER_GRAY)
+        canvas.setLineWidth(0.5)
+        canvas.line(
+            0.75 * inch,      pg_h - 0.5 * inch,
+            pg_w - 0.75 * inch, pg_h - 0.5 * inch,
+        )
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(SLATE_GRAY)
+        canvas.drawRightString(
+            pg_w - 0.75 * inch, 0.35 * inch,
+            f"Page {doc.page}",
+        )
+        canvas.restoreState()
+
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        topMargin=0.5 * inch,
-        bottomMargin=0.5 * inch,
+        topMargin=0.75 * inch,
+        bottomMargin=0.65 * inch,
         leftMargin=0.75 * inch,
         rightMargin=0.75 * inch,
     )
@@ -99,185 +209,240 @@ def generate_pdf_report(assessment: dict) -> bytes:
     styles = getSampleStyleSheet()
     elements: list = []
 
-    vendor_name = assessment.get("vendor_name", "Unknown Vendor")
-    overall_score = assessment.get("overall_score", 0)
-    domain_scores = assessment.get("domain_scores", {})
-    controls = assessment.get("control_results", [])
-    created_at = assessment.get("created_at", "")
-    risk = _risk_label(overall_score)
-    risk_col = _risk_color(overall_score)
+    # ── Paragraph styles ──────────────────────────────────────────────────
 
-    # Parse date
-    try:
-        dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-        date_str = dt.strftime("%B %d, %Y")
-    except Exception:
-        date_str = created_at[:10] if len(created_at) >= 10 else "N/A"
-
-    # ── Custom styles ────────────────────────────────────────────────────
-
-    header_style = ParagraphStyle(
-        "Header",
-        parent=styles["Title"],
-        fontName="Helvetica-Bold",
-        fontSize=22,
-        textColor=WHITE,
-        alignment=TA_CENTER,
-        spaceAfter=4,
+    brand_style = ParagraphStyle(
+        "Brand",
+        fontName="Helvetica-Bold", fontSize=24,
+        textColor=WHITE, leading=30,
     )
-    sub_header_style = ParagraphStyle(
-        "SubHeader",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=11,
-        textColor=colors.HexColor("#cdd5e0"),
-        alignment=TA_CENTER,
+    banner_sub_style = ParagraphStyle(
+        "BannerSub",
+        fontName="Helvetica", fontSize=12,
+        textColor=colors.HexColor("#cdd5e0"), leading=16, spaceBefore=3,
     )
-    section_title = ParagraphStyle(
+    banner_vendor_style = ParagraphStyle(
+        "BannerVendor",
+        fontName="Helvetica-Bold", fontSize=12,
+        textColor=WHITE, alignment=TA_RIGHT, leading=16,
+    )
+    banner_date_style = ParagraphStyle(
+        "BannerDate",
+        fontName="Helvetica", fontSize=10,
+        textColor=colors.HexColor("#cdd5e0"), alignment=TA_RIGHT,
+        leading=14, spaceBefore=3,
+    )
+    section_title_style = ParagraphStyle(
         "SectionTitle",
-        parent=styles["Heading2"],
-        fontName="Helvetica-Bold",
-        fontSize=14,
-        textColor=DARK_BLUE,
-        spaceBefore=16,
-        spaceAfter=8,
+        fontName="Helvetica-Bold", fontSize=13,
+        textColor=DARK_BLUE, spaceBefore=14, spaceAfter=6,
+    )
+    domain_header_style = ParagraphStyle(
+        "DomainHeader",
+        fontName="Helvetica-Bold", fontSize=11,
+        textColor=ACCENT_BLUE, spaceBefore=14, spaceAfter=2,
     )
     body_style = ParagraphStyle(
         "Body",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=9,
-        textColor=BLACK,
-        leading=12,
+        fontName="Helvetica", fontSize=9,
+        textColor=BLACK, leading=12,
     )
     small_style = ParagraphStyle(
         "Small",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=8,
-        textColor=colors.HexColor("#6b7280"),
-        leading=10,
+        fontName="Helvetica", fontSize=8,
+        textColor=colors.HexColor("#374151"), leading=11,
+    )
+    summary_style = ParagraphStyle(
+        "Summary",
+        fontName="Helvetica", fontSize=9.5,
+        textColor=colors.HexColor("#374151"), leading=14,
+        spaceBefore=4, spaceAfter=4,
+    )
+    footer_style = ParagraphStyle(
+        "Footer",
+        fontName="Helvetica", fontSize=8,
+        textColor=colors.HexColor("#94a3b8"),
+        alignment=TA_CENTER, leading=12,
     )
 
-    # ── 1. Header Banner ─────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────
+    # 1. HEADER BANNER
+    # ─────────────────────────────────────────────────────────────────────
 
     header_data = [
-        [Paragraph("VendorShield", header_style)],
-        [Paragraph(f"Vendor Risk Assessment — {vendor_name}", sub_header_style)],
-        [Paragraph(f"Generated: {date_str}", sub_header_style)],
+        [
+            Paragraph("VendorShield", brand_style),
+            Paragraph(vendor_name, banner_vendor_style),
+        ],
+        [
+            Paragraph("Vendor Risk Assessment Report", banner_sub_style),
+            Paragraph(date_str, banner_date_style),
+        ],
     ]
-    header_table = Table(header_data, colWidths=[6.5 * inch])
+    header_table = Table(header_data, colWidths=[4.5 * inch, 2.5 * inch])
     header_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), DARK_BLUE),
-        ("TOPPADDING", (0, 0), (-1, 0), 20),
-        ("BOTTOMPADDING", (0, -1), (-1, -1), 16),
-        ("LEFTPADDING", (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BACKGROUND",    (0, 0), (-1, -1), DARK_BLUE),
+        ("TOPPADDING",    (0, 0), (-1,  0), 22),
+        ("TOPPADDING",    (0, 1), (-1,  1), 4),
+        ("BOTTOMPADDING", (0, 1), (-1,  1), 18),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 20),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 20),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
     ]))
     elements.append(header_table)
-    elements.append(Spacer(1, 16))
-
-    # ── 2. Overall Score Card ────────────────────────────────────────────
-
-    score_text = ParagraphStyle(
-        "ScoreNum",
-        fontName="Helvetica-Bold",
-        fontSize=36,
-        textColor=risk_col,
-        alignment=TA_CENTER,
+    # Thin accent line immediately below the banner
+    elements.append(
+        HRFlowable(
+            width="100%", thickness=2, color=ACCENT_BLUE,
+            spaceBefore=0, spaceAfter=16,
+        )
     )
-    risk_text = ParagraphStyle(
-        "RiskLabel",
-        fontName="Helvetica-Bold",
-        fontSize=14,
-        textColor=risk_col,
-        alignment=TA_CENTER,
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 2. OVERALL SCORE CARD  (white + colored left border)
+    # ─────────────────────────────────────────────────────────────────────
+
+    score_slash_style = ParagraphStyle(
+        "ScoreSlash", fontName="Helvetica-Bold",
+        fontSize=72, leading=84, alignment=TA_CENTER,
     )
-    score_data = [
-        [Paragraph("Overall Risk Score", section_title)],
-        [Paragraph(f"{overall_score:.0f} / 100", score_text)],
-        [Paragraph(f"Risk Level: {risk}", risk_text)],
+    risk_lbl_style = ParagraphStyle(
+        "RiskLbl", fontName="Helvetica-Bold",
+        fontSize=18, leading=26, alignment=TA_CENTER,
+        textColor=risk_col,
+    )
+    nist_note_style = ParagraphStyle(
+        "NistNote", fontName="Helvetica", fontSize=8,
+        textColor=TEXT_GRAY, alignment=TA_CENTER, leading=12, spaceBefore=4,
+    )
+
+    score_card_data = [
+        [Paragraph(
+            f'<font face="Helvetica-Bold" size="72" color="{risk_hex}">'
+            f'{overall_score:.0f}</font>'
+            f'<font face="Helvetica" size="18" color="#9ca3af"> / 100</font>',
+            score_slash_style,
+        )],
+        [Paragraph(f"{risk} RISK", risk_lbl_style)],
+        [Paragraph("Based on 20 NIST SP 800-53 Rev.5 controls", nist_note_style)],
     ]
-    score_table = Table(score_data, colWidths=[6.5 * inch])
-    score_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), LIGHT_GRAY),
-        ("TOPPADDING", (0, 0), (-1, 0), 12),
-        ("BOTTOMPADDING", (0, -1), (-1, -1), 12),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+    score_card = Table(score_card_data, colWidths=[PAGE_W])
+    score_card.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), WHITE),
+        ("TOPPADDING",    (0, 0), (-1,  0), 20),
+        ("TOPPADDING",    (0, 1), (-1,  1), 4),
+        ("TOPPADDING",    (0, 2), (-1,  2), 6),
+        ("BOTTOMPADDING", (0, 2), (-1,  2), 20),
+        ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+        ("BOX",           (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+        # 4 pt colored left border
+        ("LINEBEFORE",    (0, 0), (0,  -1), 4, risk_col),
     ]))
-    elements.append(score_table)
+    elements.append(score_card)
     elements.append(Spacer(1, 16))
 
-    # ── 3. Domain Scores Table ───────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────
+    # 8. EXECUTIVE SUMMARY
+    # ─────────────────────────────────────────────────────────────────────
 
-    elements.append(Paragraph("Domain Scores", section_title))
+    pass_count    = sum(1 for c in controls if c.get("score") == "PASS")
+    partial_count = sum(1 for c in controls if c.get("score") == "PARTIAL")
+    fail_count    = sum(1 for c in controls if c.get("score") == "FAIL")
+    no_ev_count   = sum(1 for c in controls if c.get("score") == "NO_EVIDENCE")
+    weakest_domain = (
+        min(domain_scores, key=lambda d: domain_scores[d])
+        if domain_scores else "the identified gaps"
+    )
 
-    domain_header = [
+    summary_text = (
+        f"VendorShield evaluated <b>{vendor_name}</b> against 20 NIST SP 800-53 "
+        f"Rev.5 security controls across 4 domains. "
+        f"The assessment identified <b>{pass_count}</b> controls as fully satisfied, "
+        f"<b>{partial_count}</b> as partially satisfied, and "
+        f"<b>{fail_count + no_ev_count}</b> requiring immediate attention. "
+        f"Immediate focus is recommended on <b>{weakest_domain}</b>."
+    )
+    elements.append(Paragraph("Executive Summary", section_title_style))
+    elements.append(Paragraph(summary_text, summary_style))
+    elements.append(Spacer(1, 14))
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 3. DOMAIN SCORES TABLE
+    # ─────────────────────────────────────────────────────────────────────
+
+    elements.append(Paragraph("Domain Scores", section_title_style))
+
+    domain_rows = [[
         Paragraph("<b>Domain</b>", body_style),
         Paragraph("<b>Score</b>", body_style),
         Paragraph("<b>Risk Level</b>", body_style),
-    ]
-    domain_rows = [domain_header]
-    for domain_name, domain_score in domain_scores.items():
-        d_risk = _risk_label(domain_score)
-        d_color = _risk_color(domain_score)
+    ]]
+    for d_name, d_score in domain_scores.items():
+        d_risk = _risk_label(d_score)
+        d_hex  = _risk_hex(d_score)
         domain_rows.append([
-            Paragraph(domain_name, body_style),
-            Paragraph(f"{domain_score:.0f}%", body_style),
-            Paragraph(
-                f'<font color="{d_color.hexval()}">{d_risk}</font>',
-                body_style,
-            ),
+            Paragraph(d_name, body_style),
+            Paragraph(f"{d_score:.0f} / 100", body_style),
+            Paragraph(f'<b><font color="{d_hex}">{d_risk}</font></b>', body_style),
         ])
 
-    domain_table = Table(domain_rows, colWidths=[3.5 * inch, 1.2 * inch, 1.8 * inch])
+    domain_table = Table(
+        domain_rows,
+        colWidths=[4.0 * inch, 1.3 * inch, 1.7 * inch],
+    )
     domain_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), DARK_BLUE),
-        ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("BACKGROUND",    (0, 0), (-1,  0), DARK_BLUE),
+        ("TEXTCOLOR",     (0, 0), (-1,  0), WHITE),
+        ("FONTNAME",      (0, 0), (-1,  0), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (-1, -1), 9),
+        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
+        ("GRID",          (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+        ("TOPPADDING",    (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
     ]))
     elements.append(domain_table)
-    elements.append(Spacer(1, 16))
+    elements.append(Spacer(1, 18))
 
-    # ── 4. Control Breakdown by Domain ───────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────
+    # 4. CONTROL BREAKDOWN BY DOMAIN
+    # ─────────────────────────────────────────────────────────────────────
 
-    elements.append(Paragraph("Control Breakdown", section_title))
+    elements.append(Paragraph("Control Breakdown", section_title_style))
 
     # Group controls by domain
     domains_grouped: dict[str, list] = {}
     for ctrl in controls:
-        d = ctrl.get("domain", "Other")
-        domains_grouped.setdefault(d, []).append(ctrl)
+        domains_grouped.setdefault(ctrl.get("domain", "Other"), []).append(ctrl)
 
     for domain_name, ctrls in domains_grouped.items():
-        elements.append(Paragraph(f"<b>{domain_name}</b>", body_style))
-        elements.append(Spacer(1, 4))
+        # Domain section header: blue bold text + blue underline
+        elements.append(Paragraph(domain_name, domain_header_style))
+        elements.append(
+            HRFlowable(
+                width="100%", thickness=1, color=ACCENT_BLUE,
+                spaceBefore=0, spaceAfter=6,
+            )
+        )
 
+        # Control table (no duplicate control-ID standalone headers — fix 9)
         ctrl_header = [
             Paragraph("<b>ID</b>", body_style),
-            Paragraph("<b>Title</b>", body_style),
+            Paragraph("<b>Control Title</b>", body_style),
             Paragraph("<b>Result</b>", body_style),
             Paragraph("<b>Score</b>", body_style),
         ]
         ctrl_rows = [ctrl_header]
-        _score_map = {"PASS": 1.0, "PARTIAL": 0.5, "FAIL": 0.0, "NO_EVIDENCE": 0.0}
         for ctrl in ctrls:
             score_val = ctrl.get("score", "NO_EVIDENCE")
-            numeric = _score_map.get(score_val, 0.0)
-            s_color = SCORE_COLORS.get(score_val, BLACK)
+            numeric   = _NUMERIC_SCORE.get(score_val, 0.0)
+            _, s_hex  = SCORE_COLOR_MAP.get(score_val, (BLACK, "#000000"))
             ctrl_rows.append([
                 Paragraph(ctrl.get("control_id", ""), body_style),
                 Paragraph(ctrl.get("title", ""), body_style),
                 Paragraph(
-                    f'<font color="{s_color.hexval()}">{score_val}</font>',
+                    f'<b><font color="{s_hex}">{score_val}</font></b>',
                     body_style,
                 ),
                 Paragraph(f"{numeric * 100:.0f}%", body_style),
@@ -285,59 +450,83 @@ def generate_pdf_report(assessment: dict) -> bytes:
 
         ctrl_table = Table(
             ctrl_rows,
-            colWidths=[0.9 * inch, 2.8 * inch, 1.4 * inch, 0.8 * inch],
+            colWidths=[0.9 * inch, 3.5 * inch, 1.7 * inch, 0.9 * inch],
         )
         ctrl_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), DARK_BLUE),
-            ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BACKGROUND",    (0, 0), (-1,  0), DARK_BLUE),
+            ("TEXTCOLOR",     (0, 0), (-1,  0), WHITE),
+            ("FONTNAME",      (0, 0), (-1,  0), "Helvetica-Bold"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 9),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
+            ("GRID",          (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
         ]))
         elements.append(ctrl_table)
-        elements.append(Spacer(1, 6))
 
-        # Evidence & reasoning per control
+        # Evidence & reasoning blocks — directly under the table, no duplicate ID header
         for ctrl in ctrls:
-            evidence = (ctrl.get("evidence_quote") or "")[:300]
-            reasoning = (ctrl.get("reasoning") or "")[:300]
-            if evidence or reasoning:
-                cid = ctrl.get("control_id", "")
-                elements.append(
-                    Paragraph(f"<b>{cid}</b>", small_style)
-                )
-                if evidence:
-                    elements.append(
-                        Paragraph(f"<i>Evidence:</i> {evidence}", small_style)
+            evidence  = (ctrl.get("evidence_quote") or "").strip()
+            reasoning = (ctrl.get("reasoning") or "").strip()
+            if not evidence and not reasoning:
+                continue
+
+            box_rows = []
+            if evidence:
+                box_rows.append([
+                    Paragraph(
+                        f'<b><font color="{BLUE_HEX}">Evidence:</font></b>'
+                        f'  {evidence[:400]}',
+                        small_style,
                     )
-                if reasoning:
-                    elements.append(
-                        Paragraph(f"<i>Reasoning:</i> {reasoning}", small_style)
+                ])
+            if reasoning:
+                box_rows.append([
+                    Paragraph(
+                        f'<b>Reasoning:</b>  {reasoning[:400]}',
+                        small_style,
                     )
-                elements.append(Spacer(1, 4))
+                ])
 
-        elements.append(Spacer(1, 8))
+            ev_table = Table(box_rows, colWidths=[EV_W])
+            ev_table.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (-1, -1), LIGHT_GRAY),
+                ("BOX",           (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 24),   # visual indent
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
+                ("TOPPADDING",    (0, 0), (-1,  0), 7),
+                ("BOTTOMPADDING", (0, -1),(-1, -1), 7),
+                ("TOPPADDING",    (0, 1), (-1, -1), 4),
+            ]))
+            elements.append(Spacer(1, 3))
+            elements.append(ev_table)
 
-    # ── 5. Footer Disclaimer ─────────────────────────────────────────────
+        elements.append(Spacer(1, 12))
 
-    elements.append(HRFlowable(width="100%", thickness=0.5, color=LIGHT_GRAY))
-    elements.append(Spacer(1, 8))
-    disclaimer = (
-        "This report was generated by VendorShield, an AI-powered vendor risk "
-        "assessment platform. Scores are derived from automated analysis of "
-        "uploaded vendor documentation against NIST SP 800-53 Rev.5 controls. "
-        "Results should be reviewed by a qualified security professional before "
-        "making business decisions. This report is confidential and intended "
-        "solely for the designated recipient."
-    )
-    elements.append(Paragraph(disclaimer, small_style))
+    # ─────────────────────────────────────────────────────────────────────
+    # 10. STYLED FOOTER DISCLAIMER
+    # ─────────────────────────────────────────────────────────────────────
+
+    elements.append(Spacer(1, 10))
+    footer_data = [[Paragraph(
+        f"Generated by VendorShield  •  NIST SP 800-53 Rev.5"
+        f"  •  Confidential  •  {date_str}",
+        footer_style,
+    )]]
+    footer_table = Table(footer_data, colWidths=[PAGE_W])
+    footer_table.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), FOOTER_GRAY),
+        ("LINEABOVE",     (0, 0), (-1,  0), 1, DIVIDER_GRAY),
+        ("TOPPADDING",    (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+    ]))
+    elements.append(footer_table)
 
     # Build
-    doc.build(elements)
+    doc.build(elements, onLaterPages=later_pages)
     pdf_bytes = buffer.getvalue()
     buffer.close()
 
@@ -347,7 +536,7 @@ def generate_pdf_report(assessment: dict) -> bytes:
     return pdf_bytes
 
 
-# ── Email Sending ────────────────────────────────────────────────────────────
+# ── Email Sending ─────────────────────────────────────────────────────────────
 
 
 def send_report_email(to_email: str, assessment: dict) -> dict:
@@ -368,10 +557,10 @@ def send_report_email(to_email: str, assessment: dict) -> dict:
 
     resend.api_key = settings.resend_api_key
 
-    vendor_name = assessment.get("vendor_name", "Unknown Vendor")
+    vendor_name   = assessment.get("vendor_name", "Unknown Vendor")
     overall_score = assessment.get("overall_score", 0)
-    risk = _risk_label(overall_score)
-    risk_col_hex = _risk_color(overall_score).hexval()
+    risk          = _risk_label(overall_score)
+    risk_col_hex  = _risk_hex(overall_score)
     domain_scores = assessment.get("domain_scores", {})
 
     # Generate PDF
@@ -383,34 +572,33 @@ def send_report_email(to_email: str, assessment: dict) -> dict:
 
     pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
 
-    # Build domain rows for the HTML email
+    # Build domain rows for the HTML email body
     domain_rows_html = ""
     for d_name, d_score in domain_scores.items():
         d_risk = _risk_label(d_score)
-        d_col = _risk_color(d_score).hexval()
-        domain_rows_html += f"""
-        <tr>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">{d_name}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">{d_score:.0f}%</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">
-            <span style="color:{d_col};font-weight:bold;">{d_risk}</span>
-          </td>
-        </tr>"""
+        d_col  = _risk_hex(d_score)
+        domain_rows_html += (
+            f"<tr>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #e5e7eb;'>{d_name}</td>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;'>"
+            f"{d_score:.0f} / 100</td>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;'>"
+            f"<span style='color:{d_col};font-weight:bold;'>{d_risk}</span></td>"
+            f"</tr>"
+        )
 
     html_body = f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;">
-      <!-- Header -->
       <div style="background:#1e3a5f;padding:24px 20px;text-align:center;border-radius:8px 8px 0 0;">
         <h1 style="color:#ffffff;margin:0;font-size:24px;">VendorShield</h1>
         <p style="color:#cdd5e0;margin:6px 0 0;font-size:14px;">Vendor Risk Assessment Report</p>
       </div>
-
-      <!-- Score Card -->
+      <div style="height:3px;background:#2563eb;"></div>
       <div style="background:#f8fafc;padding:24px 20px;text-align:center;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">
         <p style="color:#374151;margin:0 0 4px;font-size:13px;">Vendor</p>
         <h2 style="color:#111827;margin:0 0 16px;font-size:20px;">{vendor_name}</h2>
-        <div style="display:inline-block;background:white;border-radius:12px;padding:16px 32px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-          <p style="font-size:42px;font-weight:bold;color:{risk_col_hex};margin:0;">{overall_score:.0f}</p>
+        <div style="display:inline-block;background:white;border-radius:12px;padding:16px 32px;box-shadow:0 1px 3px rgba(0,0,0,0.1);border-left:4px solid {risk_col_hex};">
+          <p style="font-size:48px;font-weight:bold;color:{risk_col_hex};margin:0;">{overall_score:.0f}</p>
           <p style="font-size:12px;color:#6b7280;margin:2px 0 0;">/ 100</p>
         </div>
         <p style="margin:12px 0 0;">
@@ -419,8 +607,6 @@ def send_report_email(to_email: str, assessment: dict) -> dict:
           </span>
         </p>
       </div>
-
-      <!-- Domain Scores -->
       <div style="padding:20px;border:1px solid #e5e7eb;border-top:none;">
         <h3 style="color:#1e3a5f;margin:0 0 12px;font-size:15px;">Domain Scores</h3>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
@@ -432,8 +618,6 @@ def send_report_email(to_email: str, assessment: dict) -> dict:
           {domain_rows_html}
         </table>
       </div>
-
-      <!-- Footer -->
       <div style="background:#f9fafb;padding:16px 20px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;">
         <p style="color:#9ca3af;font-size:11px;margin:0;text-align:center;">
           Full control breakdown and evidence are attached as a PDF.<br/>
@@ -443,7 +627,6 @@ def send_report_email(to_email: str, assessment: dict) -> dict:
     </div>
     """
 
-    # Send via Resend
     subject = (
         f"VendorShield Risk Report — {vendor_name} ({risk}: {overall_score:.0f}/100)"
     )
@@ -463,7 +646,10 @@ def send_report_email(to_email: str, assessment: dict) -> dict:
             ],
         })
 
-        message_id = response.get("id", "") if isinstance(response, dict) else getattr(response, "id", "")
+        message_id = (
+            response.get("id", "") if isinstance(response, dict)
+            else getattr(response, "id", "")
+        )
         logger.info(
             f"Report emailed to {to_email} for '{vendor_name}' — "
             f"message_id={message_id}"
