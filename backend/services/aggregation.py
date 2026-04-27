@@ -16,6 +16,7 @@ IMPORTED BY:  mcp/server.py, chains/assessment_graph.py
 """
 
 import logging
+from datetime import datetime, timezone
 from models.controls import calculate_scores
 from models.schemas import (
     AssessmentResponse,
@@ -120,4 +121,5 @@ def aggregate_results(
         domain_scores=scores["domain_scores"],
         control_results=control_results,
         gaps_summary=gaps_summary,
+        created_at=datetime.now(timezone.utc).isoformat(),
     )
