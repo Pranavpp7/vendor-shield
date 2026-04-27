@@ -90,6 +90,7 @@ def ingest_file(
             "source_type": "file",
             "status": "empty",
             "chunks_created": 0,
+            "upload_path": str(upload_path),
         })
         return DocumentUploadResponse(
             document_id=document_id,
@@ -123,6 +124,7 @@ def ingest_file(
         "source_type": "file",
         "status": "processed",
         "chunks_created": len(chunks),
+        "upload_path": str(upload_path),  # stored for cleanup on delete
     })
 
     logger.info(
