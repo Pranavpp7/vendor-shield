@@ -2,7 +2,11 @@
 VendorShield Startup Script
 
 Builds the React frontend and starts the FastAPI server.
-Single command: uv run start.py
+
+Usage:
+    uv run start.py              # Build frontend + start (production)
+    uv run start.py --dev        # Skip build, start with hot-reload (development)
+    uv run start.py --skip-build # Skip build, start without hot-reload
 """
 
 import subprocess
@@ -14,44 +18,45 @@ ROOT_DIR = Path(__file__).resolve().parent.parent  # project root
 BACKEND_DIR = Path(__file__).resolve().parent       # backend/
 DIST_DIR = ROOT_DIR / "dist"
 
+DEV_MODE = "--dev" in sys.argv
+SKIP_BUILD = "--skip-build" in sys.argv or DEV_MODE
+
 
 def build_frontend():
     """Build the React frontend using npm."""
     if not (ROOT_DIR / "package.json").exists():
-        print("⚠  No package.json found — skipping frontend build.")
+        print("No package.json found — skipping frontend build.")
         return
 
-    # Check if node_modules exists
     if not (ROOT_DIR / "node_modules").exists():
-        print("📦 Installing frontend dependencies...")
+        print("Installing frontend dependencies...")
         subprocess.run(["npm", "install"], cwd=str(ROOT_DIR), check=True, shell=True)
 
-    print("🔨 Building frontend...")
+    print("Building frontend...")
     subprocess.run(["npm", "run", "build"], cwd=str(ROOT_DIR), check=True, shell=True)
 
     if DIST_DIR.exists():
-        print(f"✅ Frontend built → {DIST_DIR}")
+        print(f"Frontend built → {DIST_DIR}")
     else:
-        print("⚠  Frontend build completed but dist/ not found.")
+        print("Frontend build completed but dist/ not found.")
 
 
-def start_server():
+def start_server(reload: bool = False):
     """Start the FastAPI server with uvicorn."""
-    print("🚀 Starting VendorShield server on http://localhost:8000")
-    print("📄 API docs at http://localhost:8000/docs")
-    print("🌐 App UI at http://localhost:8000")
+    mode = "development (hot-reload)" if reload else "production"
+    print(f"Starting VendorShield [{mode}] on http://localhost:8000")
+    print(f"API docs: http://localhost:8000/docs")
     print("─" * 50)
 
     import uvicorn
     os.chdir(str(BACKEND_DIR))
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload)
 
 
 if __name__ == "__main__":
-    # Skip frontend build if --skip-build flag is passed
-    if "--skip-build" not in sys.argv:
-        build_frontend()
+    if SKIP_BUILD:
+        print("Skipping frontend build.")
     else:
-        print("⏭  Skipping frontend build (--skip-build)")
+        build_frontend()
 
-    start_server()
+    start_server(reload=DEV_MODE)
