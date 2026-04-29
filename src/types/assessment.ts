@@ -23,6 +23,7 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  sources?: Citation[];
 };
 
 export type UploadedFile = {
@@ -55,5 +56,7 @@ export type Assessment = {
   links: string[];
   domainScores?: DomainScore[];
   gapsSummary?: string;
+  warning?: string;
+  error?: string;
 };
 
