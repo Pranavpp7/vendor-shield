@@ -96,10 +96,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow all origins (local-first application)
+settings = get_settings()
+raw_origins = [o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()]
+allow_origins = ["*"] if "*" in raw_origins else raw_origins
+
+# CORS origins come from config/env for safer deployment defaults.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins or ["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
