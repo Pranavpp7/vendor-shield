@@ -3,7 +3,7 @@ import { ChatMessage } from "@/types/assessment";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownText } from "@/components/ui/markdown-text";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, FileText } from "lucide-react";
 import { chatWithAI } from "@/lib/api";
 
 const QUICK_QUESTIONS = [
@@ -36,8 +36,8 @@ export function ChatPanel({ chatHistory, checklistJson, onNewMessage, assessment
     setInput("");
     setLoading(true);
 
-    const reply = await chatWithAI(text.trim(), checklistJson, assessmentId);
-    const assistantMsg: ChatMessage = { role: "assistant", content: reply, timestamp: new Date().toISOString() };
+    const { reply, sources } = await chatWithAI(text.trim(), checklistJson, assessmentId);
+    const assistantMsg: ChatMessage = { role: "assistant", content: reply, timestamp: new Date().toISOString(), sources };
     onNewMessage([...updated, assistantMsg]);
     setLoading(false);
   };
@@ -59,7 +59,7 @@ export function ChatPanel({ chatHistory, checklistJson, onNewMessage, assessment
           </p>
         )}
         {chatHistory.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+          <div key={i} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
             <div
               className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
                 msg.role === "user" ? "bg-primary text-primary-foreground whitespace-pre-wrap" : "bg-muted"
@@ -71,6 +71,20 @@ export function ChatPanel({ chatHistory, checklistJson, onNewMessage, assessment
                 msg.content
               )}
             </div>
+            {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+              <div className="max-w-[80%] mt-1.5 flex flex-wrap gap-1.5">
+                {Array.from(new Set(msg.sources.map((s) => s.document))).map((docName) => (
+                  <span
+                    key={docName}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-xs text-accent-foreground"
+                    title={docName}
+                  >
+                    <FileText className="h-3 w-3 shrink-0 text-accent" />
+                    <span className="truncate max-w-[180px]">{docName}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         {loading && (
