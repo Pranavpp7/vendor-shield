@@ -32,14 +32,34 @@ from langgraph.graph import StateGraph, END
 from config import get_settings
 from models.schemas import AssessmentResponse, ControlResult, ControlScore
 from models.controls import get_all_controls
-from storage.qdrant_store import get_collection_stats
-from services.evaluation import evaluate_all_controls
-from services.aggregation import aggregate_results
-from services.retrieval import search_documents
-from services.progress import set_progress, clear_progress
+from mcp.client import MCPClient
 from storage.local_store import save_assessment, update_assessment, get_assessment
 
 logger = logging.getLogger(__name__)
+_mcp_client: MCPClient | None = None
+
+
+def _get_mcp_client() -> MCPClient:
+    global _mcp_client
+    if _mcp_client is None:
+        _mcp_client = MCPClient()
+    return _mcp_client
+
+
+async def _ensure_mcp_client() -> MCPClient:
+    client = _get_mcp_client()
+    await client.initialize()
+    return client
+
+
+def _set_progress(_assessment_id: str, _stage: str, _message: str, _percent: int) -> None:
+    """No-op progress shim to avoid direct services/progress dependency."""
+    return
+
+
+def _clear_progress(_assessment_id: str) -> None:
+    """No-op progress shim to avoid direct services/progress dependency."""
+    return
 
 
 # ── State Definition ─────────────────────────────────────────────────────────
@@ -122,13 +142,14 @@ def route_after_evaluate(state: AssessmentState) -> str:
 
 
 async def ingest_node(state: AssessmentState) -> dict:
-    """Check whether the assessment has indexed documents in Qdrant."""
+    """Check whether the assessment has indexed documents via MCP."""
     assessment_id = state["assessment_id"]
-    set_progress(assessment_id, "ingest", "Checking indexed documents…", 5)
+    _set_progress(assessment_id, "ingest", "Checking indexed documents...", 5)
 
     try:
-        stats = get_collection_stats(assessment_id)
-        has_docs = stats.get("vector_count", 0) > 0
+        client = await _ensure_mcp_client()
+        docs = await client.get_documents(assessment_id)
+        has_docs = len(docs) > 0
     except Exception as e:
         logger.warning(f"Could not check documents for {assessment_id}: {e}")
         has_docs = False
@@ -145,17 +166,17 @@ async def retrieve_node(state: AssessmentState) -> dict:
     does its own internal retrieval for the actual LLM scoring.
     """
     assessment_id = state["assessment_id"]
-    set_progress(assessment_id, "retrieve", "Retrieving evidence chunks…", 15)
+    _set_progress(assessment_id, "retrieve", "Retrieving evidence chunks...", 15)
     settings = get_settings()
     controls = get_all_controls()
+    client = await _ensure_mcp_client()
 
     async def _fetch_one(control: dict) -> tuple[str, list[dict]]:
         try:
-            chunks = await asyncio.to_thread(
-                search_documents,
-                control["search_query"],
-                assessment_id,
-                settings.retrieval_top_k,
+            chunks = await client.query_documents(
+                assessment_id=assessment_id,
+                query=control["search_query"],
+                top_k=settings.retrieval_top_k,
             )
             return control["id"], chunks
         except Exception as e:
@@ -179,7 +200,7 @@ async def no_documents_node(state: AssessmentState) -> dict:
     """
     assessment_id = state["assessment_id"]
     vendor_name = state["vendor_name"]
-    set_progress(assessment_id, "no_documents", "No document content found — skipping evaluation…", 80)
+    _set_progress(assessment_id, "no_documents", "No document content found - skipping evaluation...", 80)
 
     logger.warning(
         f"Assessment {assessment_id}: no relevant chunks found — "
@@ -200,11 +221,13 @@ async def no_documents_node(state: AssessmentState) -> dict:
         for c in controls
     ]
 
-    response = aggregate_results(
+    client = await _ensure_mcp_client()
+    response_data = await client.aggregate_scores(
         assessment_id=assessment_id,
         vendor_name=vendor_name,
-        control_results=control_results,
+        control_results=[r.model_dump(mode="json") for r in control_results],
     )
+    response = AssessmentResponse(**response_data)
 
     logger.info(
         f"No-documents path: score={response.overall_score}/100, "
@@ -223,7 +246,7 @@ async def sparse_evidence_node(state: AssessmentState) -> dict:
     retrieved = state.get("retrieved_chunks", {})
     covered = sum(1 for v in retrieved.values() if v)
     total = len(retrieved)
-    set_progress(assessment_id, "sparse_evidence", f"Sparse evidence ({covered}/{total} controls) — continuing evaluation…", 25)
+    _set_progress(assessment_id, "sparse_evidence", f"Sparse evidence ({covered}/{total} controls) - continuing evaluation...", 25)
 
     logger.warning(
         f"Sparse evidence: only {covered}/{total} controls have chunks — "
@@ -238,21 +261,17 @@ async def sparse_evidence_node(state: AssessmentState) -> dict:
 
 
 async def evaluate_node(state: AssessmentState) -> dict:
-    """Score all 20 controls against vendor documents using RAG + LLM.
-
-    Delegates to services/evaluation.evaluate_all_controls() which runs
-    its own internal retrieval + Groq LLM calls concurrently (5 threads).
-    """
+    """Score all 20 controls against vendor documents via MCP evaluate tool."""
     assessment_id = state["assessment_id"]
     retry = state.get("retry_count", 0)
-    msg = "Evaluating 20 security controls…" if retry == 0 else f"Re-evaluating controls (retry {retry})…"
-    set_progress(assessment_id, "evaluate", msg, 35 if retry == 0 else 65)
-
-    results = await asyncio.to_thread(evaluate_all_controls, assessment_id)
-
+    msg = "Evaluating 20 security controls..." if retry == 0 else f"Re-evaluating controls (retry {retry})..."
+    _set_progress(assessment_id, "evaluate", msg, 35 if retry == 0 else 65)
+    client = await _ensure_mcp_client()
+    results_data = await client.evaluate_controls(assessment_id=assessment_id)
+    results = [ControlResult(**r) for r in results_data]
     evaluations = {r.control_id: {"score": r.score.value} for r in results}
 
-    set_progress(assessment_id, "evaluate_done", "Controls evaluated, analysing results…", 75)
+    _set_progress(assessment_id, "evaluate_done", "Controls evaluated, analysing results...", 75)
     logger.info(
         f"Evaluated {len(results)} controls for vendor '{state['vendor_name']}'"
     )
@@ -270,6 +289,7 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
     """
     assessment_id = state["assessment_id"]
     settings = get_settings()
+    client = await _ensure_mcp_client()
     retry_count = state.get("retry_count", 0) + 1
 
     evaluations = state.get("evaluations", {})
@@ -281,7 +301,7 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
         if e.get("score") == "NO_EVIDENCE"
     ]
 
-    set_progress(assessment_id, "re_retrieve", f"Broadening search for {len(no_evidence_ids)} controls with no evidence…", 55)
+    _set_progress(assessment_id, "re_retrieve", f"Broadening search for {len(no_evidence_ids)} controls with no evidence...", 55)
     logger.info(
         f"Re-retrieve pass {retry_count}: broadening queries for "
         f"{len(no_evidence_ids)} NO_EVIDENCE controls"
@@ -297,11 +317,10 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
             + control.get("description", "")[:100]
         )
         try:
-            chunks = await asyncio.to_thread(
-                search_documents,
-                broader_query,
-                assessment_id,
-                settings.retrieval_top_k,
+            chunks = await client.query_documents(
+                assessment_id=assessment_id,
+                query=broader_query,
+                top_k=settings.retrieval_top_k,
             )
             return control_id, chunks
         except Exception as e:
@@ -321,15 +340,17 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
 async def aggregate_node(state: AssessmentState) -> dict:
     """Compute domain scores, overall score, risk level, and gaps summary."""
     assessment_id = state["assessment_id"]
-    set_progress(assessment_id, "aggregate", "Calculating domain scores and risk level…", 85)
+    _set_progress(assessment_id, "aggregate", "Calculating domain scores and risk level...", 85)
 
     control_results = state["control_results"]
 
-    response = aggregate_results(
+    client = await _ensure_mcp_client()
+    response_data = await client.aggregate_scores(
         assessment_id=state["assessment_id"],
         vendor_name=state["vendor_name"],
-        control_results=control_results,
+        control_results=[r.model_dump(mode="json") for r in control_results],
     )
+    response = AssessmentResponse(**response_data)
 
     logger.info(
         f"Aggregated: score={response.overall_score}/100, "
@@ -348,7 +369,7 @@ async def save_results(state: AssessmentState) -> dict:
     frontend can show score trends over multiple runs.
     """
     assessment_id = state["assessment_id"]
-    set_progress(assessment_id, "saving", "Saving assessment results…", 95)
+    _set_progress(assessment_id, "saving", "Saving assessment results...", 95)
 
     report_data = state["response"]
     report_data["status"] = "completed"
@@ -383,8 +404,8 @@ async def save_results(state: AssessmentState) -> dict:
         save_assessment(assessment_id, report_data)
         logger.info(f"Saved new assessment {assessment_id}")
 
-    set_progress(assessment_id, "complete", "Assessment complete", 100)
-    clear_progress(assessment_id)
+    _set_progress(assessment_id, "complete", "Assessment complete", 100)
+    _clear_progress(assessment_id)
     return {}
 
 
