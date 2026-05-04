@@ -187,6 +187,27 @@ class MCPClient:
         raw = await self.call_tool("get_controls", {})
         return json.loads(raw)
 
+    async def evaluate_controls(self, assessment_id: str) -> list[dict]:
+        """Evaluate all controls for an assessment."""
+        raw = await self.call_tool("evaluate_controls", {
+            "assessment_id": assessment_id,
+        })
+        return json.loads(raw)
+
+    async def aggregate_scores(
+        self,
+        assessment_id: str,
+        vendor_name: str,
+        control_results: list[dict],
+    ) -> dict:
+        """Aggregate control-level scores into an assessment summary."""
+        raw = await self.call_tool("aggregate_scores", {
+            "assessment_id": assessment_id,
+            "vendor_name": vendor_name,
+            "control_results": control_results,
+        })
+        return json.loads(raw)
+
     async def send_report(
         self, assessment_id: str, recipient_email: str
     ) -> dict:
@@ -228,6 +249,18 @@ class GetDocumentsInput(BaseModel):
 
 class GetReportInput(BaseModel):
     assessment_id: str = Field(description="The assessment ID")
+
+
+class EvaluateControlsInput(BaseModel):
+    assessment_id: str = Field(description="The assessment ID")
+
+
+class AggregateScoresInput(BaseModel):
+    assessment_id: str = Field(description="The assessment ID")
+    vendor_name: str = Field(description="The vendor's name")
+    control_results: list[dict] = Field(
+        description="Control-level results compatible with ControlResult schema"
+    )
 
 
 class SendReportInput(BaseModel):
@@ -310,6 +343,26 @@ def get_mcp_tools() -> list[StructuredTool]:
         """List all 20 NIST security controls and their domains."""
         return json.dumps(_run(client.get_controls()), indent=2, default=str)
 
+    def evaluate_controls_fn(assessment_id: str) -> str:
+        """Evaluate all 20 controls for an assessment."""
+        return json.dumps(
+            _run(client.evaluate_controls(assessment_id)),
+            indent=2,
+            default=str,
+        )
+
+    def aggregate_scores_fn(
+        assessment_id: str,
+        vendor_name: str,
+        control_results: list[dict],
+    ) -> str:
+        """Aggregate control-level results into final assessment scoring."""
+        return json.dumps(
+            _run(client.aggregate_scores(assessment_id, vendor_name, control_results)),
+            indent=2,
+            default=str,
+        )
+
     return [
         StructuredTool.from_function(
             func=list_assessments_fn,
@@ -350,6 +403,18 @@ def get_mcp_tools() -> list[StructuredTool]:
             func=get_controls_fn,
             name="get_controls",
             description="List all 20 NIST security controls and their domains",
+        ),
+        StructuredTool.from_function(
+            func=evaluate_controls_fn,
+            name="evaluate_controls",
+            description="Evaluate all 20 controls for an assessment",
+            args_schema=EvaluateControlsInput,
+        ),
+        StructuredTool.from_function(
+            func=aggregate_scores_fn,
+            name="aggregate_scores",
+            description="Aggregate control-level results into final assessment scores",
+            args_schema=AggregateScoresInput,
         ),
         StructuredTool.from_function(
             func=lambda assessment_id, recipient_email: json.dumps(

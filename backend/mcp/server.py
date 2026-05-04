@@ -30,7 +30,10 @@ from fastapi.responses import JSONResponse
 from storage.local_store import list_assessments, list_documents, get_assessment
 from services.retrieval import search_documents
 from services.chat import chat_with_docs
+from services.evaluation import evaluate_all_controls
+from services.aggregation import aggregate_results
 from models.controls import get_all_controls, get_domains
+from models.schemas import ControlResult
 
 from chains.assessment_graph import run_assessment
 
@@ -154,6 +157,48 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {},
+        },
+    },
+    {
+        "name": "evaluate_controls",
+        "description": (
+            "Evaluate all 20 controls for an assessment and return "
+            "control-level scoring results"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "assessment_id": {
+                    "type": "string",
+                    "description": "The assessment ID",
+                },
+            },
+            "required": ["assessment_id"],
+        },
+    },
+    {
+        "name": "aggregate_scores",
+        "description": (
+            "Aggregate control-level results into final domain scores, "
+            "overall score, risk level, and gaps summary"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "assessment_id": {
+                    "type": "string",
+                    "description": "The assessment ID",
+                },
+                "vendor_name": {
+                    "type": "string",
+                    "description": "Vendor name",
+                },
+                "control_results": {
+                    "type": "array",
+                    "description": "Array of control results compatible with ControlResult schema",
+                },
+            },
+            "required": ["assessment_id", "vendor_name", "control_results"],
         },
     },
     {
@@ -283,6 +328,26 @@ async def handle_get_controls(_args: dict) -> str:
     return json.dumps(result, indent=2)
 
 
+async def handle_evaluate_controls(args: dict) -> str:
+    """Delegate to services/evaluation.evaluate_all_controls()."""
+    results = evaluate_all_controls(args["assessment_id"])
+    return json.dumps([r.model_dump(mode="json") for r in results], indent=2, default=str)
+
+
+async def handle_aggregate_scores(args: dict) -> str:
+    """Delegate to services/aggregation.aggregate_results()."""
+    control_results = [
+        ControlResult(**r)
+        for r in args["control_results"]
+    ]
+    response = aggregate_results(
+        assessment_id=args["assessment_id"],
+        vendor_name=args["vendor_name"],
+        control_results=control_results,
+    )
+    return json.dumps(response.model_dump(mode="json"), indent=2, default=str)
+
+
 async def handle_send_report(args: dict) -> str:
     """Delegate to services/email_service.send_report_email()."""
     from services.email_service import send_report_email
@@ -310,6 +375,8 @@ TOOL_HANDLERS = {
     "run_assessment": handle_run_assessment,
     "get_assessment_report": handle_get_assessment_report,
     "get_controls": handle_get_controls,
+    "evaluate_controls": handle_evaluate_controls,
+    "aggregate_scores": handle_aggregate_scores,
     "send_report": handle_send_report,
 }
 
