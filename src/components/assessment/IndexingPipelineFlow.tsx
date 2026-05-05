@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Activity, Upload, FileSearch, Layers, Brain, CheckCircle, Loader2, XCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
+import { fetchDocuments } from "@/lib/api";
 
 type PipelineStage = {
   id: string;
@@ -105,12 +105,12 @@ export function IndexingPipelineFlow({ assessmentId, documents }: Props) {
     if (!processing) return;
 
     const interval = setInterval(async () => {
-      const { data } = await supabase
-        .from("documents")
-        .select("id, file_name, status")
-        .eq("assessment_id", assessmentId)
-        .order("created_at", { ascending: false });
-      if (data) setLiveDocuments(data);
+      try {
+        const docs = await fetchDocuments(assessmentId);
+        setLiveDocuments(docs);
+      } catch {
+        // keep current view when polling fails
+      }
     }, 2000);
 
     return () => clearInterval(interval);

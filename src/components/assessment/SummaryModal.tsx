@@ -23,7 +23,8 @@ export function SummaryModal({ open, onOpenChange, assessment }: Props) {
       assessment.score,
       assessment.riskLevel,
       assessment.controls,
-      assessment.notes
+      assessment.notes,
+      assessment.id
     );
     setSummary(result);
     setLoading(false);
