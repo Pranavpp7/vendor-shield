@@ -20,12 +20,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Link as LinkIcon, Globe, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2, Eye, Download } from "lucide-react";
+import { FileText, Link as LinkIcon, Globe, Plus, X, Pencil, Check, Upload, Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2 } from "lucide-react";
 import { IndexingPipelineFlow } from "./IndexingPipelineFlow";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { deleteDocument } from "@/lib/api";
+import { deleteDocument, fetchDocuments } from "@/lib/api";
 
 type DocumentRecord = {
   id: string;
@@ -51,7 +49,6 @@ type Props = {
 };
 
 export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, assessmentId, vendorName, onRerunChecklist, highlightDoc, onClearHighlight }: Props) {
-  const { user } = useAuth();
   const [linkInput, setLinkInput] = useState("");
   const [editingLink, setEditingLink] = useState<number | null>(null);
   const [editLinkValue, setEditLinkValue] = useState("");
@@ -59,9 +56,6 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [reprocessingId, setReprocessingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ docId: string; fileName: string } | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewName, setPreviewName] = useState("");
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const fileRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -112,68 +106,42 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     if (!assessmentId) return;
 
     const requestSeq = ++loadSeqRef.current;
-    const { data, error } = await supabase
-      .from("documents")
-      .select("id, file_name, file_size, status, storage_path, created_at, source_type, source_url")
-      .eq("assessment_id", assessmentId)
-      .order("created_at", { ascending: false });
+    try {
+      const docs = await fetchDocuments(assessmentId);
+      if (requestSeq !== loadSeqRef.current) return;
 
-    if (error) {
-      console.error("Failed to load documents:", error);
-      return;
+      const typed: DocumentRecord[] = docs.map((d: any) => ({
+        id: d.id,
+        file_name: d.file_name || d.filename || "Unknown",
+        file_size: d.file_size || 0,
+        status: d.status || "ready",
+        storage_path: null,
+        created_at: d.created_at || new Date().toISOString(),
+        source_type: d.source_url ? "url" : "file",
+        source_url: d.source_url || null,
+      }));
+
+      setDocuments((prev) => {
+        const unresolvedOptimistic = prev.filter(
+          (doc) =>
+            doc.id.startsWith("temp-") &&
+            !typed.some(
+              (serverDoc) =>
+                serverDoc.file_name === doc.file_name &&
+                (serverDoc.file_size || 0) === (doc.file_size || 0)
+            )
+        );
+        return [...unresolvedOptimistic, ...typed].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      });
+
+      onUpdateFiles(typed.map((d) => ({ name: d.file_name, size: d.file_size || 0 })));
+    } catch (err) {
+      console.error("Failed to load documents:", err);
     }
-
-    if (!data || requestSeq !== loadSeqRef.current) return;
-
-    const typed = data as DocumentRecord[];
-
-    setDocuments((prev) => {
-      const unresolvedOptimistic = prev.filter(
-        (doc) =>
-          doc.id.startsWith("temp-") &&
-          !typed.some(
-            (serverDoc) =>
-              serverDoc.file_name === doc.file_name &&
-              (serverDoc.file_size || 0) === (doc.file_size || 0)
-          )
-      );
-
-      return [...unresolvedOptimistic, ...typed].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-    });
-
-    onUpdateFiles(
-      typed.map((d) => ({
-        name: d.file_name,
-        size: d.file_size || 0,
-      }))
-    );
   };
 
-  useEffect(() => {
-    if (!assessmentId) return;
-
-    const channel = supabase
-      .channel(`documents-${assessmentId}-${crypto.randomUUID()}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "documents",
-          filter: `assessment_id=eq.${assessmentId}`,
-        },
-        () => {
-          loadDocuments();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [assessmentId]);
 
   useEffect(() => {
     const processing = documents.some(d => d.status === "pending" || d.status === "processing");
@@ -187,7 +155,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     if (!url) return;
     setLinkInput("");
 
-    if (assessmentId && user) {
+    if (assessmentId) {
       // Submit to FastAPI ingest-url endpoint
       toast.info(`Submitting ${url} for indexing…`);
       try {
@@ -250,7 +218,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     const { ingestDocument } = await import("@/lib/api");
     const uploadResults = await Promise.all(selectedFiles.map(async (file) => {
       try {
-        const result = await ingestDocument(file, assessmentId, vendorName || "Unknown Vendor", user?.id);
+        const result = await ingestDocument(file, assessmentId, vendorName || "Unknown Vendor");
         toast.success(`Uploaded ${file.name}`);
         return {
           id: result.document_id,
@@ -287,13 +255,13 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
     try {
       if (doc.source_type === "url" && doc.source_url) {
         // For URL docs, delete via FastAPI and re-ingest
-        await fetch(`/api/documents/${doc.id}?assessment_id=${assessmentId || ""}`, { method: "DELETE" });
+        await deleteDocument(doc.id, assessmentId || "");
         const { ingestUrl } = await import("@/lib/api");
         await ingestUrl(doc.source_url, assessmentId || "", vendorName || "Unknown Vendor");
         toast.success(`Re-processing ${doc.source_url}`);
       } else {
         // For file docs, delete and notify user to re-upload
-        await fetch(`/api/documents/${doc.id}?assessment_id=${assessmentId || ""}`, { method: "DELETE" });
+        await deleteDocument(doc.id, assessmentId || "");
         toast.info(`Deleted ${doc.file_name}. Please re-upload to re-process.`);
       }
     } catch (err: any) {
@@ -419,48 +387,6 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                       {statusBadge(doc.status)}
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {doc.storage_path && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            title="Preview document"
-                            disabled={previewLoading}
-                            onClick={async () => {
-                              setPreviewLoading(true);
-                              setPreviewName(doc.file_name);
-                              const { data, error } = await supabase.storage
-                                .from("vendor-documents")
-                                .createSignedUrl(doc.storage_path!, 300);
-                              setPreviewLoading(false);
-                              if (error || !data?.signedUrl) {
-                                toast.error("Failed to load preview");
-                                return;
-                              }
-                              setPreviewUrl(data.signedUrl);
-                            }}
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            title="Download document"
-                            onClick={async () => {
-                              const { data, error } = await supabase.storage.from("vendor-documents").download(doc.storage_path!);
-                              if (error || !data) { toast.error("Download failed"); return; }
-                              const url = URL.createObjectURL(data);
-                              const a = document.createElement("a");
-                              a.href = url; a.download = doc.file_name; a.click();
-                              URL.revokeObjectURL(url);
-                            }}
-                          >
-                            <Download className="h-3 w-3" />
-                          </Button>
-                        </>
-                      )}
                       {(doc.status === "error" || doc.status === "ready") && (
                         <Button
                           variant="ghost"
@@ -599,21 +525,6 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Document preview dialog */}
-      <Dialog open={!!previewUrl} onOpenChange={(open) => !open && setPreviewUrl(null)}>
-        <DialogContent className="max-w-4xl w-[90vw] h-[85vh] flex flex-col p-0">
-          <DialogHeader className="p-4 pb-2">
-            <DialogTitle className="text-sm truncate">{previewName}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 p-4 pt-0">
-            <iframe
-              src={previewUrl || ""}
-              className="w-full h-full rounded-md border"
-              title={previewName}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
