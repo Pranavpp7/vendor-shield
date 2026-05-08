@@ -10,15 +10,20 @@ IMPORTED BY:  main.py
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 
+from auth import get_current_user
 from services.email_service import send_report_email
 from storage.local_store import get_assessment
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/email", tags=["Email"])
+router = APIRouter(
+    prefix="/api/email",
+    tags=["Email"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 class SendReportRequest(BaseModel):

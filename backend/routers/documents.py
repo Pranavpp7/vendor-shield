@@ -14,8 +14,9 @@ import asyncio
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 
+from auth import get_current_user
 from models.schemas import DocumentUploadResponse, URLIngestRequest
 from services.ingestion import ingest_file, ingest_url
 from storage.local_store import (
@@ -27,7 +28,11 @@ from storage.qdrant_store import delete_document_vectors
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/documents", tags=["Documents"])
+router = APIRouter(
+    prefix="/api/documents",
+    tags=["Documents"],
+    dependencies=[Depends(get_current_user)],
+)
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}

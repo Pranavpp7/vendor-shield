@@ -8,11 +8,17 @@ IMPORTS FROM: models/controls, models/schemas
 IMPORTED BY:  main.py
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from auth import get_current_user
 from models.schemas import ControlsListResponse
 from models.controls import get_all_controls, get_domains
 
-router = APIRouter(prefix="/api/controls", tags=["Controls"])
+router = APIRouter(
+    prefix="/api/controls",
+    tags=["Controls"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get("", response_model=ControlsListResponse)
