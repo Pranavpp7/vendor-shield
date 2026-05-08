@@ -34,6 +34,7 @@ from models.schemas import AssessmentResponse, ControlResult, ControlScore
 from models.controls import get_all_controls
 from mcp.client import MCPClient
 from storage.local_store import save_assessment, update_assessment, get_assessment
+from services.progress import set_progress
 
 logger = logging.getLogger(__name__)
 _mcp_client: MCPClient | None = None
@@ -50,16 +51,6 @@ async def _ensure_mcp_client() -> MCPClient:
     client = _get_mcp_client()
     await client.initialize()
     return client
-
-
-def _set_progress(_assessment_id: str, _stage: str, _message: str, _percent: int) -> None:
-    """No-op progress shim to avoid direct services/progress dependency."""
-    return
-
-
-def _clear_progress(_assessment_id: str) -> None:
-    """No-op progress shim to avoid direct services/progress dependency."""
-    return
 
 
 # ── State Definition ─────────────────────────────────────────────────────────
@@ -144,7 +135,7 @@ def route_after_evaluate(state: AssessmentState) -> str:
 async def ingest_node(state: AssessmentState) -> dict:
     """Check whether the assessment has indexed documents via MCP."""
     assessment_id = state["assessment_id"]
-    _set_progress(assessment_id, "ingest", "Checking indexed documents...", 5)
+    set_progress(assessment_id, "ingesting", "Checking documents...", 10)
 
     try:
         client = await _ensure_mcp_client()
@@ -166,7 +157,7 @@ async def retrieve_node(state: AssessmentState) -> dict:
     does its own internal retrieval for the actual LLM scoring.
     """
     assessment_id = state["assessment_id"]
-    _set_progress(assessment_id, "retrieve", "Retrieving evidence chunks...", 15)
+    set_progress(assessment_id, "retrieving", "Retrieving relevant chunks...", 30)
     settings = get_settings()
     controls = get_all_controls()
     client = await _ensure_mcp_client()
@@ -200,7 +191,7 @@ async def no_documents_node(state: AssessmentState) -> dict:
     """
     assessment_id = state["assessment_id"]
     vendor_name = state["vendor_name"]
-    _set_progress(assessment_id, "no_documents", "No document content found - skipping evaluation...", 80)
+    set_progress(assessment_id, "no_documents", "No document content found - skipping evaluation...", 80)
 
     logger.warning(
         f"Assessment {assessment_id}: no relevant chunks found — "
@@ -246,7 +237,7 @@ async def sparse_evidence_node(state: AssessmentState) -> dict:
     retrieved = state.get("retrieved_chunks", {})
     covered = sum(1 for v in retrieved.values() if v)
     total = len(retrieved)
-    _set_progress(assessment_id, "sparse_evidence", f"Sparse evidence ({covered}/{total} controls) - continuing evaluation...", 25)
+    set_progress(assessment_id, "sparse_evidence", f"Sparse evidence ({covered}/{total} controls) - continuing evaluation...", 25)
 
     logger.warning(
         f"Sparse evidence: only {covered}/{total} controls have chunks — "
@@ -261,17 +252,18 @@ async def sparse_evidence_node(state: AssessmentState) -> dict:
 
 
 async def evaluate_node(state: AssessmentState) -> dict:
-    """Score all 20 controls against vendor documents via MCP evaluate tool."""
+    """Score all 20 controls against vendor documents via MCP evaluate tool.
+
+    Granular per-batch progress updates are emitted from
+    services/evaluation.evaluate_all_controls() — no need to set a
+    coarse "evaluating" stage here.
+    """
     assessment_id = state["assessment_id"]
-    retry = state.get("retry_count", 0)
-    msg = "Evaluating 20 security controls..." if retry == 0 else f"Re-evaluating controls (retry {retry})..."
-    _set_progress(assessment_id, "evaluate", msg, 35 if retry == 0 else 65)
     client = await _ensure_mcp_client()
     results_data = await client.evaluate_controls(assessment_id=assessment_id)
     results = [ControlResult(**r) for r in results_data]
     evaluations = {r.control_id: {"score": r.score.value} for r in results}
 
-    _set_progress(assessment_id, "evaluate_done", "Controls evaluated, analysing results...", 75)
     logger.info(
         f"Evaluated {len(results)} controls for vendor '{state['vendor_name']}'"
     )
@@ -301,7 +293,7 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
         if e.get("score") == "NO_EVIDENCE"
     ]
 
-    _set_progress(assessment_id, "re_retrieve", f"Broadening search for {len(no_evidence_ids)} controls with no evidence...", 55)
+    set_progress(assessment_id, "re_retrieve", f"Broadening search for {len(no_evidence_ids)} controls with no evidence...", 55)
     logger.info(
         f"Re-retrieve pass {retry_count}: broadening queries for "
         f"{len(no_evidence_ids)} NO_EVIDENCE controls"
@@ -340,7 +332,7 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
 async def aggregate_node(state: AssessmentState) -> dict:
     """Compute domain scores, overall score, risk level, and gaps summary."""
     assessment_id = state["assessment_id"]
-    _set_progress(assessment_id, "aggregate", "Calculating domain scores and risk level...", 85)
+    set_progress(assessment_id, "aggregating", "Calculating risk score...", 85)
 
     control_results = state["control_results"]
 
@@ -369,7 +361,7 @@ async def save_results(state: AssessmentState) -> dict:
     frontend can show score trends over multiple runs.
     """
     assessment_id = state["assessment_id"]
-    _set_progress(assessment_id, "saving", "Saving assessment results...", 95)
+    set_progress(assessment_id, "saving", "Saving results...", 95)
 
     report_data = state["response"]
     report_data["status"] = "completed"
@@ -404,8 +396,6 @@ async def save_results(state: AssessmentState) -> dict:
         save_assessment(assessment_id, report_data)
         logger.info(f"Saved new assessment {assessment_id}")
 
-    _set_progress(assessment_id, "complete", "Assessment complete", 100)
-    _clear_progress(assessment_id)
     return {}
 
 
