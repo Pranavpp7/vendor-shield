@@ -18,21 +18,20 @@ IMPORTS FROM: nothing (this is the bottom of the dependency chain)
 IMPORTED BY:  every other layer — services, storage, mcp, agent, routers, main
 """
 
-from pathlib import Path
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
 
-    # ── Groq LLM ─────────────────────────────────────────────────────────────
-    # Groq provides fast inference for open-source models.
-    # Get your free API key at https://console.groq.com
-    # This key is the ONLY paid/external API the backend needs.
-    groq_api_key: str = ""
-    # Which model to use on Groq.  llama-3.3-70b-versatile is the best
-    # balance of quality and speed for structured JSON output.
-    groq_model: str = "llama-3.3-70b-versatile"
+    # ── OpenRouter LLM ───────────────────────────────────────────────────────
+    # OpenRouter provides a unified API for many open-source models.
+    # Get your API key at https://openrouter.ai/keys
+    openrouter_api_key: str = ""
+    # OpenRouter is OpenAI-compatible — point the OpenAI SDK at this URL.
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Model ID as it appears on OpenRouter.
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct"
 
     # ── Qdrant Vector Database ───────────────────────────────────────────────
     # Qdrant runs locally via Docker — no cloud, no API key needed.
@@ -82,11 +81,6 @@ class Settings(BaseSettings):
     mcp_server_url: str = "http://localhost:8000/mcp"
 
     # ── Server ───────────────────────────────────────────────────────────────
-    # Port that the FastAPI server listens on.
-    server_port: int = 8000
-    # Path to the built React frontend (relative to project root).
-    # After running `npm run build`, the output lands in dist/.
-    frontend_dir: str = "../dist"
     # Comma-separated list of allowed CORS origins.
     # Use "*" only for local experimentation.
     cors_allow_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
@@ -95,6 +89,11 @@ class Settings(BaseSettings):
     # Get your free API key at https://resend.com
     # Free tier sends from onboarding@resend.dev — no custom domain needed.
     resend_api_key: str = ""
+
+    # ── API Key Authentication ───────────────────────────────────────────────
+    # Single shared admin key required in the x-api-key header.
+    # Empty string = dev mode (auth is skipped entirely).
+    api_key: str = ""
 
     # ── pydantic-settings config ─────────────────────────────────────────────
     model_config = {

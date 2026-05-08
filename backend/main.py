@@ -45,13 +45,13 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting VendorShield backend...")
 
-    # 1. Initialize local data directories
+    # 1. Initialize SQLite database (creates data/vendorshield.db + tables)
     try:
-        from storage.local_store import _ensure_dirs
-        _ensure_dirs()
-        logger.info("Data directories initialized.")
+        from storage.local_store import init_db
+        init_db()
+        logger.info("SQLite database initialized.")
     except Exception as e:
-        logger.warning(f"Data directory init failed: {e}")
+        logger.warning(f"Database init failed: {e}")
 
     # 2. Pre-load embedding model (triggers download on first run)
     try:
@@ -112,6 +112,7 @@ app.add_middleware(
 # ── API Routers ──────────────────────────────────────────────────────────────
 app.include_router(documents.router)
 app.include_router(assessments.router)
+app.include_router(assessments.vendors_router)
 app.include_router(controls.router)
 app.include_router(chat.router)
 app.include_router(email.router)
