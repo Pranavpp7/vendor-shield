@@ -9,15 +9,20 @@ IMPORTED BY:  main.py
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
+from auth import verify_api_key
 from models.schemas import ChatRequest, ChatResponse, SummaryRequest, SummaryResponse
 from services.chat import chat_with_docs, generate_summary
 from storage.local_store import save_chat_message, get_chat_history
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/chat", tags=["Chat"])
+router = APIRouter(
+    prefix="/api/chat",
+    tags=["Chat"],
+    dependencies=[Depends(verify_api_key)],
+)
 
 
 @router.post("", response_model=ChatResponse)

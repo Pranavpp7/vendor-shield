@@ -10,16 +10,18 @@ IMPORTS FROM: chains/assessment_graph, storage/local_store,
 IMPORTED BY:  main.py
 """
 
+import asyncio
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from auth import verify_api_key
 from models.schemas import AssessmentRunRequest, AssessmentResponse
 from chains.assessment_graph import run_assessment
-from services.progress import stream_progress
+from services.progress import stream_progress, set_progress, clear_progress
 from storage.local_store import (
     list_assessments,
     get_assessment,
@@ -27,12 +29,17 @@ from storage.local_store import (
     update_assessment,
     list_documents,
     delete_document_meta,
+    get_assessments_by_vendor,
 )
 from storage.qdrant_store import delete_collection
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/assessments", tags=["Assessments"])
+
+# Endpoint-level guard — applied to every route except the SSE progress stream,
+# which must stay public so EventSource can connect without custom headers.
+_PROTECTED = [Depends(verify_api_key)]
 
 
 # ── Request models ───────────────────────────────────────────────────────────
@@ -50,11 +57,39 @@ class AssessmentUpdateRequest(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 
-@router.get("")
+@router.get("", dependencies=_PROTECTED)
 async def list_all_assessments():
     """List all assessments, sorted newest first."""
     assessments = list_assessments()
     return {"assessments": assessments}
+
+
+@router.get("/compare", dependencies=_PROTECTED)
+async def compare_assessments(ids: str):
+    """Return two full assessments side-by-side for the comparison page.
+
+    The `ids` query parameter is a comma-separated pair of assessment IDs,
+    e.g. ?ids=abc,def.  Both assessments are returned in the order requested
+    so the frontend can label them as "left" and "right" deterministically.
+
+    Note: declared BEFORE /{assessment_id} so FastAPI doesn't try to match
+    "compare" as a path-parameter value.
+    """
+    id_list = [i.strip() for i in ids.split(",") if i.strip()]
+    if len(id_list) != 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Exactly 2 assessment IDs required (e.g. ?ids=abc,def)",
+        )
+
+    assessments_out: list[dict] = []
+    for aid in id_list:
+        record = get_assessment(aid)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"Assessment {aid} not found")
+        assessments_out.append(record)
+
+    return {"assessments": assessments_out}
 
 
 @router.get("/{assessment_id}/progress")
@@ -74,7 +109,7 @@ async def assessment_progress(assessment_id: str):
     )
 
 
-@router.get("/{assessment_id}/run-history")
+@router.get("/{assessment_id}/run-history", dependencies=_PROTECTED)
 async def get_run_history(assessment_id: str):
     """Return the list of previous runs for this assessment."""
     record = get_assessment(assessment_id)
@@ -83,7 +118,7 @@ async def get_run_history(assessment_id: str):
     return {"run_history": record.get("run_history", [])}
 
 
-@router.get("/{assessment_id}")
+@router.get("/{assessment_id}", dependencies=_PROTECTED)
 async def get_assessment_detail(assessment_id: str):
     """Get a single assessment by ID."""
     record = get_assessment(assessment_id)
@@ -92,7 +127,7 @@ async def get_assessment_detail(assessment_id: str):
     return record
 
 
-@router.post("/run", response_model=AssessmentResponse)
+@router.post("/run", response_model=AssessmentResponse, dependencies=_PROTECTED)
 async def run_assessment_endpoint(req: AssessmentRunRequest):
     """Run a full vendor risk assessment using the LangGraph workflow.
 
@@ -108,13 +143,19 @@ async def run_assessment_endpoint(req: AssessmentRunRequest):
             vendor_name=req.vendor_name,
             assessment_id=req.assessment_id,
         )
+        set_progress(req.assessment_id, "complete", "Assessment complete", 100)
+        async def _delayed_clear(aid: str) -> None:
+            await asyncio.sleep(2)
+            clear_progress(aid)
+        asyncio.create_task(_delayed_clear(req.assessment_id))
         return result
     except Exception as e:
         logger.error(f"Assessment run failed: {e}", exc_info=True)
+        set_progress(req.assessment_id, "error", str(e), 0)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{assessment_id}/rerun", response_model=AssessmentResponse)
+@router.post("/{assessment_id}/rerun", response_model=AssessmentResponse, dependencies=_PROTECTED)
 async def rerun_assessment(assessment_id: str, req: RerunRequest):
     """Re-run an assessment with the latest document data.
 
@@ -137,13 +178,19 @@ async def rerun_assessment(assessment_id: str, req: RerunRequest):
             vendor_name=vendor_name,
             assessment_id=assessment_id,
         )
+        set_progress(assessment_id, "complete", "Assessment complete", 100)
+        async def _delayed_clear(aid: str) -> None:
+            await asyncio.sleep(2)
+            clear_progress(aid)
+        asyncio.create_task(_delayed_clear(assessment_id))
         return result
     except Exception as e:
         logger.error(f"Assessment rerun failed: {e}", exc_info=True)
+        set_progress(assessment_id, "error", str(e), 0)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{assessment_id}")
+@router.put("/{assessment_id}", dependencies=_PROTECTED)
 async def update_assessment_partial(assessment_id: str, req: AssessmentUpdateRequest):
     """Persist notes and/or chat history for an assessment.
 
@@ -166,7 +213,7 @@ async def update_assessment_partial(assessment_id: str, req: AssessmentUpdateReq
     return {"success": True}
 
 
-@router.delete("/{assessment_id}")
+@router.delete("/{assessment_id}", dependencies=_PROTECTED)
 async def delete_assessment_endpoint(assessment_id: str):
     """Delete an assessment and all associated data.
 
@@ -209,3 +256,37 @@ async def delete_assessment_endpoint(assessment_id: str):
     except Exception as e:
         logger.error(f"Assessment delete failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Vendor router ────────────────────────────────────────────────────────────
+# Same file, different prefix.  Mounted alongside `router` from main.py.
+
+vendors_router = APIRouter(
+    prefix="/api/vendors",
+    tags=["Vendors"],
+    dependencies=[Depends(verify_api_key)],
+)
+
+
+@vendors_router.get("/{vendor_name}/history")
+async def vendor_history(vendor_name: str):
+    """Return every assessment recorded for this vendor, oldest first.
+
+    Each entry carries only the fields the trend chart needs:
+    id, score, domain_scores, created_at.  FastAPI auto-decodes the
+    URL-encoded vendor_name path parameter, so an exact match against
+    the stored vendor_name field is sufficient.
+    """
+    history = get_assessments_by_vendor(vendor_name)
+    return {
+        "vendor_name": vendor_name,
+        "history": [
+            {
+                "id": h["id"],
+                "score": h.get("overall_score", 0),
+                "domain_scores": h.get("domain_scores", {}),
+                "created_at": h.get("created_at", ""),
+            }
+            for h in history
+        ],
+    }
