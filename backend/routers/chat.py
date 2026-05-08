@@ -11,7 +11,7 @@ IMPORTED BY:  main.py
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 
-from auth import verify_api_key
+from auth import get_current_user
 from models.schemas import ChatRequest, ChatResponse, SummaryRequest, SummaryResponse
 from services.chat import chat_with_docs, generate_summary
 from storage.local_store import save_chat_message, get_chat_history
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/chat",
     tags=["Chat"],
-    dependencies=[Depends(verify_api_key)],
+    dependencies=[Depends(get_current_user)],
 )
 
 
@@ -30,7 +30,7 @@ async def chat_endpoint(req: ChatRequest):
     """Chat over vendor documents with RAG context.
 
     Retrieves relevant chunks from Qdrant, enriches the prompt,
-    and responds using Groq Llama 3.3 70B.  Saves the Q&A pair
+    and responds using OpenRouter Llama 3.3 70B.  Saves the Q&A pair
     to local chat history.
     """
     try:
@@ -40,9 +40,12 @@ async def chat_endpoint(req: ChatRequest):
             context=req.context,
         )
 
-        # Persist chat history
+        # Persist chat history (citations saved with assistant message)
         save_chat_message(req.assessment_id, "user", req.question)
-        save_chat_message(req.assessment_id, "assistant", reply)
+        save_chat_message(
+            req.assessment_id, "assistant", reply,
+            [s.model_dump() for s in sources],
+        )
 
         return ChatResponse(reply=reply, sources=sources)
     except Exception as e:
