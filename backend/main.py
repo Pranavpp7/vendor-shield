@@ -2,7 +2,7 @@
 
 AI-powered vendor risk assessment system using:
 - LangChain/LangGraph for AI orchestration
-- Groq (Llama 3.3 70B) for LLM inference
+- OpenRouter (Llama 3.3 70B) for LLM inference
 - BGE-large-en-v1.5 for embeddings (local)
 - Qdrant for vector search (local Docker)
 - MCP protocol for external AI agent integration
@@ -45,6 +45,16 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting VendorShield backend...")
 
+    # 0. Auth sanity check — fail-loud if running without an API key
+    if not get_settings().api_key:
+        logger.warning(
+            "=" * 70 + "\n"
+            "  API_KEY is NOT set — auth is DISABLED. All endpoints are open.\n"
+            "  This is OK for local development only. NEVER deploy like this.\n"
+            "  Set API_KEY in your .env or environment to enable auth.\n"
+            + "=" * 70
+        )
+
     # 1. Initialize SQLite database (creates data/vendorshield.db + tables)
     try:
         from storage.local_store import init_db
@@ -84,13 +94,21 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("Shutting down VendorShield backend.")
 
+    # Close the pooled MCP HTTP client if it was created.
+    try:
+        from chains.assessment_graph import _mcp_client
+        if _mcp_client is not None:
+            await _mcp_client.aclose()
+    except Exception as e:
+        logger.warning(f"MCP client shutdown failed: {e}")
+
 
 app = FastAPI(
     title="VendorShield API",
     description=(
         "AI-powered vendor risk assessment system. "
         "Compares vendor security/compliance documents against internal control checklist "
-        "using RAG (Retrieval-Augmented Generation) with LangChain, Groq Llama, and Qdrant."
+        "using RAG (Retrieval-Augmented Generation) with LangChain, OpenRouter Llama, and Qdrant."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -132,7 +150,7 @@ async def api_info():
         "docs": "/docs",
         "mcp": "/mcp",
         "stack": {
-            "llm": "Llama 3.3 70B (Groq)",
+            "llm": "Llama 3.3 70B (OpenRouter)",
             "embeddings": "BGE-large-en-v1.5 (local, 1024 dim)",
             "vector_db": "Qdrant (local Docker)",
             "framework": "LangChain + LangGraph",
