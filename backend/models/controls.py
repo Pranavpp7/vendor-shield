@@ -823,13 +823,6 @@ def get_controls_by_domain(domain: str):
     """Return controls filtered by domain name."""
     return [c for c in SECURITY_CONTROLS if c["domain"] == domain]
 
-def get_control_by_id(control_id: str):
-    """Return a single control by its ID."""
-    for c in SECURITY_CONTROLS:
-        if c["id"] == control_id:
-            return c
-    return None
-
 def get_domains():
     """Return the list of unique domains."""
     seen = []

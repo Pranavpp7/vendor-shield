@@ -24,9 +24,10 @@ IMPORTED BY:  main.py
 
 import json
 import logging
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 
+from auth import verify_api_key
 from storage.local_store import list_assessments, list_documents, get_assessment
 from services.retrieval import search_documents
 from services.chat import chat_with_docs
@@ -39,7 +40,7 @@ from chains.assessment_graph import run_assessment
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["MCP"])
+router = APIRouter(tags=["MCP"], dependencies=[Depends(verify_api_key)])
 
 
 # ── Tool Registry ────────────────────────────────────────────────────────────
