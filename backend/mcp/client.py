@@ -38,6 +38,21 @@ class MCPClient:
         self.server_url = server_url or settings.mcp_server_url
         self._request_id = 0
         self._initialized = False
+        # One pooled HTTP client per MCPClient instance — avoids paying the
+        # TCP/TLS handshake on every JSON-RPC call (the agent makes 20+
+        # per assessment).
+        self._http: httpx.AsyncClient | None = None
+
+    def _get_http(self) -> httpx.AsyncClient:
+        if self._http is None:
+            self._http = httpx.AsyncClient(timeout=300.0)
+        return self._http
+
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client. Call on app shutdown."""
+        if self._http is not None:
+            await self._http.aclose()
+            self._http = None
 
     def _next_id(self) -> int:
         """Return a monotonically increasing request ID."""
@@ -56,14 +71,14 @@ class MCPClient:
             "params": params or {},
         }
 
-        async with httpx.AsyncClient(timeout=300.0) as http:
-            try:
-                resp = await http.post(self.server_url, json=payload)
-                resp.raise_for_status()
-            except httpx.HTTPError as e:
-                raise RuntimeError(
-                    f"MCP transport error calling {method}: {e}"
-                ) from e
+        http = self._get_http()
+        try:
+            resp = await http.post(self.server_url, json=payload)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            raise RuntimeError(
+                f"MCP transport error calling {method}: {e}"
+            ) from e
 
         body = resp.json()
 

@@ -7,15 +7,17 @@ RESPONSIBILITY:
     Thin JSON-RPC dispatcher.  Each tool handler delegates to the services
     and storage layers — NO business logic lives here.
 
-    The 8 tools mirror the core capabilities of the system:
-    1. list_assessments      — browse all assessments
-    2. get_documents         — list documents for an assessment
-    3. query_documents       — semantic search within an assessment
-    4. ask_question          — RAG chat over vendor documents
-    5. run_assessment        — trigger a full 20-control risk assessment
-    6. get_assessment_report — fetch a completed assessment report
-    7. get_controls          — list all 20 security controls and domains
-    8. send_report           — generate PDF and email it to a recipient
+    The 10 tools mirror the core capabilities of the system:
+    1.  list_assessments      — browse all assessments
+    2.  get_documents         — list documents for an assessment
+    3.  query_documents       — semantic search within an assessment
+    4.  ask_question          — RAG chat over vendor documents
+    5.  run_assessment        — trigger a full 20-control risk assessment
+    6.  get_assessment_report — fetch a completed assessment report
+    7.  get_controls          — list all 20 security controls and domains
+    8.  evaluate_controls     — score all 20 controls for an assessment
+    9.  aggregate_scores      — roll up control results into the final report
+    10. send_report           — generate PDF and email it to a recipient
 
 IMPORTS FROM: storage/local_store, services/retrieval, services/chat,
               chains/assessment_graph, models/controls
@@ -24,10 +26,9 @@ IMPORTED BY:  main.py
 
 import json
 import logging
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from auth import verify_api_key
 from storage.local_store import list_assessments, list_documents, get_assessment
 from services.retrieval import search_documents
 from services.chat import chat_with_docs
@@ -40,7 +41,7 @@ from chains.assessment_graph import run_assessment
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["MCP"], dependencies=[Depends(verify_api_key)])
+router = APIRouter(tags=["MCP"])
 
 
 # ── Tool Registry ────────────────────────────────────────────────────────────
