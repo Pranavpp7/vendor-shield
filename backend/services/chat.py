@@ -1,9 +1,9 @@
-"""Layer 3: RAG Chat — chat over vendor documents using LangChain + Groq.
+"""Layer 3: RAG Chat — chat over vendor documents using LangChain + OpenRouter.
 
 RESPONSIBILITY:
     Two capabilities:
     1. chat_with_docs() — RAG chat: retrieve relevant chunks from Qdrant,
-       build a grounded prompt, send to Groq Llama, return answer + citations.
+       build a grounded prompt, send to OpenRouter Llama, return answer + citations.
     2. generate_summary() — Generate an executive summary from assessment data.
 
     No database writes, no vector operations.  Retrieval is delegated to
@@ -15,8 +15,7 @@ IMPORTED BY:  routers/chat.py, mcp/server.py
 
 import asyncio
 import logging
-from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
+from openai import OpenAI
 from config import get_settings
 from services.retrieval import search_documents
 from models.schemas import Citation
@@ -29,7 +28,7 @@ async def chat_with_docs(
     assessment_id: str,
     context: str | None = None,
 ) -> tuple[str, list[Citation]]:
-    """RAG chat: retrieve relevant chunks from Qdrant, then ask Groq Llama."""
+    """RAG chat: retrieve relevant chunks from Qdrant, then ask OpenRouter Llama."""
     settings = get_settings()
 
     # 1. Retrieve relevant document chunks (search_documents is sync — run in thread)
@@ -60,13 +59,6 @@ async def chat_with_docs(
     ]
 
     # 4. Build LLM prompt
-    llm = ChatGroq(
-        api_key=settings.groq_api_key,
-        model=settings.groq_model,
-        temperature=0.7,
-        max_tokens=800,
-    )
-
     system_message = (
         "You are a security assessment assistant. "
         "You MUST answer ONLY from the document context provided below. "
@@ -90,19 +82,22 @@ async def chat_with_docs(
             "You must respond: 'I could not find this information in the vendor documents.'"
         )
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_message),
-        ("human", "Assessment context:\n{context}\n\nQuestion: {question}"),
-    ])
+    messages = [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": f"Assessment context:\n{context or 'No additional context provided.'}\n\nQuestion: {question}"},
+    ]
 
     # 5. Call LLM
-    chain = prompt | llm
-    response = await chain.ainvoke({
-        "context": context or "No additional context provided.",
-        "question": question,
-    })
+    client = OpenAI(api_key=settings.openrouter_api_key, base_url=settings.openrouter_base_url)
+    response = await asyncio.to_thread(
+        client.chat.completions.create,
+        model=settings.openrouter_model,
+        messages=messages,
+        temperature=0.1,
+        max_tokens=800,
+    )
 
-    return response.content, citations
+    return response.choices[0].message.content, citations
 
 
 async def generate_summary(
@@ -115,13 +110,6 @@ async def generate_summary(
     """Generate executive summary using LLM."""
     settings = get_settings()
 
-    llm = ChatGroq(
-        api_key=settings.groq_api_key,
-        model=settings.groq_model,
-        temperature=0.7,
-        max_tokens=1000,
-    )
-
     # Format controls as readable lines instead of raw Python repr
     controls_text = "\n".join(
         f"  - {c.get('id', '?')} [{c.get('category', '')}] {c.get('name', '')}: "
@@ -129,30 +117,34 @@ async def generate_summary(
         for c in controls[:20]
     ) if controls else "  No controls evaluated."
 
-    prompt = ChatPromptTemplate.from_messages([
-        (
-            "system",
-            "You are a security assessment report writer. "
-            "Generate a concise executive summary. Use markdown with headers and bullet points.",
-        ),
-        (
-            "human",
-            "Vendor: {vendor}\n"
-            "Score: {score}/100\n"
-            "Risk Level: {risk}\n"
-            "Controls:\n{controls}\n"
-            "Analyst Notes: {notes}\n\n"
-            "Generate: executive overview, key findings, failed controls, recommendations.",
-        ),
-    ])
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a security assessment report writer. "
+                "Generate a concise executive summary. Use markdown with headers and bullet points."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Vendor: {vendor_name}\n"
+                f"Score: {score}/100\n"
+                f"Risk Level: {risk_level}\n"
+                f"Controls:\n{controls_text}\n"
+                f"Analyst Notes: {notes or 'None'}\n\n"
+                "Generate: executive overview, key findings, failed controls, recommendations."
+            ),
+        },
+    ]
 
-    chain = prompt | llm
-    response = await chain.ainvoke({
-        "vendor": vendor_name,
-        "score": score,
-        "risk": risk_level,
-        "controls": controls_text,
-        "notes": notes or "None",
-    })
+    client = OpenAI(api_key=settings.openrouter_api_key, base_url=settings.openrouter_base_url)
+    response = await asyncio.to_thread(
+        client.chat.completions.create,
+        model=settings.openrouter_model,
+        messages=messages,
+        temperature=0.7,
+        max_tokens=1000,
+    )
 
-    return response.content
+    return response.choices[0].message.content
