@@ -20,7 +20,6 @@ IMPORTED BY:  services/ingestion.py, services/retrieval.py, mcp/server.py
 import logging
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
-from qdrant_client.http.exceptions import UnexpectedResponse
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -132,28 +131,6 @@ def delete_collection(assessment_id: str) -> None:
         logger.info(f"Deleted collection {name}")
     except Exception as e:
         logger.error(f"Error deleting collection {name}: {e}")
-        raise
-
-
-def get_collection_stats(assessment_id: str) -> dict:
-    """Return basic stats for an assessment's collection.
-
-    Returns: {"exists": bool, "vector_count": int}
-    """
-    name = _collection_name(assessment_id)
-
-    if not collection_exists(assessment_id):
-        return {"exists": False, "vector_count": 0}
-
-    client = _get_client()
-    try:
-        info = client.get_collection(collection_name=name)
-        return {
-            "exists": True,
-            "vector_count": info.points_count or 0,
-        }
-    except Exception as e:
-        logger.error(f"Error getting stats for {name}: {e}")
         raise
 
 

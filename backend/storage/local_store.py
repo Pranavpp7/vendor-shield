@@ -1,31 +1,35 @@
 """
-Layer 2b: Local JSON File Storage.
+Layer 2b: Local SQLite Storage.
 
 RESPONSIBILITY:
-    Structured data persistence using local JSON files.  Replaces Supabase
-    completely.  Stores assessments, document metadata, and chat history
-    under the ./data/ folder.
+    Structured data persistence using a single SQLite database file.
+    Stores assessments, document metadata, and chat history in three tables.
 
-    This file handles ONLY reading and writing JSON — no business logic,
-    no validation beyond basic file I/O, no vector operations.
+    This file handles ONLY database I/O — no business logic, no validation
+    beyond basic typing, no vector operations.
 
-    Limitation: no file locking.  This is acceptable for a single-user
-    laptop application.  For multi-user deployment, add locking or
-    switch to SQLite.
+DATABASE LAYOUT:
+    data/vendorshield.db
+        ├── assessments      — id, vendor_name, status, score,
+        │                       domain_scores (JSON), control_results (JSON),
+        │                       gaps_summary, created_at, updated_at, extra (JSON)
+        ├── documents        — id, assessment_id, filename, file_type,
+        │                       chunk_count, uploaded_at, extra (JSON)
+        └── chat_messages    — id, assessment_id, role, content,
+                                citations (JSON), created_at
 
-FILE LAYOUT:
-    data/
-    ├── assessments/{assessment_id}.json
-    ├── documents/{document_id}.json
-    └── chat/{assessment_id}.json          (array of messages)
+    The `extra` columns hold any additional fields from the input dict
+    (e.g. run_history, notes, chat_history, upload_path) so callers
+    that round-trip arbitrary data through save/get keep working.
 
 IMPORTS FROM: config.py (for data_dir)
-IMPORTED BY:  services/ingestion.py, routers/*, mcp/server.py
+IMPORTED BY:  services/ingestion.py, routers/*, mcp/server.py, main.py
 """
 
 import json
 import uuid
 import logging
+import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -33,77 +37,30 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 
-_dirs_created = False
-
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
 
-def _data_dir() -> Path:
-    """Resolve the data directory as an absolute path.
+def _db_path() -> Path:
+    """Resolve the SQLite database file path as an absolute path.
 
-    Path is relative to the backend/ folder (where config.py lives).
+    Path is relative to the backend/ folder.  The parent directory
+    is created if it doesn't exist.
     """
     settings = get_settings()
     base = Path(__file__).resolve().parent.parent  # backend/
-    return base / settings.data_dir
+    db_dir = base / settings.data_dir
+    db_dir.mkdir(parents=True, exist_ok=True)
+    return db_dir / "vendorshield.db"
 
 
-def _ensure_dirs() -> None:
-    """Create the data folder structure on first call.  Cached so the
-    filesystem check only happens once per process lifetime."""
-    global _dirs_created
-    if _dirs_created:
-        return
-    root = _data_dir()
-    for sub in ("assessments", "documents", "chat"):
-        (root / sub).mkdir(parents=True, exist_ok=True)
-    _dirs_created = True
-    logger.info(f"Data directory ready at {root}")
-
-
-def _read_json(path: Path):
-    """Read and parse a JSON file.
-
-    Returns the parsed data (dict or list), or None if the file does
-    not exist or is corrupted.  Never raises on bad data — logs an
-    error with the full file path instead.
-    """
-    if not path.exists():
-        return None
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
-        logger.error(f"Corrupted JSON file at {path}: {e}")
-        return None
-    except Exception as e:
-        logger.error(f"Error reading {path}: {e}")
-        return None
-
-
-def _write_json(path: Path, data) -> None:
-    """Atomically write data as JSON.
-
-    Writes to a .tmp file first, then renames.  This prevents a crash
-    mid-write from leaving a corrupted file on disk.
-    """
-    _ensure_dirs()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    try:
-        tmp.write_text(
-            json.dumps(data, indent=2, default=str, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        tmp.replace(path)  # atomic on most filesystems
-    except Exception as e:
-        logger.error(f"Error writing {path}: {e}")
-        # Clean up temp file if it exists
-        if tmp.exists():
-            tmp.unlink()
-        raise
+def _connect() -> sqlite3.Connection:
+    """Open a SQLite connection with row-as-dict access enabled."""
+    conn = sqlite3.connect(_db_path())
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def _now_iso() -> str:
@@ -117,33 +74,160 @@ def generate_id() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Assessments — data/assessments/{assessment_id}.json
+# Schema
 # ---------------------------------------------------------------------------
 
 
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS assessments (
+    id              TEXT PRIMARY KEY,
+    vendor_name     TEXT,
+    status          TEXT,
+    score           REAL,
+    domain_scores   TEXT,
+    control_results TEXT,
+    gaps_summary    TEXT,
+    created_at      TEXT,
+    updated_at      TEXT,
+    user_id         TEXT DEFAULT '',
+    extra           TEXT
+);
+
+CREATE TABLE IF NOT EXISTS documents (
+    id            TEXT PRIMARY KEY,
+    assessment_id TEXT,
+    filename      TEXT,
+    file_type     TEXT,
+    chunk_count   INTEGER,
+    uploaded_at   TEXT,
+    extra         TEXT
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id            TEXT PRIMARY KEY,
+    assessment_id TEXT,
+    role          TEXT,
+    content       TEXT,
+    citations     TEXT,
+    created_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_documents_assessment
+    ON documents(assessment_id);
+
+CREATE INDEX IF NOT EXISTS idx_chat_assessment
+    ON chat_messages(assessment_id);
+"""
+
+
+def init_db() -> None:
+    """Create all tables and indexes if they don't already exist.
+
+    Called once on application startup from main.py lifespan.
+    Idempotent — safe to call repeatedly.
+    """
+    with _connect() as conn:
+        conn.executescript(_SCHEMA)
+        # Add user_id column to existing databases that predate the Clerk migration.
+        # SQLite doesn't support ADD COLUMN IF NOT EXISTS, so we try/ignore.
+        try:
+            conn.execute(
+                "ALTER TABLE assessments ADD COLUMN user_id TEXT DEFAULT ''"
+            )
+            logger.info("Migrated: added user_id column to assessments table")
+        except Exception:
+            pass  # column already exists — nothing to do
+    logger.info(f"SQLite database ready at {_db_path()}")
+
+
+# ---------------------------------------------------------------------------
+# Assessments
+# ---------------------------------------------------------------------------
+
+
+# Columns that have their own dedicated SQL field.  Anything else in the
+# input dict gets serialized into the `extra` JSON column.
+_ASSESSMENT_COLUMNS = {
+    "id", "vendor_name", "status", "overall_score",
+    "domain_scores", "control_results", "gaps_summary",
+    "created_at", "updated_at", "user_id",
+}
+
+
+def _row_to_assessment(row: sqlite3.Row | None) -> dict | None:
+    """Inflate a DB row back to the dict shape callers expect."""
+    if row is None:
+        return None
+    record: dict = {
+        "id": row["id"],
+        "vendor_name": row["vendor_name"] or "",
+        "status": row["status"] or "",
+        "overall_score": row["score"] if row["score"] is not None else 0,
+        "domain_scores": json.loads(row["domain_scores"]) if row["domain_scores"] else {},
+        "control_results": json.loads(row["control_results"]) if row["control_results"] else [],
+        "gaps_summary": row["gaps_summary"] or "",
+        "created_at": row["created_at"] or "",
+        "updated_at": row["updated_at"] or "",
+        "user_id": row["user_id"] or "",
+    }
+    if row["extra"]:
+        try:
+            for k, v in json.loads(row["extra"]).items():
+                if k not in record:
+                    record[k] = v
+        except json.JSONDecodeError:
+            logger.warning(f"Corrupt extra JSON for assessment {row['id']}")
+    return record
+
+
 def save_assessment(assessment_id: str, data: dict) -> dict:
-    """Save a new assessment record.
+    """Insert or replace an assessment record.
 
     Adds id, created_at, and updated_at fields automatically.
-    Returns the saved record.
+    Returns the saved record (same shape as get_assessment).
     """
-    _ensure_dirs()
-    record = {
-        "id": assessment_id,
-        "created_at": _now_iso(),
-        "updated_at": _now_iso(),
-        **data,
-    }
-    path = _data_dir() / "assessments" / f"{assessment_id}.json"
-    _write_json(path, record)
+    record = {**data, "id": assessment_id}
+    record.setdefault("created_at", _now_iso())
+    record["updated_at"] = _now_iso()
+
+    extra = {k: v for k, v in record.items() if k not in _ASSESSMENT_COLUMNS}
+
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO assessments
+                (id, vendor_name, status, score,
+                 domain_scores, control_results, gaps_summary,
+                 created_at, updated_at, user_id, extra)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                assessment_id,
+                record.get("vendor_name", ""),
+                record.get("status", ""),
+                record.get("overall_score", 0),
+                json.dumps(record.get("domain_scores", {}), default=str),
+                json.dumps(record.get("control_results", []), default=str),
+                record.get("gaps_summary", ""),
+                record["created_at"],
+                record["updated_at"],
+                record.get("user_id", ""),
+                json.dumps(extra, default=str),
+            ),
+        )
+
     logger.info(f"Saved assessment {assessment_id}")
     return record
 
 
 def get_assessment(assessment_id: str) -> dict | None:
     """Load an assessment by ID.  Returns None if not found."""
-    path = _data_dir() / "assessments" / f"{assessment_id}.json"
-    return _read_json(path)
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM assessments WHERE id = ?",
+            (assessment_id,),
+        ).fetchone()
+    return _row_to_assessment(row)
 
 
 def update_assessment(assessment_id: str, updates: dict) -> dict | None:
@@ -157,151 +241,308 @@ def update_assessment(assessment_id: str, updates: dict) -> dict | None:
         logger.warning(f"Cannot update assessment {assessment_id}: not found")
         return None
     existing.update(updates)
-    existing["updated_at"] = _now_iso()
-    path = _data_dir() / "assessments" / f"{assessment_id}.json"
-    _write_json(path, existing)
+    save_assessment(assessment_id, existing)
     logger.info(f"Updated assessment {assessment_id}")
     return existing
 
 
 def delete_assessment(assessment_id: str) -> bool:
-    """Delete an assessment file.  Returns True if deleted, False if not found."""
-    path = _data_dir() / "assessments" / f"{assessment_id}.json"
-    if path.exists():
-        path.unlink()
+    """Delete an assessment row.  Returns True if a row was removed."""
+    with _connect() as conn:
+        cursor = conn.execute(
+            "DELETE FROM assessments WHERE id = ?",
+            (assessment_id,),
+        )
+        deleted = cursor.rowcount > 0
+    if deleted:
         logger.info(f"Deleted assessment {assessment_id}")
-        return True
-    return False
+    return deleted
 
 
-def list_assessments() -> list[dict]:
-    """Return all assessments, sorted by created_at descending (newest first)."""
-    _ensure_dirs()
-    folder = _data_dir() / "assessments"
-    results = []
-    for f in folder.glob("*.json"):
-        record = _read_json(f)
-        if record is not None:
-            results.append(record)
-    results.sort(key=lambda r: r.get("created_at", ""), reverse=True)
-    return results
+def list_assessments(user_id: str = "") -> list[dict]:
+    """Return assessments sorted newest first.
+
+    When user_id is non-empty (production mode) only rows owned by that user
+    are returned.  When user_id is "" (dev mode) all rows are returned so
+    existing data is still visible without auth configured.
+    """
+    with _connect() as conn:
+        if user_id:
+            rows = conn.execute(
+                "SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC",
+                (user_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM assessments ORDER BY created_at DESC"
+            ).fetchall()
+    return [_row_to_assessment(r) for r in rows]
+
+
+def get_assessments_by_vendor(vendor_name: str, user_id: str = "") -> list[dict]:
+    """Return every assessment recorded for a vendor, oldest first.
+
+    Used by the vendor trend view to chart score improvement over time.
+    Filtered by user_id when provided (production mode).
+    """
+    with _connect() as conn:
+        if user_id:
+            rows = conn.execute(
+                "SELECT * FROM assessments WHERE vendor_name = ? AND user_id = ? "
+                "ORDER BY created_at ASC",
+                (vendor_name, user_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM assessments WHERE vendor_name = ? "
+                "ORDER BY created_at ASC",
+                (vendor_name,),
+            ).fetchall()
+    return [_row_to_assessment(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------
-# Documents — data/documents/{document_id}.json
+# Documents
 # ---------------------------------------------------------------------------
+
+
+# Field names from the input dict that map to dedicated SQL columns.
+# Everything else is serialized into the `extra` column.
+_DOCUMENT_COLUMNS = {
+    "id", "assessment_id", "file_name", "source_type",
+    "chunks_created", "created_at",
+}
+
+
+def _row_to_document(row: sqlite3.Row | None) -> dict | None:
+    """Inflate a DB row back to the dict shape callers expect.
+
+    The output keys match what callers in routers/ already use
+    (file_name, source_type, chunks_created — not filename/file_type/chunk_count).
+    """
+    if row is None:
+        return None
+    record: dict = {
+        "id": row["id"],
+        "assessment_id": row["assessment_id"] or "",
+        "file_name": row["filename"] or "",
+        "source_type": row["file_type"] or "",
+        "chunks_created": row["chunk_count"] if row["chunk_count"] is not None else 0,
+        "created_at": row["uploaded_at"] or "",
+    }
+    if row["extra"]:
+        try:
+            for k, v in json.loads(row["extra"]).items():
+                if k not in record:
+                    record[k] = v
+        except json.JSONDecodeError:
+            logger.warning(f"Corrupt extra JSON for document {row['id']}")
+    return record
 
 
 def save_document_meta(document_id: str, data: dict) -> dict:
-    """Save document metadata (file name, size, assessment_id, status, etc.).
+    """Insert or replace a document metadata row.
 
-    Returns the saved record.
+    Returns the saved record (same shape as get_document_meta).
     """
-    _ensure_dirs()
-    record = {
-        "id": document_id,
-        "created_at": _now_iso(),
-        "updated_at": _now_iso(),
-        **data,
-    }
-    path = _data_dir() / "documents" / f"{document_id}.json"
-    _write_json(path, record)
+    record = {**data, "id": document_id}
+    record.setdefault("created_at", _now_iso())
+    record["updated_at"] = _now_iso()
+
+    extra = {k: v for k, v in record.items() if k not in _DOCUMENT_COLUMNS}
+
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO documents
+                (id, assessment_id, filename, file_type,
+                 chunk_count, uploaded_at, extra)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                document_id,
+                record.get("assessment_id", ""),
+                record.get("file_name", ""),
+                record.get("source_type", ""),
+                record.get("chunks_created", 0),
+                record["created_at"],
+                json.dumps(extra, default=str),
+            ),
+        )
+
     logger.info(f"Saved document metadata {document_id}")
     return record
 
 
 def get_document_meta(document_id: str) -> dict | None:
     """Load document metadata by ID.  Returns None if not found."""
-    path = _data_dir() / "documents" / f"{document_id}.json"
-    return _read_json(path)
-
-
-def update_document(document_id: str, updates: dict) -> dict | None:
-    """Merge updates into existing document metadata.
-
-    Bumps updated_at.  Returns updated record or None if not found.
-    """
-    existing = get_document_meta(document_id)
-    if existing is None:
-        logger.warning(f"Cannot update document {document_id}: not found")
-        return None
-    existing.update(updates)
-    existing["updated_at"] = _now_iso()
-    path = _data_dir() / "documents" / f"{document_id}.json"
-    _write_json(path, existing)
-    logger.info(f"Updated document {document_id}")
-    return existing
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM documents WHERE id = ?",
+            (document_id,),
+        ).fetchone()
+    return _row_to_document(row)
 
 
 def delete_document_meta(document_id: str) -> bool:
-    """Delete a document metadata file.  Returns True if deleted."""
-    path = _data_dir() / "documents" / f"{document_id}.json"
-    if path.exists():
-        path.unlink()
+    """Delete a document metadata row.  Returns True if a row was removed."""
+    with _connect() as conn:
+        cursor = conn.execute(
+            "DELETE FROM documents WHERE id = ?",
+            (document_id,),
+        )
+        deleted = cursor.rowcount > 0
+    if deleted:
         logger.info(f"Deleted document metadata {document_id}")
-        return True
-    return False
+    return deleted
 
 
 def list_documents(assessment_id: str | None = None) -> list[dict]:
-    """Return all document records, optionally filtered by assessment_id.
+    """Return document records, optionally filtered by assessment_id.
 
-    Reads all JSON files in documents/ and filters in memory.
-    This is fine for single-laptop scale.
+    Sorted by uploaded_at descending (newest first).
     """
-    _ensure_dirs()
-    folder = _data_dir() / "documents"
-    results = []
-    for f in folder.glob("*.json"):
-        record = _read_json(f)
-        if record is None:
-            continue
-        if assessment_id and record.get("assessment_id") != assessment_id:
-            continue
-        results.append(record)
-    results.sort(key=lambda r: r.get("created_at", ""), reverse=True)
-    return results
+    with _connect() as conn:
+        if assessment_id:
+            rows = conn.execute(
+                "SELECT * FROM documents WHERE assessment_id = ? "
+                "ORDER BY uploaded_at DESC",
+                (assessment_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM documents ORDER BY uploaded_at DESC"
+            ).fetchall()
+    return [_row_to_document(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------
-# Chat history — data/chat/{assessment_id}.json  (array of messages)
+# Chat history
 # ---------------------------------------------------------------------------
 
 
-def save_chat_message(assessment_id: str, role: str, content: str) -> dict:
+def save_chat_message(
+    assessment_id: str,
+    role: str,
+    content: str,
+    citations: list | None = None,
+) -> dict:
     """Append a chat message to an assessment's chat history.
 
     Args:
         assessment_id: Which assessment this conversation belongs to.
         role: "user" or "assistant".
         content: The message text.
+        citations: Optional list of citation dicts to persist alongside the message.
 
     Returns:
-        The message dict that was appended.
+        The message dict that was appended (role, content, timestamp).
     """
-    _ensure_dirs()
-    path = _data_dir() / "chat" / f"{assessment_id}.json"
-    history = _read_json(path)
-    if not isinstance(history, list):
-        history = []
+    timestamp = _now_iso()
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO chat_messages
+                (id, assessment_id, role, content, citations, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (uuid.uuid4().hex, assessment_id, role, content,
+             json.dumps(citations or [], default=str), timestamp),
+        )
 
-    message = {
+    return {
         "role": role,
         "content": content,
-        "timestamp": _now_iso(),
+        "timestamp": timestamp,
     }
-    history.append(message)
-    _write_json(path, history)
-    return message
 
 
 def get_chat_history(assessment_id: str) -> list[dict]:
-    """Return the full chat history for an assessment.
+    """Return the full chat history for an assessment, oldest first.
 
-    Returns an empty list if no chat history exists.
+    Returns an empty list if no messages exist.
     """
-    path = _data_dir() / "chat" / f"{assessment_id}.json"
-    history = _read_json(path)
-    if not isinstance(history, list):
-        return []
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT role, content, citations, created_at
+            FROM chat_messages
+            WHERE assessment_id = ?
+            ORDER BY created_at ASC
+            """,
+            (assessment_id,),
+        ).fetchall()
+
+    history: list[dict] = []
+    for row in rows:
+        msg = {
+            "role": row["role"],
+            "content": row["content"],
+            "timestamp": row["created_at"],
+        }
+        if row["citations"] and row["citations"] != "[]":
+            try:
+                msg["citations"] = json.loads(row["citations"])
+            except json.JSONDecodeError:
+                pass
+        history.append(msg)
     return history
+
+
+# ---------------------------------------------------------------------------
+# One-time JSON → SQLite migration
+# ---------------------------------------------------------------------------
+
+
+def migrate_legacy_json() -> None:
+    """Import legacy JSON files (written by the old file-based store) into SQLite.
+
+    Scans data/assessments/*.json and data/documents/*.json.  Each file that
+    is successfully imported is renamed to *.migrated so this is idempotent —
+    safe to call on every startup, only acts when unprocessed files exist.
+
+    Called once from main.py lifespan after init_db().
+    """
+    settings = get_settings()
+    base = Path(__file__).resolve().parent.parent  # backend/
+    data_root = base / settings.data_dir
+
+    assessments_dir = data_root / "assessments"
+    documents_dir = data_root / "documents"
+
+    assessment_count = 0
+    document_count = 0
+
+    # ── Assessments ──────────────────────────────────────────────────────────
+    if assessments_dir.exists():
+        for json_file in sorted(assessments_dir.glob("*.json")):
+            try:
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+                assessment_id = data.get("id") or json_file.stem
+                # save_assessment uses INSERT OR REPLACE — safe to run even if
+                # the record already exists in SQLite.
+                save_assessment(assessment_id, data)
+                json_file.rename(json_file.with_suffix(".migrated"))
+                assessment_count += 1
+                logger.info(f"Migrated assessment: {assessment_id}")
+            except Exception as e:
+                logger.warning(f"Could not migrate {json_file.name}: {e}")
+
+    # ── Document metadata ─────────────────────────────────────────────────────
+    if documents_dir.exists():
+        for json_file in sorted(documents_dir.glob("*.json")):
+            try:
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+                document_id = data.get("id") or json_file.stem
+                save_document_meta(document_id, data)
+                json_file.rename(json_file.with_suffix(".migrated"))
+                document_count += 1
+                logger.info(f"Migrated document metadata: {document_id}")
+            except Exception as e:
+                logger.warning(f"Could not migrate {json_file.name}: {e}")
+
+    if assessment_count or document_count:
+        logger.info(
+            f"Legacy JSON migration complete: "
+            f"{assessment_count} assessment(s), {document_count} document(s) imported."
+        )
