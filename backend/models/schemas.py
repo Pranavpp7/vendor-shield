@@ -77,7 +77,7 @@ class ControlResult(BaseModel):
     """
     control_id: str                         # e.g. "IAM-001"
     score: ControlScore                     # PASS / PARTIAL / FAIL / NO_EVIDENCE
-    confidence: str = "MEDIUM"              # HIGH / MEDIUM / LOW
+    confidence: float = 0.5                 # 0.0 (guessing) → 1.0 (certain)
     evidence_quote: Optional[str] = None    # exact quote from vendor docs, or null
     evidence_chunk: Optional[int] = None    # which retrieved chunk had the evidence
     reasoning: str = ""                     # 1-2 sentence explanation

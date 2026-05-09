@@ -231,10 +231,7 @@ SECURITY_CONTROLS = [
             "is encrypted. Even if someone physically steals a hard drive, "
             "they cannot read the data without the encryption key."
         ),
-        "search_query": (
-            "encryption at rest data encryption stored data AES encrypted "
-            "database encryption storage encryption encrypted files"
-        ),
+        "search_query": "encryption data at rest AES storage security",
         "what_to_look_for": (
             "Evidence that stored data is encrypted. Look for: encryption "
             "at rest, data at rest encryption, AES-256, AES-128, encrypted "
@@ -268,10 +265,7 @@ SECURITY_CONTROLS = [
             "encrypted so it cannot be intercepted and read by anyone "
             "in the middle of the transmission."
         ),
-        "search_query": (
-            "encryption in transit TLS SSL HTTPS data transmission "
-            "encrypted communications transport security"
-        ),
+        "search_query": "encryption data in transit TLS SSL HTTPS network",
         "what_to_look_for": (
             "Evidence that data is encrypted when moving between systems. "
             "Look for: TLS, SSL, HTTPS, encryption in transit, encrypted "
@@ -305,10 +299,7 @@ SECURITY_CONTROLS = [
             "internal, confidential, restricted) and applies appropriate "
             "security controls to each category."
         ),
-        "search_query": (
-            "data classification data categorization sensitive data "
-            "confidential restricted public information classification"
-        ),
+        "search_query": "data classification sensitivity levels categories policy",
         "what_to_look_for": (
             "Evidence of a formal data classification scheme. Look for: "
             "data classification, data categorization, sensitivity levels, "
@@ -344,10 +335,7 @@ SECURITY_CONTROLS = [
             "data are kept, and data is deleted or archived after that "
             "period. This limits exposure if a breach occurs."
         ),
-        "search_query": (
-            "data retention policy data lifecycle data deletion data "
-            "archiving retention period records management"
-        ),
+        "search_query": "data retention deletion policy schedule records",
         "what_to_look_for": (
             "Evidence of defined data retention timeframes. Look for: "
             "data retention policy, retention period, data lifecycle "
@@ -870,12 +858,19 @@ Respond in this exact JSON format:
 {{
   "control_id": "{control['id']}",
   "score": "PASS|PARTIAL|FAIL|NO_EVIDENCE",
-  "confidence": "HIGH|MEDIUM|LOW",
+  "confidence": 0.85,
   "evidence_quote": "exact quote from the vendor documents that supports your score, or null if NO_EVIDENCE",
   "evidence_chunk": 1,
   "reasoning": "1-2 sentence explanation of your scoring decision",
   "gap": "what is missing or needs improvement, or null if PASS"
 }}
+
+confidence is a float from 0.0 to 1.0:
+  1.0 — a specific, unambiguous quote directly proves the score
+  0.75 — clear supporting evidence with minor gaps
+  0.5  — some relevant evidence but substantial ambiguity
+  0.25 — very thin evidence; mostly inferring
+  0.0  — no relevant evidence found; pure guess
 """
 
 # -------------------------------------------------------------------------
