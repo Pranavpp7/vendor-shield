@@ -22,9 +22,9 @@ from datetime import datetime
 import resend
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.platypus import (
     SimpleDocTemplate,
     Paragraph,
@@ -206,7 +206,6 @@ def generate_pdf_report(assessment: dict) -> bytes:
         rightMargin=0.75 * inch,
     )
 
-    styles = getSampleStyleSheet()
     elements: list = []
 
     # ── Paragraph styles ──────────────────────────────────────────────────
