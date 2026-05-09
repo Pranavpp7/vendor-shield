@@ -203,7 +203,7 @@ async def no_documents_node(state: AssessmentState) -> dict:
         ControlResult(
             control_id=c["id"],
             score=ControlScore.NO_EVIDENCE,
-            confidence="LOW",
+            confidence=0.0,
             reasoning="No relevant content found in vendor documents.",
             gap="Upload vendor security documentation to evaluate this control.",
             domain=c["domain"],
