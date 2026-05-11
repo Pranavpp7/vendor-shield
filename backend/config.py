@@ -90,8 +90,13 @@ class Settings(BaseSettings):
     # Free tier sends from onboarding@resend.dev — no custom domain needed.
     resend_api_key: str = ""
 
-    # ── API Key Authentication ───────────────────────────────────────────────
-    # Single shared admin key required in the x-api-key header.
+    # ── Clerk Authentication ─────────────────────────────────────────────────
+    # JWKS endpoint for verifying Clerk-issued JWTs.
+    # Found in Clerk Dashboard → API Keys → Advanced → JWKS URL.
+    # Empty string = dev mode: auth is skipped, all data is visible.
+    clerk_jwks_url: str = ""
+
+    # ── Legacy API Key (kept for MCP tool access from external agents) ───────
     # Empty string = dev mode (auth is skipped entirely).
     api_key: str = ""
 
