@@ -34,6 +34,7 @@ type DocumentRecord = {
   created_at: string;
   source_type?: string;
   source_url?: string;
+  chunks_created?: number;
 };
 
 type Props = {
@@ -119,6 +120,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
         created_at: d.created_at || new Date().toISOString(),
         source_type: d.source_url ? "url" : "file",
         source_url: d.source_url || null,
+        chunks_created: d.chunks_created || 0,
       }));
 
       setDocuments((prev) => {
@@ -210,6 +212,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
       status: "pending",
       storage_path: null,
       created_at: now,
+      chunks_created: 0,
     }));
     const optimisticIds = new Set(optimisticDocs.map((d) => d.id));
     setDocuments((prev) => [...optimisticDocs, ...prev]);
@@ -227,6 +230,7 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
           status: result.status || "ready",
           storage_path: null,
           created_at: now,
+          chunks_created: result.chunks_created || 0,
         } as DocumentRecord;
       } catch (err: any) {
         console.error("Upload error:", err);
@@ -327,7 +331,22 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Documents ({assessmentId ? documents.filter(d => d.source_type !== 'url').length : files.length})
+                <FileText className="h-4 w-4" />
+                {(() => {
+                  const fileDocs = assessmentId ? documents.filter(d => d.source_type !== 'url') : [];
+                  const totalChunks = fileDocs.reduce((sum, d) => sum + (d.chunks_created || 0), 0);
+                  const count = assessmentId ? fileDocs.length : files.length;
+                  return (
+                    <>
+                      Documents ({count})
+                      {assessmentId && totalChunks > 0 && (
+                        <span className="text-xs font-normal text-muted-foreground">
+                          · {totalChunks} {totalChunks === 1 ? "chunk" : "chunks"} indexed
+                        </span>
+                      )}
+                    </>
+                  );
+                })()}
               </CardTitle>
               {assessmentId && documents.length > 0 && (
                 <IndexingPipelineFlow assessmentId={assessmentId} documents={documents.map(d => ({ id: d.id, file_name: d.file_name, status: d.status }))} />
@@ -376,7 +395,10 @@ export function DocsLinksSection({ files, links, onUpdateFiles, onUpdateLinks, a
                         <span className="truncate">{doc.file_name}</span>
                       )}
                       {doc.source_type !== "url" && (
-                        <span className="text-xs text-muted-foreground">({((doc.file_size || 0) / 1024).toFixed(1)} KB)</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({((doc.file_size || 0) / 1024).toFixed(1)} KB
+                          {doc.chunks_created ? ` · ${doc.chunks_created} chunks` : ""})
+                        </span>
                       )}
                       {doc.created_at && (
                         <span className="text-[10px] text-muted-foreground/70" title={new Date(doc.created_at).toLocaleString()}>
