@@ -57,9 +57,10 @@ async def lifespan(app: FastAPI):
 
     # 1. Initialize SQLite database (creates data/vendorshield.db + tables)
     try:
-        from storage.local_store import init_db
+        from storage.local_store import init_db, migrate_legacy_json
         init_db()
         logger.info("SQLite database initialized.")
+        migrate_legacy_json()
     except Exception as e:
         logger.warning(f"Database init failed: {e}")
 
