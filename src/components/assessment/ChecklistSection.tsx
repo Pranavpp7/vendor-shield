@@ -139,7 +139,7 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                             {control.comment && (
                               <p className="text-xs text-muted-foreground">{control.comment}</p>
                             )}
-                            {control.aiExplanation ? (
+                            {control.aiExplanation?.trim() ? (
                               <div className="flex gap-2 items-start">
                                 <Sparkles className="h-3.5 w-3.5 text-accent mt-0.5 flex-shrink-0" />
                                 <p className="text-xs leading-relaxed text-foreground/80">{control.aiExplanation}</p>
