@@ -1,8 +1,6 @@
-import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ClipboardList, PlusCircle, LogOut, Shield, Info, Settings } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { LayoutDashboard, ClipboardList, PlusCircle, Shield, Info, Settings, BarChart2 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/context/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -12,7 +10,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarFooter,
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
@@ -21,23 +18,13 @@ const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Assessments", url: "/assessments", icon: ClipboardList },
   { title: "New Assessment", url: "/assessment/new", icon: PlusCircle },
+  { title: "Compare", url: "/compare", icon: BarChart2 },
   { title: "Architecture", url: "/architecture", icon: Info },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { user, signOut } = useAuth();
-
-  const displayName = user?.user_metadata?.display_name || user?.email || "User";
-  const email = user?.email || "";
-  const initials = displayName.slice(0, 2).toUpperCase();
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/");
-  };
 
   return (
     <Sidebar className="border-r border-sidebar-border">
@@ -82,28 +69,6 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
-        <Separator className="mb-4" />
-        <div className="flex items-center gap-3 mb-4">
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${initials}&backgroundColor=0d9488`} />
-            <AvatarFallback className="bg-accent/20 text-accent text-xs font-bold">{initials}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate text-sidebar-foreground">{displayName}</p>
-            <p className="text-[11px] text-muted-foreground truncate">{email}</p>
-          </div>
-        </div>
-        <SidebarMenuButton asChild>
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive w-full"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Sign Out</span>
-          </button>
-        </SidebarMenuButton>
-      </SidebarFooter>
     </Sidebar>
   );
 }
