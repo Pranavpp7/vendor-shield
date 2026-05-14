@@ -20,21 +20,19 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus, Search, Eye, Trash2, FileEdit, SortAsc, SortDesc, RotateCcw, Loader2,
+  BarChart2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
-import { saveRunSnapshot } from "@/lib/runHistory";
 import { toast } from "sonner";
-import { useAuth } from "@/context/AuthContext";
 
 type SortKey = "vendorName" | "score" | "createdAt";
 
 export default function Assessments() {
   const navigate = useNavigate();
   const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
-  const { user } = useAuth();
   const { allControls: checklistAllControls } = useChecklistSchema();
   const [rerunningId, setRerunningId] = useState<string | null>(null);
 
@@ -62,9 +60,6 @@ export default function Assessments() {
         riskLevel: result.riskLevel as "Low" | "Medium" | "High",
         status: "Completed",
       });
-      if (user) {
-        await saveRunSnapshot(id, user.id, result.score, result.riskLevel, result.controls);
-      }
       toast.success(`Re-run complete for ${assessment.vendorName}`);
     } catch {
       toast.error("Failed to re-run assessment.");
@@ -120,10 +115,16 @@ export default function Assessments() {
             <h1 className="text-3xl font-bold tracking-tight">Assessments</h1>
             <p className="text-muted-foreground mt-1">Manage and track all vendor assessments</p>
           </div>
-          <Button onClick={() => navigate("/assessment/new")} className="shadow-md">
-            <Plus className="h-4 w-4 mr-2" />
-            New Assessment
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate("/compare")}>
+              <BarChart2 className="h-4 w-4 mr-2" />
+              Compare
+            </Button>
+            <Button onClick={() => navigate("/assessment/new")} className="shadow-md">
+              <Plus className="h-4 w-4 mr-2" />
+              New Assessment
+            </Button>
+          </div>
         </div>
 
         {/* Status Tabs */}

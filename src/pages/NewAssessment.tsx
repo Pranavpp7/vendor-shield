@@ -5,22 +5,18 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
 import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI, ingestDocument, ingestUrl } from "@/lib/api";
-import { saveRunSnapshot } from "@/lib/runHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Link as LinkIcon, X, ArrowRight, ArrowLeft, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/context/AuthContext";
 
 export default function NewAssessment() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { addAssessment, getAssessment, updateAssessment } = useAssessments();
   const { toast } = useToast();
-  const { user } = useAuth();
   const { allControls: checklistAllControls } = useChecklistSchema();
   const [draftId, setDraftId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
@@ -77,7 +73,7 @@ export default function NewAssessment() {
     setUploading(true);
     for (const file of rawFiles) {
       try {
-        await ingestDocument(file, assessmentId, vendorName, user?.id);
+        await ingestDocument(file, assessmentId, vendorName);
       } catch (err: any) {
         console.error("Upload error:", err);
         toast({ title: "Upload failed", description: `Failed to upload ${file.name}: ${err.message}`, variant: "destructive" });
@@ -112,34 +108,37 @@ export default function NewAssessment() {
 
   const [statusMessage, setStatusMessage] = useState("");
 
-  const waitForDocumentsReady = async (assessmentId: string, maxWaitMs = 120000) => {
-    const pollInterval = 3000;
-    const start = Date.now();
-    while (Date.now() - start < maxWaitMs) {
-      const { data: docs } = await supabase
-        .from("documents")
-        .select("id, status")
-        .eq("assessment_id", assessmentId);
-      if (!docs || docs.length === 0) return true;
-      const pending = docs.filter((d) => d.status !== "ready" && d.status !== "error");
-      if (pending.length === 0) return true;
-      setStatusMessage(`Indexing documents… (${docs.length - pending.length}/${docs.length} ready)`);
-      await new Promise((r) => setTimeout(r, pollInterval));
-    }
-    return false;
-  };
-
   const startAssessment = async () => {
     setLoading(true);
     const id = draftId || `${vendorNameToSlug(vendorName)}-${crypto.randomUUID().slice(0, 8)}`;
 
+    // Create assessment record FIRST (so documents can reference it)
+    const initialAssessmentData = {
+      id,
+      vendorName,
+      criticality: "Medium" as const,
+      createdAt: new Date().toISOString().split("T")[0],
+      status: "Draft" as const,
+      score: 0,
+      riskLevel: "Low" as const,
+      controls: [],
+      notes: "",
+      chatHistory: [],
+      uploadedFiles: files,
+      links,
+    };
+
+    if (!draftId) {
+      await addAssessment(initialAssessmentData);
+    }
+
     // Upload files via FastAPI
-    setStatusMessage("Uploading files…");
+    setStatusMessage("Uploading and indexing files…");
     await uploadFilesToBackend(id);
 
     // Submit links via FastAPI
     if (links.length > 0) {
-      setStatusMessage("Submitting links for indexing…");
+      setStatusMessage("Indexing links…");
       await Promise.all(
         links.map((url) =>
           ingestUrl(url, id, vendorName).catch((err) => console.error("URL ingest error:", err))
@@ -147,17 +146,26 @@ export default function NewAssessment() {
       );
     }
 
-    // Wait for all documents (files + URLs) to be indexed before running AI checklist
-    if (rawFiles.length > 0 || links.length > 0) {
-      setStatusMessage("Waiting for documents to be indexed…");
-      const allReady = await waitForDocumentsReady(id);
-      if (!allReady) {
-        toast({ title: "Some documents still indexing", description: "The checklist will run with available data. You can re-run it later from the assessment page." });
-      }
-    }
+    // Connect to SSE progress stream before starting the LLM run
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource(`/api/assessments/${id}/progress`);
+      eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.message) setStatusMessage(data.message);
+        } catch { /* ignore parse errors */ }
+      };
+      eventSource.onerror = () => {
+        eventSource?.close();
+        eventSource = null;
+      };
+    } catch { /* SSE not critical — fall back to static message */ }
 
     setStatusMessage("Running AI checklist…");
     const result = await generateChecklistFromAI(vendorName, checklistAllControls, id);
+
+    eventSource?.close();
 
     const assessmentData = {
       id,
@@ -172,16 +180,14 @@ export default function NewAssessment() {
       chatHistory: [],
       uploadedFiles: files,
       links,
+      domainScores: result.domainScores,
+      gapsSummary: result.gapsSummary,
     };
 
-    if (draftId) await updateAssessment(draftId, assessmentData);
-    else await addAssessment(assessmentData);
+    // Update the assessment with results
+    await updateAssessment(id, assessmentData);
 
     // Save run snapshot for history tracking
-    if (user) {
-      await saveRunSnapshot(id, user.id, result.score, result.riskLevel, result.controls);
-    }
-
     navigate(`/assessments/${id}`);
   };
 

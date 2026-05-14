@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
   Layers, Database, Cloud, Brain, FileText, MessageSquare, Shield,
@@ -22,14 +22,13 @@ const layers = [
     icon: Layers,
     color: "bg-primary/10 text-primary",
     items: [
-      "Login / Signup with email verification (Supabase Auth)",
       "Dashboard with real-time assessment stats & risk distribution",
       "Assessment CRUD — create, evaluate, compare runs, generate summaries",
       "Document & URL ingestion with live indexing pipeline indicator",
       "AI Chat panel with RAG-grounded Q&A per assessment",
       "Customizable checklist schema editor (Settings page)",
       "Architecture & API Playground (this page)",
-      "Protected routes, responsive sidebar, dark-mode-ready design system",
+      "Responsive sidebar, dark-mode-ready design system",
     ],
   },
   {
@@ -38,8 +37,8 @@ const layers = [
     color: "bg-accent/10 text-accent",
     items: [
       "FastAPI backend with Swagger UI — /docs endpoint",
-      "Document ingestion — PDF/text extraction → chunking → Snowflake Arctic embeddings → Pinecone",
-      "URL ingestion — web scraping → HTML stripping → chunking → embeddings → Pinecone",
+      "Document ingestion — PDF/text extraction → chunking → BGE-large-en-v1.5 embeddings → Qdrant",
+      "URL ingestion — web scraping → HTML stripping → chunking → embeddings → Qdrant",
       "Assessment engine — LangGraph workflow: per-control RAG retrieval → Groq Llama evaluation",
       "MCP server — JSON-RPC over HTTP for external AI agent integration",
       "Chat — RAG-powered Q&A using LangChain + Groq",
@@ -50,13 +49,10 @@ const layers = [
     icon: Database,
     color: "bg-secondary/80 text-secondary-foreground",
     items: [
-      "profiles — user display names & organizations (auto-created on signup)",
-      "assessments — full assessment state incl. controls, chat history, scores",
-      "assessment_runs — historical snapshots for run-over-run comparison",
-      "documents — file/URL metadata with processing status tracking",
-      "document_chunks — text chunks stored in Pinecone (768-dim Snowflake Arctic)",
-      "checklist_schemas — per-user customizable control templates",
-      "vendor-documents bucket — encrypted file storage with RLS",
+      "assessments — full assessment state incl. controls, chat history, scores (JSON files)",
+      "documents — file/URL metadata with processing status tracking (JSON files)",
+      "document_chunks — text chunks stored in Qdrant (1024-dim BGE-large-en-v1.5 vectors)",
+      "uploads — raw files saved to data/uploads/ on the local filesystem",
     ],
   },
   {
@@ -64,8 +60,8 @@ const layers = [
     icon: Brain,
     color: "bg-destructive/10 text-destructive",
     items: [
-      "Ingestion: Upload/URL → parse → 500-word chunks (100-word overlap) → Snowflake Arctic Embed",
-      "Indexing: Pinecone vector storage with cosine similarity (namespace per assessment)",
+      "Ingestion: Upload/URL → parse → 500-word chunks (50-word overlap) → BGE-large-en-v1.5 (local)",
+      "Indexing: Qdrant vector storage with cosine similarity (one collection per assessment)",
       "Retrieval: Per-control semantic search → top-24 chunks from ≤8 unique sources",
       "Generation: Context injection → Groq Llama 3.3 70B → evidence-cited responses",
       "Public source fallback: well-known vendor features cited with live URLs",
@@ -81,8 +77,8 @@ const techStack = [
   { name: "shadcn/ui", category: "Components" },
   { name: "Tanstack Query", category: "Data" },
   { name: "FastAPI", category: "Backend" },
-  { name: "Pinecone", category: "Vector DB" },
-  { name: "Snowflake Arctic Embed", category: "Embeddings" },
+  { name: "Qdrant", category: "Vector DB" },
+  { name: "BGE-large-en-v1.5", category: "Embeddings" },
   { name: "Llama 3.3 70B (Groq)", category: "LLM" },
   { name: "LangChain + LangGraph", category: "AI Framework" },
   { name: "MCP Protocol", category: "Integration" },
@@ -114,56 +110,47 @@ function EndpointTester() {
     }
   };
 
+  const API_BASE = "";
+
   const testParseUrl = () =>
     runTest("parse-url", async () => {
-      const { data, error } = await supabase.functions.invoke("parse-url", {
-        body: { url: docUrl, assessmentId: "test-architecture-demo", userId: null },
+      const res = await apiFetch(`${API_BASE}/api/documents/ingest-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: docUrl, assessment_id: "test-architecture-demo", vendor_name: "Architecture Demo" }),
       });
-      if (error) throw error;
-      return data;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
     });
 
   const testVendorAiChat = () =>
     runTest("vendor-ai-chat", async () => {
-      const { data, error } = await supabase.functions.invoke("vendor-ai", {
-        body: { action: "chat", question: chatQuestion, context: "Test assessment context from Architecture page", assessmentId: mcpAssessmentId || undefined },
+      const res = await apiFetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: chatQuestion, assessment_id: mcpAssessmentId || "test-architecture-demo", context: "" }),
       });
-      if (error) throw error;
-      return data;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
     });
 
   const testVendorAiChecklist = () =>
     runTest("vendor-ai-checklist", async () => {
-      const { data, error } = await supabase.functions.invoke("vendor-ai", {
-        body: {
-          action: "generate-checklist",
-          vendorName: "Test Vendor",
-          controls: [
-            { id: "test-1", category: "Security", name: "MFA enforced for all users" },
-            { id: "test-2", category: "Security", name: "Data encryption at rest" },
-          ],
-          assessmentId: mcpAssessmentId || undefined,
-        },
+      const res = await apiFetch(`${API_BASE}/api/assessments/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendor_name: "Test Vendor", assessment_id: mcpAssessmentId || "test-architecture-demo" }),
       });
-      if (error) throw error;
-      return data;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
     });
 
   const testMcpListAssessments = () =>
     runTest("mcp-list", async () => {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const res = await fetch(`${supabaseUrl}/functions/v1/mcp-server`, {
+      const res = await apiFetch(`${API_BASE}/mcp`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json, text/event-stream",
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "tools/call",
-          params: { name: "list_assessments", arguments: {} },
-        }),
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_assessments", arguments: {} } }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
@@ -172,19 +159,10 @@ function EndpointTester() {
   const testMcpAsk = () =>
     runTest("mcp-ask", async () => {
       if (!mcpAssessmentId) throw new Error("Enter an Assessment ID first");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const res = await fetch(`${supabaseUrl}/functions/v1/mcp-server`, {
+      const res = await apiFetch(`${API_BASE}/mcp`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json, text/event-stream",
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 2,
-          method: "tools/call",
-          params: { name: "ask_question", arguments: { assessment_id: mcpAssessmentId, question: chatQuestion } },
-        }),
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "ask_question", arguments: { assessment_id: mcpAssessmentId, question: chatQuestion } } }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
@@ -244,7 +222,7 @@ function EndpointTester() {
               {isLoading("parse-url") ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />} Run
             </Button>
           </div>
-          <CardDescription className="text-xs">Scrapes a URL, chunks text, generates Snowflake Arctic embeddings, stores in Pinecone</CardDescription>
+          <CardDescription className="text-xs">Scrapes a URL, chunks text, generates BGE-large-en-v1.5 embeddings, stores in Qdrant</CardDescription>
         </CardHeader>
         <CardContent>
           <Input value={docUrl} onChange={(e) => setDocUrl(e.target.value)} placeholder="https://example.com/security" className="text-xs h-8" />
@@ -438,11 +416,10 @@ export default function Architecture() {
               <CardContent>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {[
-                    { icon: Lock, label: "Email Auth with verification + protected routes" },
                     { icon: FileText, label: "PDF & text document upload with real-time indexing" },
                     { icon: Link2, label: "URL scraping and indexing into RAG pipeline" },
                     { icon: Brain, label: "AI-powered checklist evaluation per control" },
-                    { icon: Search, label: "Semantic vector search (Pinecone + cosine similarity)" },
+                    { icon: Search, label: "Semantic vector search (Qdrant + cosine similarity)" },
                     { icon: MessageSquare, label: "RAG-grounded AI chat per assessment" },
                     { icon: BarChart3, label: "Run history with side-by-side comparison" },
                     { icon: Eye, label: "Executive summary generation with document citations" },
@@ -472,7 +449,7 @@ export default function Architecture() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium">
-                  {["Upload PDF/Text", "→", "FastAPI", "→", "Extract Text (pypdf)", "→", "Chunk (500w / 100 overlap)", "→", "Snowflake Arctic Embed", "→", "Pinecone", "→", "Status: ready"].map((step, i) =>
+                  {["Upload PDF/Text", "→", "FastAPI", "→", "Extract Text (pypdf)", "→", "Chunk (500w / 50 overlap)", "→", "BGE-large-en-v1.5", "→", "Qdrant", "→", "Status: ready"].map((step, i) =>
                     step === "→" ? (
                       <ArrowRight key={i} className="h-4 w-4 text-muted-foreground" />
                     ) : (
@@ -492,7 +469,7 @@ export default function Architecture() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium">
-                  {["Paste URL", "→", "FastAPI", "→", "Fetch & Strip HTML", "→", "Chunk (500w / 100 overlap)", "→", "Snowflake Arctic Embed", "→", "Pinecone", "→", "Status: ready"].map((step, i) =>
+                  {["Paste URL", "→", "FastAPI", "→", "Fetch & Strip HTML", "→", "Chunk (500w / 50 overlap)", "→", "BGE-large-en-v1.5", "→", "Qdrant", "→", "Status: ready"].map((step, i) =>
                     step === "→" ? (
                       <ArrowRight key={i} className="h-4 w-4 text-muted-foreground" />
                     ) : (
