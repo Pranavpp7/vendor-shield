@@ -1,52 +1,26 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { useUser, useClerk } from "@clerk/clerk-react";
 
-type AuthContextType = {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
+const clerkEnabled =
+  !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY &&
+  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY !== "pk_test_replace_me";
+
+type AuthState = {
+  userId: string | null | undefined;
+  isLoaded: boolean;
+  isSignedIn: boolean | undefined;
   signOut: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
-      {children}
-    </AuthContext.Provider>
-  );
+// Two separate hooks so we never call Clerk hooks conditionally.
+function useClerkAuthState(): AuthState {
+  const { user, isLoaded, isSignedIn } = useUser();
+  const { signOut } = useClerk();
+  return { userId: user?.id ?? null, isLoaded, isSignedIn, signOut: () => signOut() };
 }
 
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
-};
+function useDevAuthState(): AuthState {
+  return { userId: null, isLoaded: true, isSignedIn: true, signOut: async () => {} };
+}
+
+// useAuth is fixed at module-load time — no conditional hook calls at runtime.
+export const useAuth: () => AuthState = clerkEnabled ? useClerkAuthState : useDevAuthState;
