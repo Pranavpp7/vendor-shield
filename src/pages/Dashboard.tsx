@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
 import { RiskBadge } from "@/components/assessment/RiskBadge";
-import { CompareModal } from "@/components/assessment/CompareModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,19 +22,15 @@ import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
-import { saveRunSnapshot } from "@/lib/runHistory";
 import { toast } from "sonner";
-import { useAuth } from "@/context/AuthContext";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { assessments, loading, updateAssessment, deleteAssessment } = useAssessments();
-  const { user } = useAuth();
   const { allControls: checklistAllControls } = useChecklistSchema();
   const [rerunningId, setRerunningId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [riskFilter, setRiskFilter] = useState<string>("all");
-  const [compareOpen, setCompareOpen] = useState(false);
 
   const filtered =
     riskFilter === "all"
@@ -72,9 +67,6 @@ export default function Dashboard() {
         riskLevel: result.riskLevel as "Low" | "Medium" | "High",
         status: "Completed",
       });
-      if (user) {
-        await saveRunSnapshot(id, user.id, result.score, result.riskLevel, result.controls);
-      }
       toast.success(`Re-run complete for ${assessment.vendorName}`);
     } catch {
       toast.error("Failed to re-run assessment.");
@@ -145,11 +137,20 @@ export default function Dashboard() {
                     <SelectItem value="High">High</SelectItem>
                   </SelectContent>
                 </Select>
-                {selectedIds.length >= 2 && (
-                  <Button variant="outline" size="sm" onClick={() => setCompareOpen(true)}>
+                {selectedIds.length === 2 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/compare?ids=${selectedIds[0]},${selectedIds[1]}`)}
+                  >
                     <GitCompare className="h-4 w-4 mr-2" />
-                    Compare ({selectedIds.length})
+                    Compare Selected
                   </Button>
+                )}
+                {selectedIds.length > 2 && (
+                  <span className="text-xs text-muted-foreground">
+                    Select exactly 2 to compare
+                  </span>
                 )}
               </div>
             </div>
@@ -279,11 +280,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <CompareModal
-        open={compareOpen}
-        onOpenChange={setCompareOpen}
-        assessments={assessments.filter((a) => selectedIds.includes(a.id))}
-      />
     </AppLayout>
   );
 }
