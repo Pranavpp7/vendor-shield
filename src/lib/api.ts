@@ -1,6 +1,28 @@
-// When served from FastAPI (production), use relative URLs (empty string).
-// During Vite dev mode, set VITE_API_BASE_URL=http://localhost:8000 in .env
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+// Always use relative URLs. In dev the Vite proxy forwards /api/* and /mcp
+// to http://localhost:8000. In production FastAPI serves everything.
+const API_BASE = "";
+
+type TokenGetter = () => Promise<string | null>;
+let _getToken: TokenGetter | null = null;
+
+export function setTokenGetter(fn: TokenGetter): void {
+  _getToken = fn;
+}
+
+export const apiFetch = async (input: string, init: RequestInit = {}): Promise<Response> => {
+  const token = _getToken ? await _getToken() : null;
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  return fetch(input, {
+    ...init,
+    headers: {
+      ...authHeaders,
+      ...(init.headers || {}),
+    },
+  });
+};
+
+import { mapBackendAssessment, mapControl, mapDomainScores } from "@/lib/mappers";
+import { Assessment } from "@/types/assessment";
 
 export async function generateChecklistFromAI(
   vendorName: string,
@@ -8,19 +30,12 @@ export async function generateChecklistFromAI(
   assessmentId?: string
 ) {
   try {
-    const response = await fetch(`${API_BASE}/api/assessments/run`, {
+    const response = await apiFetch(`${API_BASE}/api/assessments/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         vendor_name: vendorName,
         assessment_id: assessmentId || "",
-        controls: controls.map((c) => ({
-          id: c.id,
-          name: c.name,
-          category: c.category,
-          description: "",
-          weight: 1.0,
-        })),
       }),
     });
 
@@ -29,25 +44,13 @@ export async function generateChecklistFromAI(
     }
 
     const data = await response.json();
-
-    // Map FastAPI response to frontend format
-    const mappedControls = data.control_results.map((r: any) => ({
-      id: r.id,
-      category: r.category,
-      name: r.name,
-      passed: r.status === "Pass",
-      status: r.status === "Pass" ? "passed" : r.status === "Fail" ? "failed" : r.status === "Partial" ? "partial" : "needs_info",
-      comment: "",
-      aiExplanation: r.rationale,
-      evidenceSource: r.evidence_source || "No evidence found",
-      citations: r.citations || [],
-    }));
+    const rawControls: any[] = data.control_results || [];
 
     return {
-      controls: mappedControls,
+      controls: rawControls.map(mapControl),
       score: data.overall_score,
       riskLevel: data.risk_level,
-      domainScores: data.domain_scores,
+      domainScores: mapDomainScores(data.domain_scores, rawControls),
       summary: data.summary,
       gapsSummary: data.gaps_summary,
     };
@@ -73,9 +76,9 @@ export async function chatWithAI(
   question: string,
   checklistJson: string,
   assessmentId?: string
-): Promise<string> {
+): Promise<{ reply: string; sources: { document: string; excerpt: string; similarity?: number }[] }> {
   try {
-    const response = await fetch(`${API_BASE}/api/chat`, {
+    const response = await apiFetch(`${API_BASE}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -85,11 +88,19 @@ export async function chatWithAI(
       }),
     });
 
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Chat API error ${response.status}:`, errorText);
+      throw new Error(`API error: ${response.status}`);
+    }
     const data = await response.json();
-    return data.reply;
-  } catch {
-    return "Unable to connect to backend. Please ensure the FastAPI server is running on port 8000.";
+    return { reply: data.reply, sources: data.sources ?? [] };
+  } catch (error) {
+    console.error("Chat error:", error);
+    return {
+      reply: "Unable to connect to backend. Please ensure the FastAPI server is running on port 8000.",
+      sources: [],
+    };
   }
 }
 
@@ -98,14 +109,16 @@ export async function generateSummaryFromAI(
   score: number,
   riskLevel: string,
   controls: any[],
-  notes: string
+  notes: string,
+  assessmentId?: string
 ): Promise<string> {
   try {
-    const response = await fetch(`${API_BASE}/api/chat/summary`, {
+    const response = await apiFetch(`${API_BASE}/api/chat/summary`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         vendor_name: vendorName,
+        assessment_id: assessmentId || "",
         score,
         risk_level: riskLevel,
         controls,
@@ -126,15 +139,13 @@ export async function ingestDocument(
   file: File,
   assessmentId: string,
   vendorName: string,
-  userId?: string
 ): Promise<any> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("assessment_id", assessmentId);
   formData.append("vendor_name", vendorName);
-  if (userId) formData.append("user_id", userId);
 
-  const response = await fetch(`${API_BASE}/api/documents/upload`, {
+  const response = await apiFetch(`${API_BASE}/api/documents/upload`, {
     method: "POST",
     body: formData,
   });
@@ -148,7 +159,7 @@ export async function ingestUrl(
   assessmentId: string,
   vendorName: string
 ): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/documents/ingest-url`, {
+  const response = await apiFetch(`${API_BASE}/api/documents/ingest-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -163,7 +174,7 @@ export async function ingestUrl(
 }
 
 export async function deleteDocument(documentId: string, assessmentId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/documents/${documentId}?assessment_id=${assessmentId}`, {
+  const response = await apiFetch(`${API_BASE}/api/documents/${documentId}?assessment_id=${assessmentId}`, {
     method: "DELETE",
   });
 
@@ -173,11 +184,80 @@ export async function deleteDocument(documentId: string, assessmentId: string): 
 }
 
 export async function deleteAssessment(assessmentId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/assessments/${assessmentId}`, {
+  const response = await apiFetch(`${API_BASE}/api/assessments/${assessmentId}`, {
     method: "DELETE",
   });
 
   if (!response.ok) {
     throw new Error(`Delete failed: ${response.status}`);
   }
+}
+
+export async function fetchAssessments(): Promise<Assessment[]> {
+  const response = await apiFetch(`${API_BASE}/api/assessments`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch assessments: ${response.status}`);
+  }
+  const data = await response.json();
+  return (data.assessments || []).map(mapBackendAssessment);
+}
+
+export async function fetchAssessmentDetail(id: string): Promise<Assessment> {
+  const response = await apiFetch(`${API_BASE}/api/assessments/${id}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch assessment: ${response.status}`);
+  }
+  const data = await response.json();
+  return mapBackendAssessment(data);
+}
+
+export async function updateAssessmentPartial(
+  assessmentId: string,
+  updates: Record<string, unknown>
+): Promise<void> {
+  const response = await apiFetch(`${API_BASE}/api/assessments/${assessmentId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update assessment: ${response.status}`);
+  }
+}
+
+export async function fetchDocuments(assessmentId: string): Promise<any[]> {
+  const response = await apiFetch(`${API_BASE}/api/documents/${assessmentId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch documents: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.documents || [];
+}
+
+export type VendorHistoryEntry = {
+  id: string;
+  score: number;
+  domain_scores: Record<string, number>;
+  created_at: string;
+};
+
+export async function fetchVendorHistory(vendorName: string): Promise<VendorHistoryEntry[]> {
+  const encoded = encodeURIComponent(vendorName);
+  const response = await apiFetch(`${API_BASE}/api/vendors/${encoded}/history`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch vendor history: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.history || [];
+}
+
+export async function fetchCompareAssessments(ids: [string, string]): Promise<any[]> {
+  const qs = `${encodeURIComponent(ids[0])},${encodeURIComponent(ids[1])}`;
+  const response = await apiFetch(`${API_BASE}/api/assessments/compare?ids=${qs}`);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to fetch comparison: ${response.status} ${text}`);
+  }
+  const data = await response.json();
+  return data.assessments || [];
 }
