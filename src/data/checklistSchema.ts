@@ -1,42 +1,47 @@
+// Source of truth: backend/models/controls.py
+// IDs, domain names, and titles must match the backend exactly so the
+// frontend can correlate API responses (ControlResult.control_id) to
+// the static checklist rows rendered before the assessment runs.
+
 export const checklistSchema = [
   {
     category: "Identity & Access Management",
     controls: [
-      { id: "iam-1", name: "MFA enforced for all users" },
-      { id: "iam-2", name: "Role-based access control implemented" },
-      { id: "iam-3", name: "Privileged access management in place" },
-      { id: "iam-4", name: "Regular access reviews conducted" },
-      { id: "iam-5", name: "SSO integration supported" },
+      { id: "IAM-001", name: "Multi-factor authentication enforced" },
+      { id: "IAM-002", name: "Role-based access control implemented" },
+      { id: "IAM-003", name: "Privileged access management in place" },
+      { id: "IAM-004", name: "Regular access reviews conducted" },
+      { id: "IAM-005", name: "Password policy meets security standards" },
     ],
   },
   {
-    category: "Data Security",
+    category: "Data Protection",
     controls: [
-      { id: "ds-1", name: "Data encrypted at rest (AES-256 or equivalent)" },
-      { id: "ds-2", name: "Data encrypted in transit (TLS 1.2+)" },
-      { id: "ds-3", name: "Data classification policy enforced" },
-      { id: "ds-4", name: "DLP controls implemented" },
-      { id: "ds-5", name: "Backup and recovery procedures documented" },
+      { id: "DP-001", name: "Data encrypted at rest" },
+      { id: "DP-002", name: "Data encrypted in transit" },
+      { id: "DP-003", name: "Data classification policy implemented" },
+      { id: "DP-004", name: "Data retention policy defined" },
+      { id: "DP-005", name: "Secure data disposal procedures" },
     ],
   },
   {
-    category: "Compliance & Certifications",
+    category: "Security Operations",
     controls: [
-      { id: "cc-1", name: "SOC 2 Type II certified" },
-      { id: "cc-2", name: "ISO 27001 certified" },
-      { id: "cc-3", name: "GDPR compliance documented" },
-      { id: "cc-4", name: "Regular penetration testing performed" },
-      { id: "cc-5", name: "Incident response plan in place" },
+      { id: "SO-001", name: "Vulnerability management program" },
+      { id: "SO-002", name: "Patch management process" },
+      { id: "SO-003", name: "Regular penetration testing performed" },
+      { id: "SO-004", name: "Incident response plan in place" },
+      { id: "SO-005", name: "Security monitoring and alerting" },
     ],
   },
   {
     category: "Logging & Monitoring",
     controls: [
-      { id: "lm-1", name: "Centralized logging implemented" },
-      { id: "lm-2", name: "Real-time alerting configured" },
-      { id: "lm-3", name: "Audit trail for all admin actions" },
-      { id: "lm-4", name: "Log retention policy (min 12 months)" },
-      { id: "lm-5", name: "SIEM integration available" },
+      { id: "LM-001", name: "Centralized logging implemented" },
+      { id: "LM-002", name: "Real-time alerting configured" },
+      { id: "LM-003", name: "Audit trail for all admin actions" },
+      { id: "LM-004", name: "Log retention policy meets minimum standards" },
+      { id: "LM-005", name: "SIEM integration available" },
     ],
   },
 ];

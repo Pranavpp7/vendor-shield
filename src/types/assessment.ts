@@ -17,6 +17,8 @@ export type ControlResult = {
   aiExplanation?: string;
   evidenceSource?: string;
   citations?: Citation[];
+  confidence?: number;
+  gap?: string | null;
 };
 
 export type ChatMessage = {

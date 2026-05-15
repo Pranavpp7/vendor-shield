@@ -18,6 +18,8 @@ export function mapControl(r: any): ControlResult {
     aiExplanation: r.reasoning,
     evidenceSource: r.evidence_quote || "No evidence found",
     citations: r.citations || [],
+    confidence: r.confidence,
+    gap: r.gap,
   };
 }
 

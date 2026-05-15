@@ -31,3 +31,18 @@ backend/**/__pycache__/
 *.pyc
 .env
 backend/.env
+
+# Backend runtime data (never commit DB, uploads, or legacy migration artifacts)
+backend/data/uploads/
+backend/data/*.db
+backend/data/assessments/
+backend/data/documents/
+backend/data/chat/
+backend/vendorshield_backend.egg-info/
+
+# Claude Code memory & permissions
+.claude/
+
+# Old Supabase scaffold leftover (frontend integrations dir is now empty)
+src/integrations/
+

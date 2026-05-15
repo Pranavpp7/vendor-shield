@@ -106,14 +106,21 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{control.name}</p>
                         {isRevealed && (
-                          <span className={`text-[11px] font-medium ${
-                            control.status === "passed" ? "text-risk-low" :
-                            control.status === "partial" ? "text-orange-500" :
-                            control.status === "needs_info" ? "text-amber-500" :
-                            "text-risk-high"
-                          }`}>
-                            {statusLabel(control.status)}
-                          </span>
+                          <>
+                            <span className={`text-[11px] font-medium ${
+                              control.status === "passed" ? "text-risk-low" :
+                              control.status === "partial" ? "text-orange-500" :
+                              control.status === "needs_info" ? "text-amber-500" :
+                              "text-risk-high"
+                            }`}>
+                              {statusLabel(control.status)}
+                            </span>
+                            {typeof control.confidence === "number" && (
+                              <span className="text-[10px] text-muted-foreground ml-2">
+                                {Math.round(control.confidence * 100)}% confidence
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                       {isRevealed && (
@@ -146,6 +153,11 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                               </div>
                             ) : (
                               <p className="text-xs text-muted-foreground italic">No AI explanation available for this control.</p>
+                            )}
+                            {control.gap && control.status !== "passed" && (
+                              <div className="text-xs px-2 py-1.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
+                                <span className="font-bold">Gap:</span> {control.gap}
+                              </div>
                             )}
                             {control.evidenceSource && control.evidenceSource !== "No evidence found" && control.evidenceSource !== "No documents uploaded" && (
                               (() => {
