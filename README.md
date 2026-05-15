@@ -1,7 +1,6 @@
 # VendorShield Backend
 
-AI-powered vendor security risk assessment system. Evaluates vendor documents
-against 20 security controls grounded in NIST SP 800-53 Rev.5.
+VendorShield automates the evaluation of vendor security documentation against 20 controls grounded in NIST SP 800-53 Revision 5. Upload a vendor's security policies, SOC 2 reports, or ISO 27001 certificates and get back a structured risk score, control-by-control evidence citations, RAG-powered Q&A, and an emailable PDF report - all in minutes instead of days.
 
 ## Architecture (7 Layers)
 
@@ -26,7 +25,7 @@ backend/
 ├── main.py                  ← Layer 7: FastAPI entry point
 ├── start.py                 ← build frontend + launch uvicorn; --dev for hot-reload
 ├── models/
-│   ├── controls.py          ← 20 NIST controls (DO NOT MODIFY)
+│   ├── controls.py          ← 20 NIST controls
 │   └── schemas.py           ← Pydantic request/response models
 ├── storage/
 │   ├── qdrant_store.py      ← Layer 2: vector DB operations
