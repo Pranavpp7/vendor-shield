@@ -14,6 +14,12 @@ import sys
 import os
 from pathlib import Path
 
+# Must add backend/ to sys.path so `from config import get_settings` works
+# regardless of where the user invokes this script from.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from config import get_settings
+
 ROOT_DIR = Path(__file__).resolve().parent.parent  # project root
 BACKEND_DIR = Path(__file__).resolve().parent       # backend/
 DIST_DIR = ROOT_DIR / "dist"
@@ -43,14 +49,16 @@ def build_frontend():
 
 def start_server(reload: bool = False):
     """Start the FastAPI server with uvicorn."""
+    settings = get_settings()
+    port = settings.server_port
     mode = "development (hot-reload)" if reload else "production"
-    print(f"Starting VendorShield [{mode}] on http://localhost:8000")
-    print(f"API docs: http://localhost:8000/docs")
+    print(f"Starting VendorShield [{mode}] on http://localhost:{port}")
+    print(f"API docs: http://localhost:{port}/docs")
     print("─" * 50)
 
     import uvicorn
     os.chdir(str(BACKEND_DIR))
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload)
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload)
 
 
 if __name__ == "__main__":
