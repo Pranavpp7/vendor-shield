@@ -34,7 +34,6 @@ from models.schemas import AssessmentResponse, ControlResult, ControlScore
 from models.controls import get_all_controls
 from mcp.client import MCPClient
 from storage.local_store import save_assessment, update_assessment, get_assessment
-from services.progress import set_progress
 
 logger = logging.getLogger(__name__)
 _mcp_client: MCPClient | None = None
@@ -135,7 +134,7 @@ def route_after_evaluate(state: AssessmentState) -> str:
 async def ingest_node(state: AssessmentState) -> dict:
     """Check whether the assessment has indexed documents via MCP."""
     assessment_id = state["assessment_id"]
-    set_progress(assessment_id, "ingesting", "Checking documents...", 10)
+    logger.info(f"[{assessment_id}] ingesting: Checking documents... (10%)")
 
     try:
         client = await _ensure_mcp_client()
@@ -157,7 +156,7 @@ async def retrieve_node(state: AssessmentState) -> dict:
     does its own internal retrieval for the actual LLM scoring.
     """
     assessment_id = state["assessment_id"]
-    set_progress(assessment_id, "retrieving", "Retrieving relevant chunks...", 30)
+    logger.info(f"[{assessment_id}] retrieving: Retrieving relevant chunks... (30%)")
     settings = get_settings()
     controls = get_all_controls()
     client = await _ensure_mcp_client()
@@ -191,7 +190,7 @@ async def no_documents_node(state: AssessmentState) -> dict:
     """
     assessment_id = state["assessment_id"]
     vendor_name = state["vendor_name"]
-    set_progress(assessment_id, "no_documents", "No document content found - skipping evaluation...", 80)
+    logger.info(f"[{assessment_id}] no_documents: No document content found - skipping evaluation... (80%)")
 
     logger.warning(
         f"Assessment {assessment_id}: no relevant chunks found — "
@@ -237,7 +236,7 @@ async def sparse_evidence_node(state: AssessmentState) -> dict:
     retrieved = state.get("retrieved_chunks", {})
     covered = sum(1 for v in retrieved.values() if v)
     total = len(retrieved)
-    set_progress(assessment_id, "sparse_evidence", f"Sparse evidence ({covered}/{total} controls) - continuing evaluation...", 25)
+    logger.info(f"[{assessment_id}] sparse_evidence: Sparse evidence ({covered}/{total} controls) - continuing evaluation... (25%)")
 
     logger.warning(
         f"Sparse evidence: only {covered}/{total} controls have chunks — "
@@ -293,7 +292,7 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
         if e.get("score") == "NO_EVIDENCE"
     ]
 
-    set_progress(assessment_id, "re_retrieve", f"Broadening search for {len(no_evidence_ids)} controls with no evidence...", 55)
+    logger.info(f"[{assessment_id}] re_retrieve: Broadening search for {len(no_evidence_ids)} controls with no evidence... (55%)")
     logger.info(
         f"Re-retrieve pass {retry_count}: broadening queries for "
         f"{len(no_evidence_ids)} NO_EVIDENCE controls"
@@ -332,7 +331,7 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
 async def aggregate_node(state: AssessmentState) -> dict:
     """Compute domain scores, overall score, risk level, and gaps summary."""
     assessment_id = state["assessment_id"]
-    set_progress(assessment_id, "aggregating", "Calculating risk score...", 85)
+    logger.info(f"[{assessment_id}] aggregating: Calculating risk score... (85%)")
 
     control_results = state["control_results"]
 
@@ -361,7 +360,7 @@ async def save_results(state: AssessmentState) -> dict:
     frontend can show score trends over multiple runs.
     """
     assessment_id = state["assessment_id"]
-    set_progress(assessment_id, "saving", "Saving results...", 95)
+    logger.info(f"[{assessment_id}] saving: Saving results... (95%)")
 
     report_data = state["response"]
     report_data["status"] = "completed"
