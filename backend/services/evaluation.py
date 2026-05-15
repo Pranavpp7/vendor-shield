@@ -29,7 +29,6 @@ from openai import OpenAI
 from config import get_settings
 from models.controls import get_all_controls, get_scoring_prompt
 from models.schemas import ControlResult, Citation, ControlScore
-from services.progress import set_progress
 from services.retrieval import search_documents
 
 logger = logging.getLogger(__name__)
@@ -237,11 +236,9 @@ def evaluate_all_controls(assessment_id: str) -> list[ControlResult]:
 
         first_idx = batch_num * BATCH_SIZE + 1
         last_idx = min(batch_num * BATCH_SIZE + BATCH_SIZE, total)
-        set_progress(
-            assessment_id,
-            "evaluating",
-            f"Evaluating controls {first_idx}–{last_idx} of {total}...",
-            55 + (batch_num + 1) * 5,
+        logger.info(
+            f"[{assessment_id}] evaluating: controls {first_idx}–{last_idx} of {total} "
+            f"({55 + (batch_num + 1) * 5}%)"
         )
 
         # Smooth out rate-limit bursts; skip after the last batch

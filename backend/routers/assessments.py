@@ -11,6 +11,7 @@ IMPORTED BY:  main.py
 """
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 
@@ -21,7 +22,6 @@ from pydantic import BaseModel
 from auth import get_current_user
 from models.schemas import AssessmentRunRequest, AssessmentResponse
 from chains.assessment_graph import run_assessment
-from services.progress import stream_progress, set_progress, clear_progress
 from storage.local_store import (
     list_assessments,
     get_assessment,
@@ -34,6 +34,48 @@ from storage.local_store import (
 from storage.qdrant_store import delete_collection
 
 logger = logging.getLogger(__name__)
+
+# ── In-process SSE progress state ────────────────────────────────────────────
+# Simple in-memory dict keyed by assessment_id.  Sufficient for single-process
+# deployments; replace with Redis pub/sub if horizontal scaling is needed.
+_progress: dict[str, dict] = {}
+
+
+def set_progress(assessment_id: str, step: str, message: str, percent: int) -> None:
+    _progress[assessment_id] = {"step": step, "message": message, "percent": percent}
+
+
+def clear_progress(assessment_id: str) -> None:
+    _progress.pop(assessment_id, None)
+
+
+async def stream_progress(assessment_id: str):
+    """Async generator yielding SSE text events until the assessment completes.
+
+    Polls every 0.5 s, yields only on state change, and terminates when
+    step is 'complete' or 'error', percent >= 100, or after 10 min idle.
+    """
+    last_sent: dict | None = None
+    idle_ticks = 0
+    max_idle_ticks = 1200  # 600 s ÷ 0.5 s per tick
+
+    while idle_ticks < max_idle_ticks:
+        current = _progress.get(
+            assessment_id, {"step": "idle", "message": "", "percent": 0}
+        )
+        if current != last_sent:
+            last_sent = dict(current)
+            idle_ticks = 0
+            yield f"data: {json.dumps(current)}\n\n"
+            if current.get("percent", 0) >= 100 or current.get("step") in (
+                "complete",
+                "error",
+            ):
+                break
+        else:
+            idle_ticks += 1
+        await asyncio.sleep(0.5)
+
 
 router = APIRouter(prefix="/api/assessments", tags=["Assessments"])
 
