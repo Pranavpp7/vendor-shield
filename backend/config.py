@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     mcp_server_url: str = "http://localhost:8000/mcp"
 
     # ── Server ───────────────────────────────────────────────────────────────
+    # Port uvicorn listens on (reads from SERVER_PORT env var).
+    server_port: int = 8000
     # Comma-separated list of allowed CORS origins.
     # Use "*" only for local experimentation.
     cors_allow_origins: str = "http://localhost:5173,http://127.0.0.1:5173"

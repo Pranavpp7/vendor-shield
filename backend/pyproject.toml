@@ -1,7 +1,7 @@
 [project]
 name = "vendorshield-backend"
 version = "1.0.0"
-description = "AI-powered vendor risk assessment system using LangChain, Groq, and Qdrant"
+description = "AI-powered vendor risk assessment system using LangChain, OpenRouter, and Qdrant"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -10,9 +10,10 @@ dependencies = [
     "python-multipart",
     "sentence-transformers",
     "torch",
-    "groq",
+    # "groq",          # replaced by openrouter via openai SDK
+    "openai",
     "langchain>=0.3.0",
-    "langchain-groq",
+    # "langchain-groq",  # replaced by openrouter via openai SDK
     "langchain-community",
     "langgraph",
     "pypdf",
@@ -25,6 +26,7 @@ dependencies = [
     "qdrant-client>=1.17.1",
     "resend>=2.29.0",
     "reportlab>=4.4.10",
+    "PyJWT[crypto]>=2.8.0",
 ]
 
 [dependency-groups]
@@ -33,3 +35,11 @@ dev = [
     "pytest-asyncio>=0.24",
     "httpx>=0.27",
 ]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# Don't auto-discover packages - this is an application, not a library
+py-modules = []
