@@ -1,202 +1,165 @@
-# VendorShield Backend
+# VendorShield
 
-AI-powered vendor security risk assessment system. Evaluates vendor documents
-against 20 security controls grounded in NIST SP 800-53 Rev.5.
+**AI-powered vendor security risk assessment.** Upload a vendor's security
+documentation, and VendorShield scores it against 20 controls from
+NIST SP 800-53 Rev. 5 using retrieval-augmented generation — with cited
+evidence for every score, a RAG chatbot for follow-up questions, and
+email-ready PDF reports.
 
-## Architecture (7 Layers)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)
+![React](https://img.shields.io/badge/react-18-61DAFB.svg?logo=react&logoColor=black)
+![FastAPI](https://img.shields.io/badge/FastAPI-async-009688.svg?logo=fastapi&logoColor=white)
 
-```
-Layer 1: config.py           → All settings via pydantic BaseSettings
-Layer 2: storage/            → Qdrant (vectors) + SQLite (structured data)
-Layer 3: services/           → One file per responsibility (extract, chunk, embed, etc.)
-Layer 4: mcp/                → MCP server (tools) + MCP client (agent interface)
-Layer 5: chains/             → LangGraph agent workflow
-Layer 6: routers/            → Thin FastAPI HTTP endpoints
-Layer 7: main.py             → FastAPI app entry point
-```
+<!--
+  TODO: Add a screenshot or demo GIF here. Suggested:
+    1. Run the app, open the Assessment Detail page for a completed assessment
+    2. Save the capture to docs/screenshot.png
+    3. Uncomment:
+  ![VendorShield dashboard](docs/screenshot.png)
 
-### Folder Structure
+  TODO: Once deployed, add: **[Live demo →](https://your-deployment-url)**
+-->
 
-```
-backend/
-├── .env                     ← API keys (never commit)
-├── .env.example             ← template showing what keys are needed
-├── config.py                ← Layer 1: all settings
-├── auth.py                  ← Clerk JWT verification; dev mode returns empty string
-├── main.py                  ← Layer 7: FastAPI entry point
-├── start.py                 ← build frontend + launch uvicorn; --dev for hot-reload
-├── models/
-│   ├── controls.py          ← 20 NIST controls (DO NOT MODIFY)
-│   └── schemas.py           ← Pydantic request/response models
-├── storage/
-│   ├── qdrant_store.py      ← Layer 2: vector DB operations
-│   └── local_store.py       ← Layer 2: SQLite operations (data/vendorshield.db, 3 tables: assessments, documents, chat_messages)
-├── services/
-│   ├── extraction.py        ← text from PDF/DOCX/URL
-│   ├── chunking.py          ← split text into chunks
-│   ├── embedding.py         ← text → 1024-dim vectors
-│   ├── ingestion.py         ← orchestrates extract+chunk+embed+store
-│   ├── retrieval.py         ← semantic search against Qdrant
-│   ├── evaluation.py        ← scores one control via LLM
-│   ├── aggregation.py       ← calculates final scores
-│   ├── chat.py              ← RAG chat over documents
-│   └── email_service.py     ← ReportLab PDF generation in memory + Resend email delivery
-├── mcp/
-│   ├── server.py            ← MCP server (exposes tools via SSE)
-│   └── client.py            ← MCP client (used by agent)
-├── chains/
-│   └── assessment_graph.py  ← LangGraph agent
-└── routers/
-    ├── documents.py         ← document upload endpoints
-    ├── assessments.py       ← assessment run endpoints
-    ├── chat.py              ← chat endpoints
-    ├── controls.py          ← controls list endpoint
-    └── email.py             ← POST /api/email/send-report
-```
+## The problem
 
-### Data Flow
+Third-party vendor risk reviews are slow and manual: an analyst reads a stack
+of SOC 2 reports, security whitepapers, and policy PDFs, then fills in a
+compliance checklist by hand. VendorShield automates the evidence-gathering
+and first-pass scoring, so the human reviews *findings with citations*
+instead of raw documents.
+
+## How it works
 
 ```
-User uploads PDF
-  → extraction.py reads text
-  → chunking.py splits into 500-word chunks
-  → embedding.py converts to 1024-dim vectors (BGE-large-en-v1.5)
-  → qdrant_store.py stores vectors in collection "vendorshield_{assessment_id}"
-  → local_store.py saves document metadata to SQLite (vendorshield.db)
-
-User runs assessment
-  → agent iterates 20 controls from controls.py
-  → for each control: retrieval.py searches Qdrant using control["search_query"]
-  → evaluation.py calls get_scoring_prompt() + sends to OpenRouter LLM
-  → LLM returns: score, evidence_quote, reasoning, gap
-  → aggregation.py calls calculate_scores() for final results
+Upload PDF/DOCX/URL          Run assessment                       Review
+       │                          │                                  │
+       ▼                          ▼                                  ▼
+ extract text ──► chunk ──► embed locally ──► Qdrant     20 controls scored
+ (500-word chunks)     (BGE-large-en-v1.5,    vectors    with evidence quotes,
+                        1024-dim, no API cost)           reasoning & gap analysis
 ```
 
----
+For each of the 20 NIST controls, a LangGraph agent retrieves the most
+relevant document chunks from Qdrant and asks an LLM (Llama 3.3 70B via
+OpenRouter) to score the control as **PASS / PARTIAL / FAIL / NO_EVIDENCE**,
+returning a direct evidence quote, its reasoning, and the identified gap.
+Scores aggregate into per-domain and overall risk ratings.
 
-## Prerequisites
+### Architecture
 
-- **Python 3.11+** with [uv](https://docs.astral.sh/uv/) package manager
-- **Node.js 18+** with npm
-- **Docker** (for Qdrant vector database)
-- **OpenRouter API key** (https://openrouter.ai/keys)
+```mermaid
+flowchart LR
+    subgraph Frontend["React SPA (Vite + TypeScript + shadcn/ui)"]
+        UI[Dashboard · Assessments · Compare · RAG Chat]
+    end
 
-## Package Managers
+    subgraph Backend["FastAPI (7-layer architecture)"]
+        R[Routers] --> G[LangGraph agent]
+        G -->|calls tools via| MCP[MCP server]
+        MCP --> S[Services: extract · chunk · embed · retrieve · evaluate · aggregate]
+    end
 
-This project uses **two package managers**:
+    subgraph Storage
+        Q[(Qdrant<br/>vectors)]
+        DB[(SQLite<br/>assessments · documents · chat)]
+    end
 
-| Tool | Scope | Run from | Purpose |
-|------|-------|----------|---------|
-| **npm** | Frontend (React/Vite) | Project root `/` | JavaScript dependencies |
-| **uv** | Backend (FastAPI/Python) | `backend/` folder | Python dependencies |
+    UI -->|REST /api| R
+    S --> Q
+    S --> DB
+    S -->|LLM inference| OR[OpenRouter<br/>Llama 3.3 70B]
+    S -->|PDF reports| RS[Resend email]
+```
 
----
+The assessment workflow is a **LangGraph state machine with conditional
+routing**: it short-circuits when no documents exist, warns when evidence is
+sparse (fewer than half the controls found relevant chunks), and — if more
+than 60% of controls score NO_EVIDENCE — broadens the search queries and
+retries evaluation once before aggregating.
 
-## Quick Start
+## Design decisions
 
-### 1. Start Qdrant (run first)
+- **Local-first, near-zero cost.** Embeddings run locally
+  (BGE-large-en-v1.5), vectors live in a local Qdrant container, structured
+  data in SQLite. The only external paid service is LLM inference — and the
+  frontend is served by FastAPI itself, so the whole app is one process plus
+  one container.
+- **Strictly layered backend.** Seven layers (config → storage → services →
+  MCP → agent graph → routers → app), each importing only from layers below.
+  One service file per responsibility keeps every module small and testable.
+- **MCP as the tool boundary.** The LangGraph agent doesn't import services
+  directly — it calls them as [MCP](https://modelcontextprotocol.io) tools.
+  The same tool surface that powers the internal agent is exposed to external
+  AI agents at `/mcp`.
+- **Namespace isolation per assessment.** Each assessment gets its own Qdrant
+  collection, so retrieval for one vendor can never leak evidence from
+  another.
 
-Qdrant is the vector database. It runs in Docker.
+## Quick start
+
+Prerequisites: Python 3.11+ with [uv](https://docs.astral.sh/uv/), Node 18+,
+Docker, and an [OpenRouter API key](https://openrouter.ai/keys).
 
 ```bash
-# From the project root
+git clone https://github.com/Pranavpp7/vendor-shield-1.git
+cd vendor-shield-1
+
+# 1. Vector database
 docker-compose up -d
-```
 
-Verify it's running: open http://localhost:6333/dashboard
-
-### 2. Backend Setup
-
-```bash
-# Navigate to backend folder
+# 2. Backend  (from backend/ — copy .env.example to .env, add your key)
 cd backend
-
-# Install Python dependencies with uv
 uv sync
+cp .env.example .env        # then set OPENROUTER_API_KEY
 
-# Create .env from template and add your OpenRouter API key
-cp .env.example .env
-# Edit .env and set OPENROUTER_API_KEY=your_key_here
-
-# Start the backend server
-uv run uvicorn main:app --reload --port 8000
-```
-
-The API is now available at http://localhost:8000
-- API docs: http://localhost:8000/docs
-- Health check: http://localhost:8000/api/health
-- MCP endpoint: http://localhost:8000/mcp
-
-### 3. Frontend Setup
-
-```bash
-# From the project root (not backend/)
-npm install
-
-# Development mode (with hot reload)
-npm run dev
-
-# Or build for production (served by FastAPI)
-npm run build
-```
-
-In production mode, the FastAPI backend serves the built frontend
-from `dist/` — no separate frontend server needed.
-
----
-
-### One-Command Start (Alternative)
-
-Instead of steps 2–3 above, you can use `start.py` to build the frontend
-and start the server in a single command:
-
-```bash
-# From the backend/ folder
-
-# Production: build frontend + start server
+# 3. Build frontend + start everything on http://localhost:8000
 uv run start.py
-
-# Development: skip build, start with hot-reload
-uv run start.py --dev
-
-# Skip build but no hot-reload
-uv run start.py --skip-build
 ```
 
----
+For development mode (Vite hot reload + uvicorn `--reload`), environment
+variable reference, and API docs, see the **[backend README](backend/README.md)**.
 
-## Tech Stack
+## Tech stack
 
-| Component | Technology | Notes |
-|-----------|-----------|-------|
-| LLM | OpenRouter (Llama 3.3 70B) | OpenAI-compatible API, structured JSON output |
-| Embeddings | BGE-large-en-v1.5 | Local, free, 1024-dim vectors |
-| Vector DB | Qdrant | Local Docker, no API key needed |
-| Structured Data | SQLite (vendorshield.db) | 3 tables, zero config |
-| AI Framework | LangChain + LangGraph | Orchestration + agent workflow |
-| Protocol | MCP (Model Context Protocol) | Agent-to-tool communication |
-| Backend | FastAPI | Python async web framework |
-| Frontend | React + Vite + TypeScript | SPA served by FastAPI |
+| Layer | Technology |
+|---|---|
+| LLM | Llama 3.3 70B via [OpenRouter](https://openrouter.ai) (OpenAI-compatible API) |
+| Agent orchestration | LangChain + LangGraph, MCP for tool calls |
+| Embeddings | BGE-large-en-v1.5 (local, 1024-dim) |
+| Vector DB | Qdrant (Docker, pinned v1.17.1) |
+| Structured data | SQLite |
+| Backend | FastAPI + pydantic-settings, Clerk JWT auth |
+| Frontend | React 18 + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query |
+| Reports | ReportLab PDF generation + Resend email delivery |
 
-## Environment Variables
+## Project structure
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| OPENROUTER_API_KEY | Yes | — | OpenRouter API key for LLM inference |
-| OPENROUTER_BASE_URL | No | https://openrouter.ai/api/v1 | OpenRouter base URL |
-| OPENROUTER_MODEL | No | meta-llama/llama-3.3-70b-instruct | Model to use for assessment and chat |
-| RESEND_API_KEY | Yes (email) | — | Resend API key for PDF email delivery |
-| CLERK_JWKS_URL | No | "" | Clerk JWKS URL; empty string disables auth (dev mode) |
-| API_KEY | No | vendorshield-dev-key-... | Static API key for MCP tool authentication |
-| SERVER_PORT | No | 8000 | Port uvicorn listens on |
-| QDRANT_HOST | No | localhost | Qdrant host |
-| QDRANT_PORT | No | 6333 | Qdrant HTTP port |
-| EMBEDDING_MODEL | No | BAAI/bge-large-en-v1.5 | Local embedding model |
-| EMBEDDING_DIMENSIONS | No | 1024 | Vector dimensions (must match model) |
-| CHUNK_SIZE | No | 500 | Token chunk size for document splitting |
-| CHUNK_OVERLAP | No | 50 | Token overlap between chunks |
-| RETRIEVAL_TOP_K | No | 8 | Chunks retrieved per control during assessment |
-| DATA_DIR | No | data | Directory for SQLite DB |
-| UPLOAD_DIR | No | data/uploads | Directory for raw uploaded files |
+```
+vendor-shield-1/
+├── src/                 # React frontend (pages, components, api layer)
+├── backend/             # FastAPI backend — see backend/README.md
+│   ├── config.py        #   all settings (pydantic-settings)
+│   ├── storage/         #   Qdrant + SQLite
+│   ├── services/        #   one file per responsibility
+│   ├── mcp/             #   MCP server + client
+│   ├── chains/          #   LangGraph assessment workflow
+│   └── routers/         #   HTTP endpoints
+├── docker-compose.yml   # Qdrant
+└── dist/                # built frontend, served by FastAPI
+```
 
-See `backend/.env.example` for a ready-to-copy template.
+## Roadmap
+
+- [ ] Test suite (pytest for services/graph routing, vitest for frontend)
+- [ ] GitHub Actions CI (lint + tests + build)
+- [ ] Single-command Docker deployment of the full stack + live demo
+- [ ] Structured-output enforcement for LLM scoring responses
+- [ ] Golden-dataset evals to regression-test scoring prompts
+
+## License
+
+[MIT](LICENSE) © 2026 Pranav Posina
+
+*Built as a graduate course project ("AI in Business", UT Dallas) and grown
+into a production-grade portfolio piece.*
