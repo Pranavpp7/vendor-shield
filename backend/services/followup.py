@@ -133,11 +133,22 @@ def generate_follow_up_questions(assessment: dict) -> list[dict]:
         f"({vendor_name})"
     )
     try:
-        response = client.chat.completions.create(
-            model=settings.openrouter_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
+        try:
+            response = client.chat.completions.create(
+                model=settings.openrouter_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                response_format={"type": "json_object"},
+            )
+        except Exception as e:
+            # JSON-mode support varies by OpenRouter provider — retry plain
+            if "response_format" not in str(e).lower() and "json" not in str(e).lower():
+                raise
+            response = client.chat.completions.create(
+                model=settings.openrouter_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+            )
         raw = response.choices[0].message.content or ""
         questions = _parse_questions(raw)
     except Exception as e:

@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     # Model ID as it appears on OpenRouter.
     openrouter_model: str = "meta-llama/llama-3.3-70b-instruct"
+    # Max concurrent LLM calls during an assessment run.  Higher = faster
+    # runs but more likely to hit provider rate limits.
+    llm_concurrency: int = 4
 
     # ── Qdrant Vector Database ───────────────────────────────────────────────
     # Qdrant runs locally via Docker — no cloud, no API key needed.

@@ -252,12 +252,9 @@ async def sparse_evidence_node(state: AssessmentState) -> dict:
 
 
 async def evaluate_node(state: AssessmentState) -> dict:
-    """Score all 20 controls against vendor documents via MCP evaluate tool.
-
-    Granular per-batch progress updates are emitted from
-    services/evaluation.evaluate_all_controls() — no need to set a
-    coarse "evaluating" stage here.
-    """
+    """Score the framework's controls against vendor documents via the
+    MCP evaluate tool.  Controls are evaluated concurrently, bounded by
+    settings.llm_concurrency."""
     assessment_id = state["assessment_id"]
     client = await _ensure_mcp_client()
     results_data = await client.evaluate_controls(

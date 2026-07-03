@@ -145,11 +145,22 @@ def extract_framework_from_text(source_name: str, text: str) -> dict:
         f"({len(text)} chars{', truncated' if truncated else ''})"
     )
     try:
-        response = _get_client().chat.completions.create(
-            model=settings.openrouter_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-        )
+        try:
+            response = _get_client().chat.completions.create(
+                model=settings.openrouter_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                response_format={"type": "json_object"},
+            )
+        except Exception as e:
+            # JSON-mode support varies by OpenRouter provider — retry plain
+            if "response_format" not in str(e).lower() and "json" not in str(e).lower():
+                raise
+            response = _get_client().chat.completions.create(
+                model=settings.openrouter_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+            )
         draft = _parse_draft(response.choices[0].message.content or "")
     except Exception as e:
         logger.error(f"Framework extraction failed: {e}")

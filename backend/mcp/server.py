@@ -369,7 +369,7 @@ async def handle_list_frameworks(_args: dict) -> str:
 
 async def handle_evaluate_controls(args: dict) -> str:
     """Delegate to services/evaluation.evaluate_all_controls()."""
-    results = evaluate_all_controls(
+    results = await evaluate_all_controls(
         args["assessment_id"],
         framework_id=args.get("framework_id"),
     )
