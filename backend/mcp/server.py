@@ -7,17 +7,18 @@ RESPONSIBILITY:
     Thin JSON-RPC dispatcher.  Each tool handler delegates to the services
     and storage layers — NO business logic lives here.
 
-    The 10 tools mirror the core capabilities of the system:
+    The 11 tools mirror the core capabilities of the system:
     1.  list_assessments      — browse all assessments
     2.  get_documents         — list documents for an assessment
     3.  query_documents       — semantic search within an assessment
     4.  ask_question          — RAG chat over vendor documents
-    5.  run_assessment        — trigger a full 20-control risk assessment
+    5.  run_assessment        — trigger a full risk assessment (any framework)
     6.  get_assessment_report — fetch a completed assessment report
-    7.  get_controls          — list all 20 security controls and domains
-    8.  evaluate_controls     — score all 20 controls for an assessment
-    9.  aggregate_scores      — roll up control results into the final report
-    10. send_report           — generate PDF and email it to a recipient
+    7.  get_controls          — list a framework's controls and domains
+    8.  list_frameworks       — list available control frameworks
+    9.  evaluate_controls     — score a framework's controls for an assessment
+    10. aggregate_scores      — roll up control results into the final report
+    11. send_report           — generate PDF and email it to a recipient
 
 IMPORTS FROM: storage/local_store, services/retrieval, services/chat,
               chains/assessment_graph, models/controls
@@ -34,7 +35,7 @@ from services.retrieval import search_documents
 from services.chat import chat_with_docs
 from services.evaluation import evaluate_all_controls
 from services.aggregation import aggregate_results
-from models.controls import get_all_controls, get_domains
+from models.controls import get_all_controls, get_domains, list_frameworks
 from models.schemas import ControlResult
 
 from chains.assessment_graph import run_assessment
@@ -118,8 +119,8 @@ TOOLS = [
     {
         "name": "run_assessment",
         "description": (
-            "Trigger a full vendor risk assessment against all 20 "
-            "NIST-based security controls"
+            "Trigger a full vendor risk assessment against every control "
+            "of the chosen framework (default: NIST SP 800-53)"
         ),
         "inputSchema": {
             "type": "object",
@@ -131,6 +132,10 @@ TOOLS = [
                 "vendor_name": {
                     "type": "string",
                     "description": "Vendor name",
+                },
+                "framework_id": {
+                    "type": "string",
+                    "description": "Control framework ID (see list_frameworks); default nist-800-53",
                 },
             },
             "required": ["assessment_id", "vendor_name"],
@@ -153,8 +158,24 @@ TOOLS = [
     {
         "name": "get_controls",
         "description": (
-            "List all 20 NIST SP 800-53 security controls used for "
+            "List the security controls of a framework used for "
             "vendor risk assessments, grouped by domain"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "framework_id": {
+                    "type": "string",
+                    "description": "Control framework ID (default nist-800-53)",
+                },
+            },
+        },
+    },
+    {
+        "name": "list_frameworks",
+        "description": (
+            "List all available control frameworks (id, name, control count, "
+            "domains) that assessments can run against"
         ),
         "inputSchema": {
             "type": "object",
@@ -164,8 +185,8 @@ TOOLS = [
     {
         "name": "evaluate_controls",
         "description": (
-            "Evaluate all 20 controls for an assessment and return "
-            "control-level scoring results"
+            "Evaluate every control of a framework for an assessment and "
+            "return control-level scoring results"
         ),
         "inputSchema": {
             "type": "object",
@@ -173,6 +194,10 @@ TOOLS = [
                 "assessment_id": {
                     "type": "string",
                     "description": "The assessment ID",
+                },
+                "framework_id": {
+                    "type": "string",
+                    "description": "Control framework ID (default nist-800-53)",
                 },
             },
             "required": ["assessment_id"],
@@ -198,6 +223,10 @@ TOOLS = [
                 "control_results": {
                     "type": "array",
                     "description": "Array of control results compatible with ControlResult schema",
+                },
+                "framework_id": {
+                    "type": "string",
+                    "description": "Control framework ID (default nist-800-53)",
                 },
             },
             "required": ["assessment_id", "vendor_name", "control_results"],
@@ -297,6 +326,7 @@ async def handle_run_assessment(args: dict) -> str:
     result = await run_assessment(
         vendor_name=args["vendor_name"],
         assessment_id=args["assessment_id"],
+        framework_id=args.get("framework_id", "nist-800-53"),
     )
     return json.dumps(result.model_dump(), indent=2, default=str)
 
@@ -309,10 +339,11 @@ async def handle_get_assessment_report(args: dict) -> str:
     return json.dumps(report, indent=2, default=str)
 
 
-async def handle_get_controls(_args: dict) -> str:
+async def handle_get_controls(args: dict) -> str:
     """Delegate to models/controls helpers."""
-    controls = get_all_controls()
-    domains = get_domains()
+    framework_id = args.get("framework_id")
+    controls = get_all_controls(framework_id)
+    domains = get_domains(framework_id)
     result = {
         "total_controls": len(controls),
         "domains": domains,
@@ -322,7 +353,8 @@ async def handle_get_controls(_args: dict) -> str:
                 "domain": c["domain"],
                 "title": c["title"],
                 "description": c["description"],
-                "nist_ref": c["nist_ref"],
+                "ref": c.get("ref", c.get("nist_ref", "")),
+                "nist_ref": c.get("nist_ref", ""),
             }
             for c in controls
         ],
@@ -330,9 +362,17 @@ async def handle_get_controls(_args: dict) -> str:
     return json.dumps(result, indent=2)
 
 
+async def handle_list_frameworks(_args: dict) -> str:
+    """Delegate to models/controls.list_frameworks()."""
+    return json.dumps(list_frameworks(), indent=2)
+
+
 async def handle_evaluate_controls(args: dict) -> str:
     """Delegate to services/evaluation.evaluate_all_controls()."""
-    results = evaluate_all_controls(args["assessment_id"])
+    results = evaluate_all_controls(
+        args["assessment_id"],
+        framework_id=args.get("framework_id"),
+    )
     return json.dumps([r.model_dump(mode="json") for r in results], indent=2, default=str)
 
 
@@ -346,6 +386,7 @@ async def handle_aggregate_scores(args: dict) -> str:
         assessment_id=args["assessment_id"],
         vendor_name=args["vendor_name"],
         control_results=control_results,
+        framework_id=args.get("framework_id"),
     )
     return json.dumps(response.model_dump(mode="json"), indent=2, default=str)
 
@@ -377,6 +418,7 @@ TOOL_HANDLERS = {
     "run_assessment": handle_run_assessment,
     "get_assessment_report": handle_get_assessment_report,
     "get_controls": handle_get_controls,
+    "list_frameworks": handle_list_frameworks,
     "evaluate_controls": handle_evaluate_controls,
     "aggregate_scores": handle_aggregate_scores,
     "send_report": handle_send_report,

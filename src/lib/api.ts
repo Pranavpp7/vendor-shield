@@ -22,12 +22,19 @@ export const apiFetch = async (input: string, init: RequestInit = {}): Promise<R
 };
 
 import { mapBackendAssessment, mapControl, mapDomainScores } from "@/lib/mappers";
-import { Assessment } from "@/types/assessment";
+import {
+  Assessment,
+  BackendScore,
+  FollowUpQuestion,
+  FrameworkSummary,
+  RiskProfile,
+} from "@/types/assessment";
 
 export async function generateChecklistFromAI(
   vendorName: string,
   controls: { id: string; category: string; name: string }[],
-  assessmentId?: string
+  assessmentId?: string,
+  frameworkId?: string
 ) {
   try {
     const response = await apiFetch(`${API_BASE}/api/assessments/run`, {
@@ -36,6 +43,7 @@ export async function generateChecklistFromAI(
       body: JSON.stringify({
         vendor_name: vendorName,
         assessment_id: assessmentId || "",
+        framework_id: frameworkId || "nist-800-53",
       }),
     });
 
@@ -260,4 +268,117 @@ export async function fetchCompareAssessments(ids: [string, string]): Promise<an
   }
   const data = await response.json();
   return data.assessments || [];
+}
+
+// ── Frameworks ───────────────────────────────────────────────────────────────
+
+export async function fetchFrameworks(): Promise<FrameworkSummary[]> {
+  const response = await apiFetch(`${API_BASE}/api/frameworks`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch frameworks: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.frameworks || [];
+}
+
+// ── Human-in-the-loop score overrides ────────────────────────────────────────
+
+export async function overrideControlScore(
+  assessmentId: string,
+  controlId: string,
+  score: BackendScore | null,
+  comment: string
+): Promise<{ overall_score: number; risk_level: string }> {
+  const response = await apiFetch(
+    `${API_BASE}/api/assessments/${assessmentId}/controls/${controlId}/override`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ score, comment }),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Override failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+// ── Inherent risk profile ────────────────────────────────────────────────────
+
+export async function saveRiskProfile(
+  assessmentId: string,
+  profile: RiskProfile
+): Promise<{ inherent_risk: { tier: string; points: number }; residual_risk?: string }> {
+  const response = await apiFetch(
+    `${API_BASE}/api/assessments/${assessmentId}/risk-profile`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to save risk profile: ${response.status}`);
+  }
+  return response.json();
+}
+
+// ── Vendor follow-up questions ───────────────────────────────────────────────
+
+export async function generateFollowUpQuestions(
+  assessmentId: string
+): Promise<{ questions: FollowUpQuestion[]; generated_at: string }> {
+  const response = await apiFetch(
+    `${API_BASE}/api/assessments/${assessmentId}/follow-up-questions`,
+    { method: "POST" }
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to generate follow-up questions: ${response.status} ${text}`);
+  }
+  return response.json();
+}
+
+export async function fetchFollowUpQuestions(
+  assessmentId: string
+): Promise<{ questions: FollowUpQuestion[]; generated_at: string } | null> {
+  const response = await apiFetch(
+    `${API_BASE}/api/assessments/${assessmentId}/follow-up-questions`
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Failed to fetch follow-up questions: ${response.status}`);
+  }
+  return response.json();
+}
+
+// ── Re-assessment diff ───────────────────────────────────────────────────────
+
+export type AssessmentDiff = {
+  base: { id: string; created_at: string; overall_score: number; risk_level: string };
+  compare: { id: string; created_at: string; overall_score: number; risk_level: string };
+  framework_mismatch: boolean;
+  score_delta: number;
+  summary: { improved: number; regressed: number; changed: number; unchanged: number };
+  controls: {
+    control_id: string;
+    title: string;
+    domain: string;
+    base_score: string | null;
+    compare_score: string | null;
+    direction: "improved" | "regressed" | "changed" | "unchanged" | "added" | "removed";
+  }[];
+};
+
+export async function fetchAssessmentDiff(
+  baseId: string,
+  compareId: string
+): Promise<AssessmentDiff> {
+  const response = await apiFetch(
+    `${API_BASE}/api/assessments/${encodeURIComponent(baseId)}/diff/${encodeURIComponent(compareId)}`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch diff: ${response.status}`);
+  }
+  return response.json();
 }

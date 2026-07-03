@@ -66,6 +66,14 @@ class Settings(BaseSettings):
     # Higher = more evidence surface (better recall, more tokens).
     retrieval_top_k: int = 3
 
+    # ── Review & Evidence Quality ────────────────────────────────────────────
+    # Controls whose LLM confidence falls below this threshold are flagged
+    # needs_review so an analyst confirms or overrides the score.
+    review_confidence_threshold: float = 0.5
+    # Documents uploaded more than this many days ago are flagged as stale
+    # evidence (e.g. a SOC 2 report is reissued annually).
+    evidence_stale_days: int = 365
+
     # ── Local Data Storage ───────────────────────────────────────────────────
     # All structured data (assessments, chat history, document metadata)
     # is stored in a single SQLite database file (vendorshield.db) under this

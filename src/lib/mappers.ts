@@ -8,18 +8,26 @@ export function scoreToStatus(s: string): ControlStatus {
 }
 
 export function mapControl(r: any): ControlResult {
+  // The effective score is what the UI shows: analyst override wins,
+  // the AI score stays available as the audit trail.
+  const effective: string = r.analyst_score || r.score;
   return {
     id: r.control_id,
     category: r.domain,
     name: r.title,
-    passed: r.score === "PASS",
-    status: scoreToStatus(r.score),
+    passed: effective === "PASS",
+    status: scoreToStatus(effective),
     comment: "",
     aiExplanation: r.reasoning,
     evidenceSource: r.evidence_quote || "No evidence found",
     citations: r.citations || [],
     confidence: r.confidence,
     gap: r.gap,
+    aiScore: r.score,
+    analystScore: r.analyst_score ?? null,
+    analystComment: r.analyst_comment ?? null,
+    overriddenAt: r.overridden_at ?? null,
+    needsReview: r.needs_review ?? false,
   };
 }
 
@@ -28,16 +36,17 @@ export function mapDomainScores(
   rawControls: any[]
 ): DomainScore[] {
   if (!dict) return [];
+  const eff = (r: any): string => r.analyst_score || r.score;
   return Object.entries(dict).map(([domain, score]) => {
     const dc = rawControls.filter((r) => r.domain === domain);
     return {
       domain,
       score: score as number,
       total_controls: dc.length,
-      passed: dc.filter((r) => r.score === "PASS").length,
-      partial: dc.filter((r) => r.score === "PARTIAL").length,
-      failed: dc.filter((r) => r.score === "FAIL").length,
-      no_evidence: dc.filter((r) => r.score === "NO_EVIDENCE").length,
+      passed: dc.filter((r) => eff(r) === "PASS").length,
+      partial: dc.filter((r) => eff(r) === "PARTIAL").length,
+      failed: dc.filter((r) => eff(r) === "FAIL").length,
+      no_evidence: dc.filter((r) => eff(r) === "NO_EVIDENCE").length,
     };
   });
 }
@@ -65,5 +74,13 @@ export function mapBackendAssessment(row: any): Assessment {
     gapsSummary: row.gaps_summary,
     warning: row.warning,
     error: row.error,
+    frameworkId: row.framework_id || "nist-800-53",
+    reviewQueue: row.review_queue || [],
+    riskProfile: row.risk_profile || null,
+    inherentRisk: row.inherent_risk
+      ? { tier: row.inherent_risk.tier, points: row.inherent_risk.points }
+      : null,
+    residualRisk: row.residual_risk || null,
+    evidenceFreshness: row.evidence_freshness || null,
   };
 }

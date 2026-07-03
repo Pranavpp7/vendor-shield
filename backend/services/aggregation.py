@@ -28,16 +28,22 @@ from models.schemas import (
 logger = logging.getLogger(__name__)
 
 
-def _build_gaps_summary(control_results: list[ControlResult]) -> str:
+def _effective(r: ControlResult) -> ControlScore:
+    """The score that counts: the analyst override when present, else the AI's."""
+    return r.analyst_score or r.score
+
+
+def build_gaps_summary(control_results: list[ControlResult]) -> str:
     """Build a markdown summary of all controls that scored FAIL or NO_EVIDENCE.
 
-    Groups gaps by domain for readability.  Each gap entry includes the
-    control ID, title, score, and the gap description from the LLM.
+    Uses the effective (override-aware) score.  Groups gaps by domain for
+    readability.  Each gap entry includes the control ID, title, score,
+    and the gap description from the LLM.
     """
     # Collect controls with gaps
     gaps = [
         r for r in control_results
-        if r.score in (ControlScore.FAIL, ControlScore.NO_EVIDENCE)
+        if _effective(r) in (ControlScore.FAIL, ControlScore.NO_EVIDENCE)
     ]
 
     if not gaps:
@@ -52,7 +58,7 @@ def _build_gaps_summary(control_results: list[ControlResult]) -> str:
     for domain, results in domains.items():
         lines.append(f"### {domain}\n")
         for r in results:
-            score_label = r.score.value
+            score_label = _effective(r).value
             gap_text = r.gap or "No specific gap described"
             lines.append(
                 f"- **{r.control_id} — {r.title}** [{score_label}]\n"
@@ -66,6 +72,7 @@ def aggregate_results(
     assessment_id: str,
     vendor_name: str,
     control_results: list[ControlResult],
+    framework_id: str | None = None,
 ) -> AssessmentResponse:
     """Aggregate scored control results into a final assessment response.
 
@@ -88,18 +95,18 @@ def aggregate_results(
         f"for assessment {assessment_id}"
     )
 
-    # 1. Convert to dict format that calculate_scores() expects:
-    #    [{"control_id": "IAM-001", "score": "PASS"}, ...]
+    # 1. Convert to dict format that calculate_scores() expects.
+    #    The effective (override-aware) score is what gets aggregated.
     results_dicts = [
-        {"control_id": r.control_id, "score": r.score.value}
+        {"control_id": r.control_id, "score": _effective(r).value}
         for r in control_results
     ]
 
-    # 2. Calculate domain and overall scores
-    scores = calculate_scores(results_dicts)
+    # 2. Calculate domain and overall scores against the framework's domains
+    scores = calculate_scores(results_dicts, framework_id)
 
     # 3. Build gaps summary
-    gaps_summary = _build_gaps_summary(control_results)
+    gaps_summary = build_gaps_summary(control_results)
 
     # 4. Map risk_level string to enum
     risk_str = scores["risk_level"]
@@ -122,4 +129,55 @@ def aggregate_results(
         control_results=control_results,
         gaps_summary=gaps_summary,
         created_at=datetime.now(timezone.utc).isoformat(),
+        framework_id=framework_id or "nist-800-53",
     )
+
+
+# ---------------------------------------------------------------------------
+# Inherent & residual risk (vendor relationship tiering)
+# ---------------------------------------------------------------------------
+# Inherent risk describes the vendor RELATIONSHIP before any controls are
+# considered: what data they touch, how critical they are, how deep their
+# access goes.  Residual risk combines the assessed control posture with
+# that inherent tier — a weak vendor with no data access matters less than
+# a mediocre vendor holding all your PII.
+
+_PROFILE_POINTS = {"low": 1, "moderate": 2, "high": 3}
+
+# (min_total_points, tier) — evaluated top-down.  Total ranges 3–9.
+_INHERENT_TIERS = [
+    (8, "Critical"),
+    (6, "High"),
+    (5, "Moderate"),
+    (3, "Low"),
+]
+
+# residual = _RESIDUAL_MATRIX[inherent_tier][assessed_risk_level]
+_RESIDUAL_MATRIX = {
+    "Low":      {"Low": "Low",    "Medium": "Low",    "High": "Medium"},
+    "Moderate": {"Low": "Low",    "Medium": "Medium", "High": "High"},
+    "High":     {"Low": "Medium", "Medium": "High",   "High": "High"},
+    "Critical": {"Low": "Medium", "Medium": "High",   "High": "Critical"},
+}
+
+
+def compute_inherent_risk(profile: dict) -> dict:
+    """Score an intake profile into an inherent-risk tier.
+
+    profile: {"data_sensitivity": "low|moderate|high",
+              "business_criticality": ..., "access_scope": ...}
+
+    Returns {"tier": str, "points": int, "profile": dict}.
+    """
+    points = sum(
+        _PROFILE_POINTS.get(str(profile.get(field, "low")).lower(), 1)
+        for field in ("data_sensitivity", "business_criticality", "access_scope")
+    )
+    tier = next(t for minimum, t in _INHERENT_TIERS if points >= minimum)
+    return {"tier": tier, "points": points, "profile": profile}
+
+
+def compute_residual_risk(inherent_tier: str, assessed_risk: str) -> str:
+    """Combine the inherent tier with the assessed (control-based) risk level."""
+    row = _RESIDUAL_MATRIX.get(inherent_tier, _RESIDUAL_MATRIX["Moderate"])
+    return row.get(assessed_risk, assessed_risk)

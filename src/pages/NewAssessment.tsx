@@ -4,13 +4,23 @@ import { vendorNameToSlug } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
 import { useChecklistSchema } from "@/hooks/useChecklistSchema";
-import { generateChecklistFromAI, ingestDocument, ingestUrl } from "@/lib/api";
+import { generateChecklistFromAI, ingestDocument, ingestUrl, fetchFrameworks, saveRiskProfile } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, Link as LinkIcon, X, ArrowRight, ArrowLeft, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { FrameworkSummary, RiskProfile } from "@/types/assessment";
+
+const RISK_LEVELS = ["low", "moderate", "high"] as const;
+
+const PROFILE_FIELDS: { key: keyof RiskProfile; label: string; hint: string }[] = [
+  { key: "data_sensitivity", label: "Data Sensitivity", hint: "What kind of data will this vendor handle?" },
+  { key: "business_criticality", label: "Business Criticality", hint: "How disruptive would an outage of this vendor be?" },
+  { key: "access_scope", label: "Access Scope", hint: "How deeply does the vendor reach into your systems?" },
+];
 
 export default function NewAssessment() {
   const navigate = useNavigate();
@@ -27,6 +37,20 @@ export default function NewAssessment() {
   const [linkInput, setLinkInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [frameworks, setFrameworks] = useState<FrameworkSummary[]>([]);
+  const [frameworkId, setFrameworkId] = useState("nist-800-53");
+  const [riskProfile, setRiskProfile] = useState<RiskProfile>({
+    data_sensitivity: "moderate",
+    business_criticality: "moderate",
+    access_scope: "moderate",
+  });
+
+  // Load available control frameworks for the selector
+  useEffect(() => {
+    fetchFrameworks()
+      .then(setFrameworks)
+      .catch((err) => console.error("Failed to load frameworks:", err));
+  }, []);
 
   // Load draft if editing
   useEffect(() => {
@@ -132,6 +156,13 @@ export default function NewAssessment() {
       await addAssessment(initialAssessmentData);
     }
 
+    // Save the inherent-risk intake profile (non-fatal if it fails)
+    try {
+      await saveRiskProfile(id, riskProfile);
+    } catch (err) {
+      console.error("Risk profile save failed:", err);
+    }
+
     // Upload files via FastAPI
     setStatusMessage("Uploading and indexing files…");
     await uploadFilesToBackend(id);
@@ -163,7 +194,7 @@ export default function NewAssessment() {
     } catch { /* SSE not critical — fall back to static message */ }
 
     setStatusMessage("Running AI checklist…");
-    const result = await generateChecklistFromAI(vendorName, checklistAllControls, id);
+    const result = await generateChecklistFromAI(vendorName, checklistAllControls, id, frameworkId);
 
     eventSource?.close();
 
@@ -212,6 +243,61 @@ export default function NewAssessment() {
                   onChange={(e) => setVendorName(e.target.value)}
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label>Assessment Framework</Label>
+                <Select value={frameworkId} onValueChange={setFrameworkId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a framework" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(frameworks.length > 0
+                      ? frameworks
+                      : [{ id: "nist-800-53", name: "NIST SP 800-53 Rev.5", control_count: 20 } as FrameworkSummary]
+                    ).map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name} ({f.control_count} controls)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {frameworks.find((f) => f.id === frameworkId)?.description ?? ""}
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <p className="text-sm font-medium">Vendor Relationship Profile</p>
+                  <p className="text-xs text-muted-foreground">
+                    Determines the inherent risk tier, which weights the final residual risk.
+                  </p>
+                </div>
+                {PROFILE_FIELDS.map(({ key, label, hint }) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Select
+                      value={riskProfile[key]}
+                      onValueChange={(v) =>
+                        setRiskProfile((prev) => ({ ...prev, [key]: v as RiskProfile[typeof key] }))
+                      }
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RISK_LEVELS.map((lvl) => (
+                          <SelectItem key={lvl} value={lvl}>
+                            {lvl.charAt(0).toUpperCase() + lvl.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">{hint}</p>
+                  </div>
+                ))}
+              </div>
+
               <Button
                 onClick={() => setStep(2)}
                 disabled={!vendorName.trim()}

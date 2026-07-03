@@ -199,25 +199,24 @@ def evaluate_control(control: dict, assessment_id: str) -> ControlResult:
     return result
 
 
-def evaluate_all_controls(assessment_id: str) -> list[ControlResult]:
-    """Evaluate all 20 security controls in sequential batches.
+def evaluate_all_controls(
+    assessment_id: str,
+    framework_id: str | None = None,
+) -> list[ControlResult]:
+    """Evaluate every control of a framework in sequential batches.
 
-    Processes controls in batches of 4 (5 batches for 20 controls).
-    Each batch is run sequentially (no thread pool) to keep request
-    rate predictable for the LLM provider.  Between batches we sleep
-    1 second to smooth out rate-limit bursts.
-
-    After every batch, set_progress() pushes an SSE update so the
-    frontend sees granular evaluation progress (45% to 85% across
-    the 5 batches).
+    Processes controls in small batches, run sequentially (no thread
+    pool) to keep request rate predictable for the LLM provider.
+    Between batches we sleep to smooth out rate-limit bursts.
 
     Args:
         assessment_id: Which assessment's documents to evaluate against.
+        framework_id: Which control framework to use (default NIST SP 800-53).
 
     Returns:
         List of ControlResult objects (one per control), sorted by control_id.
     """
-    controls = get_all_controls()
+    controls = get_all_controls(framework_id)
     total = len(controls)
     logger.info(
         f"Starting evaluation of {total} controls "

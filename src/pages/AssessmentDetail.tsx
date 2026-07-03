@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, AlertCircle, Loader2, Info, History, AlertTriangle, XCircle, TrendingUp } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle, Loader2, Info, History, AlertTriangle, XCircle, TrendingUp, UserCheck, MessageSquareText, Clock } from "lucide-react";
 import { ChatMessage, Assessment } from "@/types/assessment";
 import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI, fetchAssessmentDetail } from "@/lib/api";
@@ -20,6 +20,8 @@ import { RunHistoryPanel } from "@/components/assessment/RunHistoryPanel";
 import { VendorTrendView } from "@/components/assessment/VendorTrendView";
 import { DomainScoresChart } from "@/components/assessment/DomainScoresChart";
 import { SendReportButton } from "@/components/SendReportButton";
+import { ReviewPanel } from "@/components/assessment/ReviewPanel";
+import { FollowUpPanel } from "@/components/assessment/FollowUpPanel";
 
 export default function AssessmentDetail() {
   const { vendorSlug } = useParams();
@@ -37,7 +39,7 @@ export default function AssessmentDetail() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadDetail = useCallback(() => {
     if (!vendorSlug) return;
     console.log("[AssessmentDetail] fetching detail for id:", vendorSlug);
     setDetailLoading(true);
@@ -52,6 +54,10 @@ export default function AssessmentDetail() {
       })
       .finally(() => setDetailLoading(false));
   }, [vendorSlug]);
+
+  useEffect(() => {
+    loadDetail();
+  }, [loadDetail]);
 
   const assessment = detailAssessment ?? contextAssessment;
 
@@ -133,9 +139,19 @@ export default function AssessmentDetail() {
               <h1 className="text-2xl font-bold">{assessment.vendorName}</h1>
               <div className="flex items-center gap-3 mt-1 flex-wrap">
                 <RiskBadge level={assessment.riskLevel} />
-                <span className="text-sm text-muted-foreground">
-                  Criticality: {assessment.criticality}
-                </span>
+                {assessment.residualRisk && assessment.inherentRisk && (
+                  <span className="text-sm font-medium">
+                    Residual: {assessment.residualRisk}
+                    <span className="text-muted-foreground font-normal">
+                      {" "}(inherent {assessment.inherentRisk.tier})
+                    </span>
+                  </span>
+                )}
+                {assessment.frameworkId && (
+                  <span className="text-sm text-muted-foreground">
+                    Framework: {assessment.frameworkId === "soc2-tsc" ? "SOC 2 TSC" : "NIST 800-53"}
+                  </span>
+                )}
                 <span className="text-sm text-muted-foreground">
                   Date: {assessment.createdAt}
                 </span>
@@ -196,6 +212,19 @@ export default function AssessmentDetail() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="checklist">Checklist</TabsTrigger>
+            <TabsTrigger value="review">
+              <UserCheck className="h-3.5 w-3.5 mr-1.5" />
+              Review
+              {(assessment.reviewQueue?.length ?? 0) > 0 && (
+                <span className="ml-1.5 rounded-full bg-amber-500/20 text-amber-600 text-xs px-1.5">
+                  {assessment.reviewQueue!.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="followups">
+              <MessageSquareText className="h-3.5 w-3.5 mr-1.5" />
+              Follow-ups
+            </TabsTrigger>
             <TabsTrigger value="docs" data-value="docs">Documents & Links</TabsTrigger>
             <TabsTrigger value="chat">Chat & Insights</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
@@ -224,6 +253,19 @@ export default function AssessmentDetail() {
                   <CardContent className="pt-4 pb-4 flex items-center gap-3">
                     <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                     <p className="text-sm">{assessment.warning}</p>
+                  </CardContent>
+                </Card>
+              )}
+              {(assessment.evidenceFreshness?.stale_count ?? 0) > 0 && (
+                <Card className="border-amber-500/30 bg-amber-500/5">
+                  <CardContent className="pt-4 pb-4 flex items-center gap-3">
+                    <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                    <p className="text-sm">
+                      {assessment.evidenceFreshness!.stale_count} document(s) are older
+                      than {assessment.evidenceFreshness!.threshold_days} days — the
+                      evidence may be stale. Ask the vendor for current documentation
+                      (e.g. this year's SOC 2 report) and re-run the assessment.
+                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -268,6 +310,21 @@ export default function AssessmentDetail() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="review">
+            <ReviewPanel
+              assessmentId={assessment.id}
+              controls={assessment.controls}
+              onUpdated={loadDetail}
+            />
+          </TabsContent>
+
+          <TabsContent value="followups">
+            <FollowUpPanel
+              assessmentId={assessment.id}
+              vendorName={assessment.vendorName}
+            />
           </TabsContent>
 
           <TabsContent value="docs">

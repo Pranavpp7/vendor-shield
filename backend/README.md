@@ -26,7 +26,10 @@ backend/
 ├── main.py                  ← Layer 7: FastAPI entry point
 ├── start.py                 ← build frontend + launch uvicorn; --dev for hot-reload
 ├── models/
-│   ├── controls.py          ← 20 NIST controls (DO NOT MODIFY)
+│   ├── controls.py          ← framework loader + scoring helpers
+│   ├── frameworks/          ← control frameworks as JSON data
+│   │   ├── nist-800-53.json ←   20 controls, NIST SP 800-53 Rev.5 (default)
+│   │   └── soc2-tsc.json    ←   10 controls, SOC 2 Trust Services Criteria
 │   └── schemas.py           ← Pydantic request/response models
 ├── storage/
 │   ├── qdrant_store.py      ← Layer 2: vector DB operations
@@ -64,12 +67,21 @@ User uploads PDF
   → qdrant_store.py stores vectors in collection "vendorshield_{assessment_id}"
   → local_store.py saves document metadata to SQLite (vendorshield.db)
 
-User runs assessment
-  → agent iterates 20 controls from controls.py
+User runs assessment (choosing a framework: NIST 800-53 or SOC 2 TSC)
+  → agent iterates the framework's controls from models/frameworks/*.json
   → for each control: retrieval.py searches Qdrant using control["search_query"]
   → evaluation.py calls get_scoring_prompt() + sends to OpenRouter LLM
   → LLM returns: score, evidence_quote, reasoning, gap
   → aggregation.py calls calculate_scores() for final results
+    (analyst overrides, when present, supersede AI scores)
+
+Analyst reviews results
+  → low-confidence controls are flagged needs_review
+  → PATCH /api/assessments/{id}/controls/{cid}/override records the human
+    verdict (AI score preserved as audit trail) and recomputes all totals
+  → POST /api/assessments/{id}/follow-up-questions drafts vendor questions
+    for every gapped control
+  → GET /api/assessments/{a}/diff/{b} compares two runs control-by-control
 ```
 
 ---

@@ -172,13 +172,16 @@ class MCPClient:
         return json.loads(raw)
 
     async def run_assessment(
-        self, assessment_id: str, vendor_name: str
+        self, assessment_id: str, vendor_name: str, framework_id: str | None = None
     ) -> dict:
         """Trigger a full risk assessment."""
-        raw = await self.call_tool("run_assessment", {
+        args: dict = {
             "assessment_id": assessment_id,
             "vendor_name": vendor_name,
-        })
+        }
+        if framework_id:
+            args["framework_id"] = framework_id
+        raw = await self.call_tool("run_assessment", args)
         return json.loads(raw)
 
     async def get_assessment_report(self, assessment_id: str) -> dict:
@@ -190,16 +193,25 @@ class MCPClient:
             return {}
         return json.loads(raw)
 
-    async def get_controls(self) -> dict:
-        """List all 20 security controls and domains."""
-        raw = await self.call_tool("get_controls", {})
+    async def get_controls(self, framework_id: str | None = None) -> dict:
+        """List a framework's security controls and domains."""
+        args = {"framework_id": framework_id} if framework_id else {}
+        raw = await self.call_tool("get_controls", args)
         return json.loads(raw)
 
-    async def evaluate_controls(self, assessment_id: str) -> list[dict]:
+    async def list_frameworks(self) -> list[dict]:
+        """List all available control frameworks."""
+        raw = await self.call_tool("list_frameworks", {})
+        return json.loads(raw)
+
+    async def evaluate_controls(
+        self, assessment_id: str, framework_id: str | None = None
+    ) -> list[dict]:
         """Evaluate all controls for an assessment."""
-        raw = await self.call_tool("evaluate_controls", {
-            "assessment_id": assessment_id,
-        })
+        args: dict = {"assessment_id": assessment_id}
+        if framework_id:
+            args["framework_id"] = framework_id
+        raw = await self.call_tool("evaluate_controls", args)
         return json.loads(raw)
 
     async def aggregate_scores(
@@ -207,13 +219,17 @@ class MCPClient:
         assessment_id: str,
         vendor_name: str,
         control_results: list[dict],
+        framework_id: str | None = None,
     ) -> dict:
         """Aggregate control-level scores into an assessment summary."""
-        raw = await self.call_tool("aggregate_scores", {
+        args: dict = {
             "assessment_id": assessment_id,
             "vendor_name": vendor_name,
             "control_results": control_results,
-        })
+        }
+        if framework_id:
+            args["framework_id"] = framework_id
+        raw = await self.call_tool("aggregate_scores", args)
         return json.loads(raw)
 
     async def send_report(

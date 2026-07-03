@@ -16,7 +16,7 @@ IMPORTED BY:  routers, services (for type hints), chains
 """
 
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 from enum import Enum
 
 
@@ -86,6 +86,13 @@ class ControlResult(BaseModel):
     domain: str = ""                        # which domain this control belongs to
     title: str = ""                         # short name of the control
     citations: list[Citation] = []          # source documents used for retrieval
+    # Human-in-the-loop override (set via the override endpoint, never by the LLM).
+    # When analyst_score is set it supersedes `score` in all aggregations;
+    # `score` always preserves the original AI verdict for the audit trail.
+    analyst_score: Optional[ControlScore] = None
+    analyst_comment: Optional[str] = None
+    overridden_by: Optional[str] = None     # user_id of the analyst ("" in dev mode)
+    overridden_at: Optional[str] = None     # ISO-8601 UTC timestamp
 
 
 # --- Request Models ---
@@ -101,6 +108,28 @@ class AssessmentRunRequest(BaseModel):
     """Request to run a full vendor risk assessment."""
     vendor_name: str
     assessment_id: str
+    framework_id: str = "nist-800-53"       # which control framework to assess against
+
+
+class ControlOverrideRequest(BaseModel):
+    """Analyst override of an AI-assigned control score.
+
+    score = null clears an existing override (reverts to the AI score).
+    """
+    score: Optional[ControlScore] = None
+    comment: str = ""
+
+
+class RiskProfileRequest(BaseModel):
+    """Inherent-risk intake profile for a vendor relationship.
+
+    Answers describe the relationship BEFORE any controls are considered:
+    what data the vendor touches, how critical they are to the business,
+    and how deeply they reach into our systems.
+    """
+    data_sensitivity: Literal["low", "moderate", "high"]
+    business_criticality: Literal["low", "moderate", "high"]
+    access_scope: Literal["low", "moderate", "high"]
 
 
 class ChatRequest(BaseModel):
@@ -145,10 +174,11 @@ class AssessmentResponse(BaseModel):
     overall_score: int                          # 0-100
     risk_level: RiskLevel                       # Low / Medium / High
     domain_scores: dict[str, int]               # domain name -> percentage
-    control_results: list[ControlResult]        # all 20 scored controls
+    control_results: list[ControlResult]        # all scored controls
     gaps_summary: str = ""                      # markdown summary of gaps
     summary: str = ""                           # LLM-generated executive summary
     created_at: str = ""                        # ISO-8601 UTC timestamp of assessment run
+    framework_id: str = "nist-800-53"           # framework the controls came from
 
 
 class ChatResponse(BaseModel):

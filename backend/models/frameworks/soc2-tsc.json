@@ -1,0 +1,184 @@
+{
+  "id": "soc2-tsc",
+  "name": "SOC 2 Trust Services Criteria",
+  "description": "10 vendor security controls mapped to the AICPA SOC 2 Trust Services Criteria (2017, with 2022 points of focus), focused on the Security (Common Criteria) and Availability categories. A lighter-weight assessment than the NIST framework, suited to SaaS vendors that publish SOC 2 reports.",
+  "version": "TSC 2017 (2022 POF)",
+  "domain_weights": {
+    "Governance & Risk": 1.0,
+    "Access Control": 1.0,
+    "System Operations": 1.0,
+    "Change & Vendor Management": 1.0
+  },
+  "controls": [
+    {
+      "id": "GR-001",
+      "ref": "SOC 2 CC1.1, CC1.4",
+      "domain": "Governance & Risk",
+      "title": "Security governance and policies established",
+      "description": "The vendor has a formal information security program: documented security policies, a person or team accountable for security, and management commitment to integrity and competence.",
+      "search_query": "information security policy security program CISO security team governance security organization management commitment",
+      "what_to_look_for": "Evidence of a formal security program. Look for: information security policy, security policies reviewed annually, CISO, security officer, security team, security steering committee, code of conduct, security training program, policy acknowledgment, security roles and responsibilities.",
+      "what_good_looks_like": "CC1.1 requires demonstrated commitment to integrity and ethical values. CC1.4 requires commitment to attract, develop, and retain competent individuals. Best practice: a documented and annually reviewed security policy suite, a named accountable security leader, and mandatory security awareness training for all staff.",
+      "scoring_guide": {
+        "pass": "Documented security program with named ownership and policy review cadence",
+        "partial": "Security policies mentioned but ownership or review cadence unclear",
+        "fail": "Evidence that no formal security program or policies exist",
+        "no_evidence": "No mention of security governance, policies, or ownership"
+      },
+      "weight": 1
+    },
+    {
+      "id": "GR-002",
+      "ref": "SOC 2 CC3.2, CC3.4",
+      "domain": "Governance & Risk",
+      "title": "Risk assessment process in place",
+      "description": "The vendor periodically identifies and analyzes risks to its objectives — including fraud and technology risks — and updates its risk assessment when the business or threat landscape changes.",
+      "search_query": "risk assessment risk management process risk register annual risk analysis threat assessment enterprise risk",
+      "what_to_look_for": "Evidence of a recurring risk assessment practice. Look for: risk assessment, risk register, risk analysis, annual risk review, risk treatment, risk acceptance, threat modeling, risk management framework, likelihood and impact ratings, risk owners.",
+      "what_good_looks_like": "CC3.2 requires identifying and analyzing risks to the achievement of objectives. CC3.4 requires assessing changes that could significantly impact internal control. Best practice: at least annual formal risk assessments with a maintained risk register, assigned risk owners, and documented treatment decisions.",
+      "scoring_guide": {
+        "pass": "Recurring risk assessment described with register, owners, or treatment process",
+        "partial": "Risk assessment mentioned but frequency or follow-through unclear",
+        "fail": "Evidence that risks are not formally assessed",
+        "no_evidence": "No mention of risk assessment or risk management"
+      },
+      "weight": 1
+    },
+    {
+      "id": "AC-001",
+      "ref": "SOC 2 CC6.1",
+      "domain": "Access Control",
+      "title": "Logical access restricted and authenticated",
+      "description": "Access to systems and data is restricted to authorized users, protected by strong authentication — including multi-factor authentication — and granted on a least-privilege basis.",
+      "search_query": "multi-factor authentication MFA logical access controls least privilege role-based access authentication",
+      "what_to_look_for": "Evidence of restricted, authenticated access. Look for: MFA, 2FA, single sign-on, SSO, role-based access control, RBAC, least privilege, access authorization, unique user IDs, password policy, credential management.",
+      "what_good_looks_like": "CC6.1 requires logical access security software, infrastructure, and architectures to be implemented over protected information assets. Best practice: MFA enforced for all users, unique accounts (no sharing), role-based least-privilege access, and documented authorization workflows.",
+      "scoring_guide": {
+        "pass": "MFA and least-privilege access clearly required for all users",
+        "partial": "Access controls described but MFA optional, admin-only, or scope unclear",
+        "fail": "Evidence of shared accounts or password-only authentication",
+        "no_evidence": "No mention of authentication or logical access controls"
+      },
+      "weight": 1
+    },
+    {
+      "id": "AC-002",
+      "ref": "SOC 2 CC6.2, CC6.3",
+      "domain": "Access Control",
+      "title": "User provisioning and deprovisioning managed",
+      "description": "New user access requires authorization before being granted, access is modified when roles change, and access is removed promptly when a user leaves or no longer needs it.",
+      "search_query": "user provisioning deprovisioning offboarding access removal termination access review account lifecycle",
+      "what_to_look_for": "Evidence of a managed account lifecycle. Look for: provisioning process, access request approval, onboarding, offboarding, termination checklist, access revoked within 24 hours, periodic access review, recertification, deprovisioning automation.",
+      "what_good_looks_like": "CC6.2 requires registering and authorizing new internal and external users before granting access, and removing access when no longer required. CC6.3 requires modifying access based on roles. Best practice: approval-gated provisioning, same-day deprovisioning at termination, and quarterly access reviews.",
+      "scoring_guide": {
+        "pass": "Approval-based provisioning and prompt deprovisioning with review cadence described",
+        "partial": "Lifecycle process mentioned but timeliness or review frequency unclear",
+        "fail": "Evidence that departed users retain access or access is never reviewed",
+        "no_evidence": "No mention of account provisioning, offboarding, or access reviews"
+      },
+      "weight": 1
+    },
+    {
+      "id": "AC-003",
+      "ref": "SOC 2 CC6.6, CC6.7",
+      "domain": "Access Control",
+      "title": "Data protected in transit and at rest",
+      "description": "The vendor encrypts data moving over networks and data stored in its systems, and defends system boundaries against external threats.",
+      "search_query": "encryption TLS HTTPS data at rest AES encryption in transit firewall boundary protection",
+      "what_to_look_for": "Evidence of encryption and boundary defenses. Look for: TLS 1.2, TLS 1.3, HTTPS, AES-256, encryption at rest, encrypted backups, key management, KMS, firewall, WAF, VPN, network segmentation, intrusion prevention.",
+      "what_good_looks_like": "CC6.6 requires implementing boundary protection against threats from outside system boundaries. CC6.7 requires restricting the transmission and movement of information to authorized users and processes, protecting it during transmission. Best practice: TLS 1.2+ everywhere, AES-256 at rest including backups, and managed encryption keys separate from data.",
+      "scoring_guide": {
+        "pass": "Encryption in transit and at rest both confirmed with algorithms or versions",
+        "partial": "Encryption mentioned but only one of transit/rest covered, or details vague",
+        "fail": "Evidence of unencrypted storage or transmission",
+        "no_evidence": "No mention of encryption or boundary protection"
+      },
+      "weight": 1
+    },
+    {
+      "id": "SO-001",
+      "ref": "SOC 2 CC7.1, CC7.2",
+      "domain": "System Operations",
+      "title": "Vulnerabilities and anomalies monitored",
+      "description": "The vendor monitors infrastructure for vulnerabilities, configuration changes, and anomalous activity that could indicate a security event, using detection tooling and defined alerting.",
+      "search_query": "vulnerability scanning security monitoring anomaly detection intrusion detection SIEM alerting penetration testing",
+      "what_to_look_for": "Evidence of proactive detection. Look for: vulnerability scanning, penetration testing, SIEM, intrusion detection, IDS, security monitoring, anomaly detection, log analysis, alerting rules, security operations center, threat intelligence.",
+      "what_good_looks_like": "CC7.1 requires detection and monitoring procedures to identify changes and susceptibilities to new vulnerabilities. CC7.2 requires monitoring for anomalies indicative of malicious acts or errors. Best practice: at least monthly automated scanning, annual independent penetration tests, centralized log monitoring with automated alerts, and 24/7 escalation.",
+      "scoring_guide": {
+        "pass": "Scanning and continuous monitoring described with tooling and cadence",
+        "partial": "Monitoring or scanning mentioned but coverage, cadence, or alerting unclear",
+        "fail": "Evidence of no proactive vulnerability or anomaly detection",
+        "no_evidence": "No mention of monitoring, scanning, or detection"
+      },
+      "weight": 1
+    },
+    {
+      "id": "SO-002",
+      "ref": "SOC 2 CC7.3, CC7.4, CC7.5",
+      "domain": "System Operations",
+      "title": "Security incidents responded to and remediated",
+      "description": "The vendor evaluates security events, has a documented incident response program to contain and remediate incidents, communicates with affected parties, and recovers operations.",
+      "search_query": "incident response plan security incident breach notification containment remediation post-incident review",
+      "what_to_look_for": "Evidence of a working incident response capability. Look for: incident response plan, incident response team, severity classification, containment, eradication, recovery, breach notification, customer notification timelines, post-mortem, lessons learned, tabletop exercises.",
+      "what_good_looks_like": "CC7.3 requires evaluating security events to determine whether they are incidents. CC7.4 requires responding through a defined incident response program. CC7.5 requires identifying, developing, and implementing recovery activities. Best practice: documented and annually tested IR plan, defined roles, customer notification commitments (e.g. 72 hours), and post-incident reviews feeding improvements.",
+      "scoring_guide": {
+        "pass": "Documented IR program with roles, notification timelines, and testing",
+        "partial": "IR capability mentioned but testing, timelines, or communication unclear",
+        "fail": "Evidence of ad-hoc or absent incident handling",
+        "no_evidence": "No mention of incident response or breach handling"
+      },
+      "weight": 1
+    },
+    {
+      "id": "SO-003",
+      "ref": "SOC 2 A1.2, A1.3",
+      "domain": "System Operations",
+      "title": "Backup, recovery, and availability tested",
+      "description": "The vendor backs up data, maintains recovery infrastructure and plans (including environmental protections), and periodically tests that recovery actually works.",
+      "search_query": "backup disaster recovery business continuity RTO RPO recovery testing failover redundancy",
+      "what_to_look_for": "Evidence of availability and recoverability. Look for: backup frequency, encrypted backups, disaster recovery plan, business continuity plan, RTO, RPO, failover, multi-region, redundancy, recovery testing, DR exercises, uptime SLA.",
+      "what_good_looks_like": "A1.2 requires environmental protections, software, data backup processes, and recovery infrastructure. A1.3 requires testing recovery plan procedures. Best practice: automated daily backups stored separately, defined RTO/RPO, at least annual DR tests with documented results, and a published availability SLA.",
+      "scoring_guide": {
+        "pass": "Backups, DR plan, and recovery testing all described with targets",
+        "partial": "Backups or DR mentioned but testing or recovery targets unclear",
+        "fail": "Evidence that backups or recovery capability do not exist",
+        "no_evidence": "No mention of backups, disaster recovery, or continuity"
+      },
+      "weight": 1
+    },
+    {
+      "id": "CV-001",
+      "ref": "SOC 2 CC8.1",
+      "domain": "Change & Vendor Management",
+      "title": "Change management process enforced",
+      "description": "Changes to infrastructure, software, and configurations are authorized, tested, and approved before deployment, with the ability to roll back and with production access separated from development.",
+      "search_query": "change management change approval code review testing deployment pipeline rollback separation of environments",
+      "what_to_look_for": "Evidence of controlled change. Look for: change management policy, change approval, CAB, peer code review, pull request review, CI/CD pipeline, automated testing before deploy, staging environment, rollback procedures, segregation of duties between dev and production, emergency change process.",
+      "what_good_looks_like": "CC8.1 requires authorizing, designing, developing, testing, approving, and implementing changes to infrastructure, data, and software. Best practice: mandatory peer review, automated test gates in CI/CD, separate staging and production environments, documented rollback, and restricted production deploy rights.",
+      "scoring_guide": {
+        "pass": "Change process described with review, testing, and approval gates",
+        "partial": "Change control mentioned but gates, environments, or approvals unclear",
+        "fail": "Evidence of unreviewed or direct-to-production changes",
+        "no_evidence": "No mention of change management or deployment controls"
+      },
+      "weight": 1
+    },
+    {
+      "id": "CV-002",
+      "ref": "SOC 2 CC9.2",
+      "domain": "Change & Vendor Management",
+      "title": "Subprocessor and vendor risk managed",
+      "description": "The vendor assesses and manages the risks of its own vendors and subprocessors: due diligence before onboarding, contractual security commitments, and ongoing monitoring.",
+      "search_query": "subprocessor vendor management third-party risk due diligence supplier assessment vendor security review",
+      "what_to_look_for": "Evidence of third-party risk management. Look for: subprocessor list, vendor due diligence, third-party risk assessment, vendor security questionnaires, data processing agreements, DPA, contractual security requirements, annual vendor reviews, subprocessor change notification.",
+      "what_good_looks_like": "CC9.2 requires assessing and managing risks associated with vendors and business partners. Best practice: security due diligence before engaging vendors, DPAs with all subprocessors, a published subprocessor list with change notifications, and periodic reassessment of critical vendors.",
+      "scoring_guide": {
+        "pass": "Vendor risk program described with due diligence, contracts, and ongoing review",
+        "partial": "Vendor management mentioned but diligence depth or recurrence unclear",
+        "fail": "Evidence that third parties are engaged without security review",
+        "no_evidence": "No mention of vendor or subprocessor risk management"
+      },
+      "weight": 1
+    }
+  ]
+}

@@ -58,6 +58,7 @@ class AssessmentState(TypedDict):
     """Data that flows through the graph from node to node."""
     vendor_name: str
     assessment_id: str
+    framework_id: str           # which control framework to assess against
     has_documents: bool
     retrieved_chunks: dict      # {control_id: list[chunk_dicts]} — for routing decisions
     evaluations: dict           # {control_id: {"score": str}} — built after evaluate_node
@@ -157,7 +158,7 @@ async def retrieve_node(state: AssessmentState) -> dict:
     assessment_id = state["assessment_id"]
     logger.info(f"[{assessment_id}] retrieving: Retrieving relevant chunks... (30%)")
     settings = get_settings()
-    controls = get_all_controls()
+    controls = get_all_controls(state["framework_id"])
     client = await _ensure_mcp_client()
 
     async def _fetch_one(control: dict) -> tuple[str, list[dict]]:
@@ -196,7 +197,7 @@ async def no_documents_node(state: AssessmentState) -> dict:
         "skipping LLM evaluation entirely"
     )
 
-    controls = get_all_controls()
+    controls = get_all_controls(state["framework_id"])
     control_results = [
         ControlResult(
             control_id=c["id"],
@@ -215,6 +216,7 @@ async def no_documents_node(state: AssessmentState) -> dict:
         assessment_id=assessment_id,
         vendor_name=vendor_name,
         control_results=[r.model_dump(mode="json") for r in control_results],
+        framework_id=state["framework_id"],
     )
     response = AssessmentResponse(**response_data)
 
@@ -258,7 +260,10 @@ async def evaluate_node(state: AssessmentState) -> dict:
     """
     assessment_id = state["assessment_id"]
     client = await _ensure_mcp_client()
-    results_data = await client.evaluate_controls(assessment_id=assessment_id)
+    results_data = await client.evaluate_controls(
+        assessment_id=assessment_id,
+        framework_id=state["framework_id"],
+    )
     results = [ControlResult(**r) for r in results_data]
     evaluations = {r.control_id: {"score": r.score.value} for r in results}
 
@@ -284,7 +289,7 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
 
     evaluations = state.get("evaluations", {})
     retrieved_chunks = dict(state.get("retrieved_chunks", {}))
-    controls_by_id = {c["id"]: c for c in get_all_controls()}
+    controls_by_id = {c["id"]: c for c in get_all_controls(state["framework_id"])}
 
     no_evidence_ids = [
         cid for cid, e in evaluations.items()
@@ -339,6 +344,7 @@ async def aggregate_node(state: AssessmentState) -> dict:
         assessment_id=state["assessment_id"],
         vendor_name=state["vendor_name"],
         control_results=[r.model_dump(mode="json") for r in control_results],
+        framework_id=state["framework_id"],
     )
     response = AssessmentResponse(**response_data)
 
@@ -364,6 +370,7 @@ async def save_results(state: AssessmentState) -> dict:
     report_data = state["response"]
     report_data["status"] = "completed"
     report_data["vendor_name"] = state["vendor_name"]
+    report_data["framework_id"] = state["framework_id"]
 
     if state.get("warning"):
         report_data["warning"] = state["warning"]
@@ -462,6 +469,7 @@ def build_assessment_graph():
 async def run_assessment(
     vendor_name: str,
     assessment_id: str,
+    framework_id: str = "nist-800-53",
 ) -> AssessmentResponse:
     """Execute the full assessment LangGraph workflow.
 
@@ -470,13 +478,15 @@ async def run_assessment(
     Args:
         vendor_name: Name of the vendor being assessed.
         assessment_id: Unique ID for this assessment.
+        framework_id: Control framework to assess against (see
+            models/frameworks/ — e.g. "nist-800-53", "soc2-tsc").
 
     Returns:
         Complete AssessmentResponse with scores, control results, and gaps.
     """
     logger.info(
         f"Starting assessment for '{vendor_name}' "
-        f"(assessment_id={assessment_id})"
+        f"(assessment_id={assessment_id}, framework={framework_id})"
     )
 
     graph = build_assessment_graph()
@@ -484,6 +494,7 @@ async def run_assessment(
     initial_state: AssessmentState = {
         "vendor_name": vendor_name,
         "assessment_id": assessment_id,
+        "framework_id": framework_id,
         "has_documents": False,
         "retrieved_chunks": {},
         "evaluations": {},
