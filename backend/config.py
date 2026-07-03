@@ -68,7 +68,8 @@ class Settings(BaseSettings):
 
     # ── Local Data Storage ───────────────────────────────────────────────────
     # All structured data (assessments, chat history, document metadata)
-    # is stored as JSON files under this folder.  No Supabase, no Postgres.
+    # is stored in a single SQLite database file (vendorshield.db) under this
+    # folder.  No Supabase, no Postgres — just a local .db file.
     # Path is relative to the backend/ directory.
     data_dir: str = "data"
     # Uploaded files are saved here before being processed.

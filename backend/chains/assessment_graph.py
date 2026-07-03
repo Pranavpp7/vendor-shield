@@ -15,9 +15,8 @@ RESPONSIBILITY:
                                                         ├─(re_retrieve)──→ re_retrieve_node ──→ evaluate_node
                                                         └─(aggregate)──→ aggregate_node ──→ save_results ──→ END
 
-IMPORTS FROM: storage/qdrant_store, services/evaluation, services/aggregation,
-              services/retrieval, services/progress, storage/local_store,
-              models/schemas, models/controls, config
+IMPORTS FROM: mcp/client (services are called as MCP tools, not imported),
+              storage/local_store, models/schemas, models/controls, config
 IMPORTED BY:  mcp/server.py
 """
 

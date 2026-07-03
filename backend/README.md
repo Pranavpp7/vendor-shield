@@ -187,7 +187,7 @@ uv run start.py --skip-build
 | OPENROUTER_MODEL | No | meta-llama/llama-3.3-70b-instruct | Model to use for assessment and chat |
 | RESEND_API_KEY | Yes (email) | — | Resend API key for PDF email delivery |
 | CLERK_JWKS_URL | No | "" | Clerk JWKS URL; empty string disables auth (dev mode) |
-| API_KEY | No | vendorshield-dev-key-... | Static API key for MCP tool authentication |
+| API_KEY | No | "" | Static API key for MCP tool authentication; empty string disables auth (dev mode) |
 | SERVER_PORT | No | 8000 | Port uvicorn listens on |
 | QDRANT_HOST | No | localhost | Qdrant host |
 | QDRANT_PORT | No | 6333 | Qdrant HTTP port |
@@ -195,7 +195,7 @@ uv run start.py --skip-build
 | EMBEDDING_DIMENSIONS | No | 1024 | Vector dimensions (must match model) |
 | CHUNK_SIZE | No | 500 | Token chunk size for document splitting |
 | CHUNK_OVERLAP | No | 50 | Token overlap between chunks |
-| RETRIEVAL_TOP_K | No | 8 | Chunks retrieved per control during assessment |
+| RETRIEVAL_TOP_K | No | 3 | Chunks retrieved per control during assessment |
 | DATA_DIR | No | data | Directory for SQLite DB |
 | UPLOAD_DIR | No | data/uploads | Directory for raw uploaded files |
 
