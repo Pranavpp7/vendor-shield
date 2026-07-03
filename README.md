@@ -2,6 +2,7 @@
 
 VendorShield automates the evaluation of vendor security documentation against 20 controls grounded in NIST SP 800-53 Revision 5. Upload a vendor's security policies, SOC 2 reports, or ISO 27001 certificates and get back a structured risk score, control-by-control evidence citations, RAG-powered Q&A, and an emailable PDF report - all in minutes instead of days.
 
+![CI](https://github.com/Pranavpp7/vendor-shield-1/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/react-18-61DAFB.svg?logo=react&logoColor=black)
@@ -156,13 +157,27 @@ vendor-shield-1/
 └── dist/                # built frontend, served by FastAPI
 ```
 
+## Testing
+
+```bash
+# Backend — 99 tests: framework loader, scoring math, risk matrix,
+# LangGraph routing, LLM-output parsers, and API endpoints (no LLM
+# key or Qdrant needed; storage is isolated per test)
+cd backend && uv run pytest
+
+# Frontend — mapper unit tests
+npm run test
+```
+
+Both suites plus a production build run in CI on every push.
+
 ## Roadmap
 
-- [ ] Test suite (pytest for services/graph routing, vitest for frontend)
-- [ ] GitHub Actions CI (lint + tests + build)
+- [x] Test suite (pytest for services/graph routing, vitest for frontend)
+- [x] GitHub Actions CI (tests + type-check + build)
 - [ ] Single-command Docker deployment of the full stack + live demo
 - [ ] Structured-output enforcement for LLM scoring responses
-- [ ] Golden-dataset evals to regression-test scoring prompts
+- [ ] Golden-dataset evals to regression-test scoring prompts (seeded by analyst overrides)
 
 ## License
 
