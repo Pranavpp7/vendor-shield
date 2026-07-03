@@ -15,7 +15,7 @@ IMPORTS FROM: nothing
 IMPORTED BY:  routers, services (for type hints), chains
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from enum import Enum
 
@@ -118,6 +118,44 @@ class ControlOverrideRequest(BaseModel):
     """
     score: Optional[ControlScore] = None
     comment: str = ""
+
+
+class ScoringGuide(BaseModel):
+    """Per-score guidance the LLM uses when judging a control."""
+    pass_: str = Field(..., alias="pass", min_length=5)
+    partial: str = Field(..., min_length=5)
+    fail: str = Field(..., min_length=5)
+    no_evidence: str = Field(..., min_length=5)
+
+    model_config = {"populate_by_name": True}
+
+
+class FrameworkControlDef(BaseModel):
+    """One control inside a (custom) framework definition.
+
+    Every field feeds the assessment pipeline: search_query drives
+    retrieval, the what_* fields and scoring_guide drive the LLM's
+    judgment — hence the minimum lengths, which reject empty LLM output.
+    """
+    id: str = Field(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$")
+    ref: str = ""
+    domain: str = Field(..., min_length=3, max_length=60)
+    title: str = Field(..., min_length=5, max_length=120)
+    description: str = Field(..., min_length=20)
+    search_query: str = Field(..., min_length=10)
+    what_to_look_for: str = Field(..., min_length=20)
+    what_good_looks_like: str = Field(..., min_length=20)
+    scoring_guide: ScoringGuide
+    weight: float = 1
+
+
+class FrameworkDefinition(BaseModel):
+    """A full control framework, as stored in data/frameworks/{id}.json."""
+    id: str = Field(..., pattern=r"^[a-z0-9][a-z0-9-]{1,63}$")
+    name: str = Field(..., min_length=3, max_length=120)
+    description: str = ""
+    version: str = ""
+    controls: list[FrameworkControlDef] = Field(..., min_length=1, max_length=60)
 
 
 class RiskProfileRequest(BaseModel):

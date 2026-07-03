@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { LayoutDashboard, ClipboardList, PlusCircle, Shield, Info, Settings, BarChart2 } from "lucide-react";
+import { LayoutDashboard, ClipboardList, PlusCircle, Shield, Info, Settings, BarChart2, BookOpenCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -19,6 +19,7 @@ const navItems = [
   { title: "Assessments", url: "/assessments", icon: ClipboardList },
   { title: "New Assessment", url: "/assessment/new", icon: PlusCircle },
   { title: "Compare", url: "/compare", icon: BarChart2 },
+  { title: "Frameworks", url: "/frameworks", icon: BookOpenCheck },
   { title: "Architecture", url: "/architecture", icon: Info },
   { title: "Settings", url: "/settings", icon: Settings },
 ];

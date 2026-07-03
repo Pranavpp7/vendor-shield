@@ -461,8 +461,13 @@ async def override_control_score(
         target["overridden_by"] = user_id
         target["overridden_at"] = datetime.now(timezone.utc).isoformat()
 
-    # Recompute aggregates from effective (override-aware) scores
-    framework_id = resolve_framework_id(record.get("framework_id", ""))
+    # Recompute aggregates from effective (override-aware) scores.
+    # Fall back to the default framework if this assessment ran against a
+    # custom framework that has since been deleted.
+    try:
+        framework_id = resolve_framework_id(record.get("framework_id", ""))
+    except KeyError:
+        framework_id = resolve_framework_id("")
     scores = calculate_scores(control_results, framework_id)
     result_models = [ControlResult(**c) for c in control_results]
     gaps_summary = build_gaps_summary(result_models)

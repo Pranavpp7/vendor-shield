@@ -26,6 +26,7 @@ import {
   Assessment,
   BackendScore,
   FollowUpQuestion,
+  FrameworkDraft,
   FrameworkSummary,
   RiskProfile,
 } from "@/types/assessment";
@@ -279,6 +280,49 @@ export async function fetchFrameworks(): Promise<FrameworkSummary[]> {
   }
   const data = await response.json();
   return data.frameworks || [];
+}
+
+export async function extractFrameworkFromFile(file: File): Promise<FrameworkDraft> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiFetch(`${API_BASE}/api/frameworks/extract`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || `Extraction failed: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.draft;
+}
+
+export async function saveFramework(
+  draft: FrameworkDraft
+): Promise<{ id: string; name: string; control_count: number }> {
+  const response = await apiFetch(`${API_BASE}/api/frameworks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(draft),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const detail =
+      typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail ?? "");
+    throw new Error(detail || `Save failed: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.framework;
+}
+
+export async function deleteFramework(frameworkId: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE}/api/frameworks/${encodeURIComponent(frameworkId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || `Delete failed: ${response.status}`);
+  }
 }
 
 // ── Human-in-the-loop score overrides ────────────────────────────────────────

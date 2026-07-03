@@ -39,6 +39,35 @@ export type FrameworkSummary = {
   version: string;
   control_count: number;
   domains: string[];
+  custom?: boolean;
+};
+
+export type FrameworkControlDraft = {
+  id: string;
+  ref: string;
+  domain: string;
+  title: string;
+  description: string;
+  search_query: string;
+  what_to_look_for: string;
+  what_good_looks_like: string;
+  scoring_guide: {
+    pass: string;
+    partial: string;
+    fail: string;
+    no_evidence: string;
+  };
+  weight?: number;
+};
+
+export type FrameworkDraft = {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  controls: FrameworkControlDraft[];
+  source_document?: string;
+  source_truncated?: boolean;
 };
 
 export type RiskProfile = {
