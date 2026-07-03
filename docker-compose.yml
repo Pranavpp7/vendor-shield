@@ -6,7 +6,9 @@ version: "3.8"
 
 services:
   qdrant:
-    image: qdrant/qdrant:latest
+    # Pinned to match qdrant-client 1.17.1 in backend/uv.lock —
+    # bump both together when upgrading.
+    image: qdrant/qdrant:v1.17.1
     container_name: vendorshield-qdrant
     ports:
       - "6333:6333"   # HTTP API + Dashboard
