@@ -1,10 +1,6 @@
 # VendorShield
 
-**AI-powered vendor security risk assessment.** Upload a vendor's security
-documentation, and VendorShield scores it against 20 controls from
-NIST SP 800-53 Rev. 5 using retrieval-augmented generation — with cited
-evidence for every score, a RAG chatbot for follow-up questions, and
-email-ready PDF reports.
+VendorShield automates the evaluation of vendor security documentation against 20 controls grounded in NIST SP 800-53 Revision 5. Upload a vendor's security policies, SOC 2 reports, or ISO 27001 certificates and get back a structured risk score, control-by-control evidence citations, RAG-powered Q&A, and an emailable PDF report - all in minutes instead of days.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)
@@ -46,30 +42,41 @@ OpenRouter) to score the control as **PASS / PARTIAL / FAIL / NO_EVIDENCE**,
 returning a direct evidence quote, its reasoning, and the identified gap.
 Scores aggregate into per-domain and overall risk ratings.
 
-### Architecture
-
-```mermaid
-flowchart LR
-    subgraph Frontend["React SPA (Vite + TypeScript + shadcn/ui)"]
-        UI[Dashboard · Assessments · Compare · RAG Chat]
-    end
-
-    subgraph Backend["FastAPI (7-layer architecture)"]
-        R[Routers] --> G[LangGraph agent]
-        G -->|calls tools via| MCP[MCP server]
-        MCP --> S[Services: extract · chunk · embed · retrieve · evaluate · aggregate]
-    end
-
-    subgraph Storage
-        Q[(Qdrant<br/>vectors)]
-        DB[(SQLite<br/>assessments · documents · chat)]
-    end
-
-    UI -->|REST /api| R
-    S --> Q
-    S --> DB
-    S -->|LLM inference| OR[OpenRouter<br/>Llama 3.3 70B]
-    S -->|PDF reports| RS[Resend email]
+```
+backend/
+├── .env                     ← API keys (never commit)
+├── .env.example             ← template showing what keys are needed
+├── config.py                ← Layer 1: all settings
+├── auth.py                  ← Clerk JWT verification; dev mode returns empty string
+├── main.py                  ← Layer 7: FastAPI entry point
+├── start.py                 ← build frontend + launch uvicorn; --dev for hot-reload
+├── models/
+│   ├── controls.py          ← 20 NIST controls
+│   └── schemas.py           ← Pydantic request/response models
+├── storage/
+│   ├── qdrant_store.py      ← Layer 2: vector DB operations
+│   └── local_store.py       ← Layer 2: SQLite operations (data/vendorshield.db, 3 tables: assessments, documents, chat_messages)
+├── services/
+│   ├── extraction.py        ← text from PDF/DOCX/URL
+│   ├── chunking.py          ← split text into chunks
+│   ├── embedding.py         ← text → 1024-dim vectors
+│   ├── ingestion.py         ← orchestrates extract+chunk+embed+store
+│   ├── retrieval.py         ← semantic search against Qdrant
+│   ├── evaluation.py        ← scores one control via LLM
+│   ├── aggregation.py       ← calculates final scores
+│   ├── chat.py              ← RAG chat over documents
+│   └── email_service.py     ← ReportLab PDF generation in memory + Resend email delivery
+├── mcp/
+│   ├── server.py            ← MCP server (exposes tools via SSE)
+│   └── client.py            ← MCP client (used by agent)
+├── chains/
+│   └── assessment_graph.py  ← LangGraph agent
+└── routers/
+    ├── documents.py         ← document upload endpoints
+    ├── assessments.py       ← assessment run endpoints
+    ├── chat.py              ← chat endpoints
+    ├── controls.py          ← controls list endpoint
+    └── email.py             ← POST /api/email/send-report
 ```
 
 The assessment workflow is a **LangGraph state machine with conditional
