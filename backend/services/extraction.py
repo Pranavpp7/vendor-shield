@@ -15,8 +15,10 @@ IMPORTS FROM: nothing (no backend dependencies)
 IMPORTED BY:  services/ingestion.py
 """
 
+import ipaddress
 import re
 import logging
+import socket
 from io import BytesIO
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -26,6 +28,39 @@ from pypdf import PdfReader
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
+
+# Cap fetched URL bodies — a vendor security page should never be this big
+MAX_URL_BYTES = 10 * 1024 * 1024
+
+
+class UnsafeURLError(ValueError):
+    """Raised when a URL targets a private, loopback, or reserved address (SSRF guard)."""
+
+
+def _assert_public_http_url(url: str) -> None:
+    """Reject URLs that could reach internal services (SSRF guard).
+
+    Only http/https schemes are allowed, and every resolved address for
+    the hostname must be a public (global) IP — this blocks localhost,
+    RFC-1918 ranges, link-local (including cloud metadata at
+    169.254.169.254), and other reserved space.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise UnsafeURLError(f"Only http/https URLs are allowed (got '{parsed.scheme or 'none'}')")
+    host = parsed.hostname
+    if not host:
+        raise UnsafeURLError("URL has no hostname")
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        raise UnsafeURLError(f"Could not resolve host '{host}'") from e
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if not ip.is_global:
+            raise UnsafeURLError(
+                f"URL resolves to a non-public address ({ip}) — refusing to fetch"
+            )
 
 
 @dataclass
@@ -114,19 +149,35 @@ def extract_url(url: str) -> list[ExtractedPage]:
     For plain text or JSON responses, returns the raw content directly.
 
     Raises:
+        UnsafeURLError: If the URL (or any redirect hop) targets a
+            private/reserved address — SSRF guard.
         ValueError: If the page yields less than 10 characters of text.
-        requests.RequestException: On network errors.
+        httpx.HTTPError: On network errors.
     """
-    response = httpx.get(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0 (compatible; VendorShield/1.0)",
-            "Accept": "text/html,application/xhtml+xml,text/plain,*/*",
-        },
-        timeout=30,
-        follow_redirects=True,
-    )
+    # Follow redirects MANUALLY so every hop is re-validated — otherwise a
+    # public URL could 302 to http://169.254.169.254/ or an internal service.
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; VendorShield/1.0)",
+        "Accept": "text/html,application/xhtml+xml,text/plain,*/*",
+    }
+    current = url
+    response: httpx.Response | None = None
+    for _hop in range(4):
+        _assert_public_http_url(current)
+        response = httpx.get(current, headers=headers, timeout=30, follow_redirects=False)
+        if response.status_code in (301, 302, 303, 307, 308) and response.headers.get("location"):
+            current = str(response.next_request.url) if response.next_request else response.headers["location"]
+            continue
+        break
+    else:
+        raise ValueError("Too many redirects")
+    assert response is not None
     response.raise_for_status()
+
+    if len(response.content) > MAX_URL_BYTES:
+        raise ValueError(
+            f"URL content too large ({len(response.content) // (1024 * 1024)} MB, max {MAX_URL_BYTES // (1024 * 1024)} MB)"
+        )
 
     content_type = response.headers.get("content-type", "")
 

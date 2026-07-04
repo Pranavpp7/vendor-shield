@@ -1,0 +1,20 @@
+# Dependencies & build outputs (rebuilt inside the image)
+node_modules/
+dist/
+backend/.venv/
+backend/vendorshield_backend.egg-info/
+
+# Local data & secrets — never bake into an image
+backend/data/
+backend/.env
+.env
+
+# Caches & tooling
+**/__pycache__/
+**/.pytest_cache/
+.git/
+.github/
+.claude/
+*.md
+!backend/README.md
+LICENSE

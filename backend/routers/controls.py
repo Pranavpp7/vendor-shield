@@ -86,6 +86,11 @@ async def extract_framework(file: UploadFile = File(...)):
     file_bytes = await file.read()
     filename = file.filename or "uploaded-document"
 
+    if len(file_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Document too large (max 20 MB)")
+    if len(file_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
     try:
         if filename.lower().endswith(".pdf"):
             pages = extract_pdf(file_bytes, filename)

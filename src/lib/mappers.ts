@@ -80,6 +80,15 @@ export function mapBackendAssessment(row: any): Assessment {
       score: r.score ?? 0,
       ranAt: r.ran_at || "",
     })),
+    runMetrics: row.run_metrics
+      ? {
+          llmCalls: row.run_metrics.llm_calls ?? 0,
+          promptTokens: row.run_metrics.prompt_tokens ?? 0,
+          completionTokens: row.run_metrics.completion_tokens ?? 0,
+          estimatedCostUsd: row.run_metrics.estimated_cost_usd ?? 0,
+          durationSeconds: row.run_metrics.duration_seconds ?? 0,
+        }
+      : null,
     riskProfile: row.risk_profile || null,
     inherentRisk: row.inherent_risk
       ? { tier: row.inherent_risk.tier, points: row.inherent_risk.points }

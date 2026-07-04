@@ -1,8 +1,15 @@
 version: "3.8"
 
-# VendorShield infrastructure — Qdrant vector database
-# Run: docker-compose up -d
-# Dashboard: http://localhost:6333/dashboard
+# VendorShield infrastructure
+#
+# Dev (Qdrant only, run backend/frontend locally):
+#     docker-compose up -d
+#
+# Full stack (app + Qdrant in containers):
+#     OPENROUTER_API_KEY=sk-... docker compose --profile full up -d
+#     → http://localhost:8000
+#
+# Qdrant dashboard: http://localhost:6333/dashboard
 
 services:
   qdrant:
@@ -17,5 +24,25 @@ services:
       - qdrant_data:/qdrant/storage   # persist vectors across restarts
     restart: unless-stopped
 
+  app:
+    # Only starts with:  docker compose --profile full up
+    profiles: ["full"]
+    build: .
+    container_name: vendorshield-app
+    ports:
+      - "8000:8000"
+    environment:
+      QDRANT_HOST: qdrant
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-}
+      API_KEY: ${API_KEY:-}
+    volumes:
+      - vendorshield_data:/app/backend/data   # SQLite + uploads survive restarts
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+
 volumes:
   qdrant_data:
+  vendorshield_data:

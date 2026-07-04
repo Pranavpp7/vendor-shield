@@ -19,6 +19,16 @@ class TestParseLlmJson:
         raw = '```json\n{"control_id": "A-1", "score": "FAIL"}\n```'
         assert _parse_llm_json(raw, "A-1")["score"] == "FAIL"
 
+    def test_bare_fences_stripped(self):
+        # Regression: some OpenRouter providers wrap JSON in plain ``` fences
+        # (no language tag) — caught by the golden-dataset evals
+        raw = '```\n{"control_id": "A-1", "score": "PASS"}\n```'
+        assert _parse_llm_json(raw, "A-1")["score"] == "PASS"
+
+    def test_json_with_surrounding_prose_recovered(self):
+        raw = 'Here is my assessment:\n{"control_id": "A-1", "score": "PARTIAL"}\nHope this helps!'
+        assert _parse_llm_json(raw, "A-1")["score"] == "PARTIAL"
+
     def test_garbage_falls_back_to_no_evidence(self):
         parsed = _parse_llm_json("I am not JSON at all", "A-1")
         assert parsed["score"] == "NO_EVIDENCE"

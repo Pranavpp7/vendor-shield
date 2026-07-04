@@ -138,6 +138,14 @@ export type Assessment = {
   reviewQueue?: string[];
   /** Score snapshots from previous runs of this assessment (oldest first). */
   runHistory?: { score: number; ranAt: string }[];
+  /** Economics of the latest run: LLM calls, tokens, cost, wall time. */
+  runMetrics?: {
+    llmCalls: number;
+    promptTokens: number;
+    completionTokens: number;
+    estimatedCostUsd: number;
+    durationSeconds: number;
+  } | null;
   riskProfile?: RiskProfile | null;
   inherentRisk?: { tier: string; points: number } | null;
   residualRisk?: string | null;

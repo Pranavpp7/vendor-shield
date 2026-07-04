@@ -157,6 +157,18 @@ export default function AssessmentDetail() {
                 <span className="text-sm text-muted-foreground">
                   Date: {assessment.createdAt}
                 </span>
+                {assessment.runMetrics && assessment.runMetrics.llmCalls > 0 && (
+                  <span
+                    className="text-sm text-muted-foreground tabular-nums"
+                    title={`${assessment.runMetrics.llmCalls} LLM calls · ${(
+                      assessment.runMetrics.promptTokens + assessment.runMetrics.completionTokens
+                    ).toLocaleString()} tokens`}
+                  >
+                    Run: ~${assessment.runMetrics.estimatedCostUsd.toFixed(3)} ·{" "}
+                    {Math.round(assessment.runMetrics.durationSeconds)}s ·{" "}
+                    {assessment.runMetrics.llmCalls} calls
+                  </span>
+                )}
               </div>
             </div>
           </div>

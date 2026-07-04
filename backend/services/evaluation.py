@@ -38,6 +38,7 @@ from models.controls import get_all_controls, get_scoring_prompt
 from models.schemas import ControlResult, Citation, ControlScore
 from services.progress import set_progress
 from services.retrieval import search_documents
+from services.usage import record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -76,14 +77,21 @@ def _parse_llm_json(raw: str, control_id: str) -> dict:
     Strips markdown fences, handles partial JSON, and returns a dict.
     On failure, returns a fallback dict with NO_EVIDENCE score.
     """
-    # Strip markdown code fences if present
-    cleaned = re.sub(r"```json\s*", "", raw)
-    cleaned = re.sub(r"```\s*$", "", cleaned)
-    cleaned = cleaned.strip()
+    # Strip markdown code fences (```json, ``` or any ```lang) if present
+    cleaned = raw.strip()
+    cleaned = re.sub(r"^```[a-zA-Z]*\s*", "", cleaned)
+    cleaned = re.sub(r"```\s*$", "", cleaned).strip()
 
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
+        # Last resort: grab the outermost JSON object from surrounding prose
+        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                pass
         logger.error(
             f"Failed to parse LLM JSON for {control_id}. "
             f"Raw output: {raw[:500]}"
@@ -99,10 +107,10 @@ def _parse_llm_json(raw: str, control_id: str) -> dict:
         }
 
 
-async def _call_llm_json(prompt: str) -> str:
+async def _call_llm_json(prompt: str, assessment_id: str) -> str:
     """One LLM call in JSON mode, falling back to plain mode if the
     provider rejects response_format (support varies across OpenRouter
-    providers for the same model)."""
+    providers for the same model).  Token usage is metered per run."""
     settings = get_settings()
     client = _get_client()
     try:
@@ -110,6 +118,7 @@ async def _call_llm_json(prompt: str) -> str:
             model=settings.openrouter_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
+            max_tokens=1024,
             response_format={"type": "json_object"},
         )
     except Exception as e:
@@ -120,6 +129,13 @@ async def _call_llm_json(prompt: str) -> str:
             model=settings.openrouter_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
+            max_tokens=1024,
+        )
+    if response.usage is not None:
+        record_usage(
+            assessment_id,
+            response.usage.prompt_tokens or 0,
+            response.usage.completion_tokens or 0,
         )
     return response.choices[0].message.content or ""
 
@@ -177,7 +193,7 @@ async def evaluate_control(control: dict, assessment_id: str) -> ControlResult:
 
     # 3. Call the LLM
     try:
-        raw_output = await _call_llm_json(prompt)
+        raw_output = await _call_llm_json(prompt, assessment_id)
     except Exception as e:
         logger.error(f"LLM call failed for {control_id}: {e}")
         raw_output = json.dumps({

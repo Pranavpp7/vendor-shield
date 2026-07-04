@@ -197,6 +197,11 @@ uv run start.py --skip-build
 | OPENROUTER_API_KEY | Yes | — | OpenRouter API key for LLM inference |
 | OPENROUTER_BASE_URL | No | https://openrouter.ai/api/v1 | OpenRouter base URL |
 | OPENROUTER_MODEL | No | meta-llama/llama-3.3-70b-instruct | Model to use for assessment and chat |
+| LLM_CONCURRENCY | No | 4 | Max concurrent LLM calls during an assessment run |
+| LLM_PRICE_IN_PER_M | No | 0.12 | USD per 1M input tokens (per-run cost estimates) |
+| LLM_PRICE_OUT_PER_M | No | 0.30 | USD per 1M output tokens (per-run cost estimates) |
+| REVIEW_CONFIDENCE_THRESHOLD | No | 0.5 | Below this confidence, controls are flagged needs_review |
+| EVIDENCE_STALE_DAYS | No | 365 | Documents older than this are flagged as stale evidence |
 | RESEND_API_KEY | Yes (email) | — | Resend API key for PDF email delivery |
 | CLERK_JWKS_URL | No | "" | Clerk JWKS URL; empty string disables auth (dev mode) |
 | API_KEY | No | "" | Static API key for MCP tool authentication; empty string disables auth (dev mode) |

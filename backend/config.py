@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # Max concurrent LLM calls during an assessment run.  Higher = faster
     # runs but more likely to hit provider rate limits.
     llm_concurrency: int = 4
+    # USD per million tokens — used to estimate per-run cost shown in the UI.
+    # Defaults track meta-llama/llama-3.3-70b-instruct on OpenRouter; update
+    # these when changing openrouter_model.
+    llm_price_in_per_m: float = 0.12
+    llm_price_out_per_m: float = 0.30
 
     # ── Qdrant Vector Database ───────────────────────────────────────────────
     # Qdrant runs locally via Docker — no cloud, no API key needed.

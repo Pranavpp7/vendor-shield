@@ -22,6 +22,7 @@ IMPORTED BY:  mcp/server.py
 
 import asyncio
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import TypedDict
@@ -33,6 +34,7 @@ from models.schemas import AssessmentResponse, ControlResult, ControlScore
 from models.controls import get_all_controls
 from mcp.client import MCPClient
 from services.progress import set_progress
+from services.usage import pop_usage
 from storage.local_store import save_assessment, update_assessment, get_assessment
 
 logger = logging.getLogger(__name__)
@@ -504,6 +506,7 @@ async def run_assessment(
     )
 
     graph = build_assessment_graph()
+    started = time.monotonic()
 
     initial_state: AssessmentState = {
         "vendor_name": vendor_name,
@@ -520,5 +523,25 @@ async def run_assessment(
     }
 
     final_state = await graph.ainvoke(initial_state)
+
+    # Stamp run economics onto the saved record: tokens, calls, duration,
+    # and an estimated cost from the configured per-million-token prices.
+    usage = pop_usage(assessment_id)
+    settings = get_settings()
+    estimated_cost = (
+        usage["prompt_tokens"] / 1_000_000 * settings.llm_price_in_per_m
+        + usage["completion_tokens"] / 1_000_000 * settings.llm_price_out_per_m
+    )
+    run_metrics = {
+        **usage,
+        "estimated_cost_usd": round(estimated_cost, 4),
+        "duration_seconds": round(time.monotonic() - started, 1),
+    }
+    update_assessment(assessment_id, {"run_metrics": run_metrics})
+    logger.info(
+        f"Run metrics for {assessment_id}: {usage['llm_calls']} LLM calls, "
+        f"{usage['prompt_tokens']}+{usage['completion_tokens']} tokens, "
+        f"~${run_metrics['estimated_cost_usd']}, {run_metrics['duration_seconds']}s"
+    )
 
     return AssessmentResponse(**final_state["response"])

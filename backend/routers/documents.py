@@ -105,6 +105,8 @@ async def ingest_url_endpoint(req: URLIngestRequest):
 
     Runs the synchronous pipeline in a thread so the event loop is free.
     """
+    from services.extraction import UnsafeURLError
+
     try:
         result = await asyncio.to_thread(
             ingest_url,
@@ -113,6 +115,10 @@ async def ingest_url_endpoint(req: URLIngestRequest):
             req.vendor_name,
         )
         return result
+    except UnsafeURLError as e:
+        # SSRF guard tripped — client error, not server error
+        logger.warning(f"Blocked URL ingestion for '{req.url}': {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"URL ingestion failed for '{req.url}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

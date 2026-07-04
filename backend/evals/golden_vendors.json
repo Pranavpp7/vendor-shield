@@ -1,0 +1,40 @@
+{
+  "description": "Golden dataset for regression-testing the scoring pipeline. Each case is a fictional vendor document plus the expected effective score band per SOC 2 control. 'expected' may list multiple acceptable scores where reasonable auditors could disagree by one notch.",
+  "framework_id": "soc2-tsc",
+  "cases": [
+    {
+      "id": "eval-strong-vendor",
+      "name": "Strong vendor (should mostly PASS)",
+      "document": "NimbusOps Security & Compliance Overview (2026)\n\nGovernance: Our information security program is owned by our CISO and governed by a policy suite reviewed annually by the executive team. All employees complete security awareness training at hire and annually thereafter. We conduct a formal enterprise risk assessment every year, maintain a risk register with named owners, and track treatment decisions to closure.\n\nAccess Control: Multi-factor authentication with hardware security keys is mandatory for all employees with no exceptions. Access follows least privilege via role-based access control. New access requires manager approval; access is removed within 4 hours of termination through automated deprovisioning, and we recertify all access quarterly.\n\nData Protection: All customer data is encrypted at rest with AES-256 and in transit with TLS 1.3 (TLS 1.0/1.1 disabled). Encryption keys are managed in a dedicated KMS with annual rotation. Our network is protected by a WAF and segmented VPCs.\n\nOperations: We run authenticated vulnerability scans weekly and engage an independent firm for annual penetration tests; criticals are remediated within 15 days. Our 24/7 SOC monitors a centralized SIEM with automated alerting and threat intelligence feeds. Our incident response plan defines severity levels, an on-call rotation, and customer notification within 48 hours of a confirmed breach; we run tabletop exercises twice a year. Backups run hourly, are encrypted, and are restored quarterly in disaster recovery tests; RTO is 4 hours and RPO is 1 hour.\n\nChange & Vendors: Every production change requires peer code review, automated test gates in CI/CD, and deploys from a protected branch with instant rollback. We publish our subprocessor list, notify customers 30 days before changes, and perform security due diligence with annual reassessment of critical vendors.",
+      "expected": {
+        "GR-001": ["PASS"],
+        "GR-002": ["PASS"],
+        "AC-001": ["PASS"],
+        "AC-002": ["PASS"],
+        "AC-003": ["PASS"],
+        "SO-001": ["PASS"],
+        "SO-002": ["PASS"],
+        "SO-003": ["PASS"],
+        "CV-001": ["PASS"],
+        "CV-002": ["PASS"]
+      }
+    },
+    {
+      "id": "eval-weak-vendor",
+      "name": "Vague vendor (should be PARTIAL / NO_EVIDENCE heavy)",
+      "document": "PixelBarn — Your Data Is Safe With Us\n\nAt PixelBarn we care deeply about security. Our team uses strong passwords and we encourage two-factor authentication for administrators. Files are hosted on well-known cloud providers, which keep things secure. We look into problems whenever they come up and fix bugs quickly. From time to time we review who has access to what. We back up important data regularly.",
+      "expected": {
+        "GR-001": ["NO_EVIDENCE", "PARTIAL"],
+        "GR-002": ["NO_EVIDENCE"],
+        "AC-001": ["PARTIAL", "FAIL"],
+        "AC-002": ["PARTIAL", "NO_EVIDENCE"],
+        "AC-003": ["NO_EVIDENCE", "PARTIAL"],
+        "SO-001": ["NO_EVIDENCE", "PARTIAL", "FAIL"],
+        "SO-002": ["PARTIAL", "NO_EVIDENCE", "FAIL"],
+        "SO-003": ["PARTIAL"],
+        "CV-001": ["NO_EVIDENCE"],
+        "CV-002": ["NO_EVIDENCE", "PARTIAL"]
+      }
+    }
+  ]
+}

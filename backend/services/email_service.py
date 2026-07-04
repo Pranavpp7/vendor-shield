@@ -88,6 +88,11 @@ _ERROR_MARKERS = (
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
+def _effective(ctrl: dict) -> str:
+    """The score that counts: analyst override when present, else the AI's."""
+    return ctrl.get("analyst_score") or ctrl.get("score", "NO_EVIDENCE")
+
+
 def _risk_label(score: float) -> str:
     if score >= 70:
         return "LOW"
@@ -344,23 +349,56 @@ def generate_pdf_report(assessment: dict) -> bytes:
     # 8. EXECUTIVE SUMMARY
     # ─────────────────────────────────────────────────────────────────────
 
-    pass_count    = sum(1 for c in controls if c.get("score") == "PASS")
-    partial_count = sum(1 for c in controls if c.get("score") == "PARTIAL")
-    fail_count    = sum(1 for c in controls if c.get("score") == "FAIL")
-    no_ev_count   = sum(1 for c in controls if c.get("score") == "NO_EVIDENCE")
+    # Effective (override-aware) counts — analyst verdicts supersede the AI's
+    pass_count    = sum(1 for c in controls if _effective(c) == "PASS")
+    partial_count = sum(1 for c in controls if _effective(c) == "PARTIAL")
+    fail_count    = sum(1 for c in controls if _effective(c) == "FAIL")
+    no_ev_count   = sum(1 for c in controls if _effective(c) == "NO_EVIDENCE")
+    override_count = sum(1 for c in controls if c.get("analyst_score"))
     weakest_domain = (
         min(domain_scores, key=lambda d: domain_scores[d])
         if domain_scores else "the identified gaps"
     )
 
+    # Framework name (falls back gracefully for legacy records)
+    framework_id = assessment.get("framework_id", "nist-800-53")
+    try:
+        from models.controls import get_framework
+        framework_name = get_framework(framework_id).get("name", framework_id)
+    except Exception:
+        framework_name = "NIST SP 800-53 Rev.5"
+
     summary_text = (
-        f"VendorShield evaluated <b>{vendor_name}</b> against 20 NIST SP 800-53 "
-        f"Rev.5 security controls across 4 domains. "
+        f"VendorShield evaluated <b>{vendor_name}</b> against the "
+        f"<b>{len(controls)}</b> security controls of <b>{framework_name}</b> "
+        f"across {len(domain_scores) or 4} domains. "
         f"The assessment identified <b>{pass_count}</b> controls as fully satisfied, "
         f"<b>{partial_count}</b> as partially satisfied, and "
         f"<b>{fail_count + no_ev_count}</b> requiring immediate attention. "
         f"Immediate focus is recommended on <b>{weakest_domain}</b>."
     )
+    if override_count:
+        summary_text += (
+            f" <b>{override_count}</b> control verdict"
+            f"{'s were' if override_count != 1 else ' was'} reviewed and adjusted "
+            f"by an analyst; adjusted scores are used throughout this report."
+        )
+
+    # Inherent & residual risk, when an intake profile exists
+    profile = assessment.get("risk_profile")
+    if profile:
+        try:
+            from services.aggregation import compute_inherent_risk, compute_residual_risk
+            inherent = compute_inherent_risk(profile)
+            residual = compute_residual_risk(inherent["tier"], _risk_label(overall_score).capitalize())
+            summary_text += (
+                f" The vendor relationship carries <b>{inherent['tier']}</b> inherent "
+                f"risk; combined with the assessed posture, the residual risk is "
+                f"<b>{residual}</b>."
+            )
+        except Exception:
+            pass
+
     elements.append(Paragraph("Executive Summary", section_title_style))
     elements.append(Paragraph(summary_text, summary_style))
     elements.append(Spacer(1, 14))
@@ -434,16 +472,22 @@ def generate_pdf_report(assessment: dict) -> bytes:
         ]
         ctrl_rows = [ctrl_header]
         for ctrl in ctrls:
-            score_val = ctrl.get("score", "NO_EVIDENCE")
+            score_val = _effective(ctrl)
             numeric   = _NUMERIC_SCORE.get(score_val, 0.0)
             _, s_hex  = SCORE_COLOR_MAP.get(score_val, (BLACK, "#000000"))
+            # Overrides keep an audit trail: show the analyst verdict with
+            # the original AI score alongside it
+            if ctrl.get("analyst_score"):
+                result_markup = (
+                    f'<b><font color="{s_hex}">{score_val}</font></b>'
+                    f'<font color="{SLATE_HEX}" size="7">  analyst · AI: {ctrl.get("score", "?")}</font>'
+                )
+            else:
+                result_markup = f'<b><font color="{s_hex}">{score_val}</font></b>'
             ctrl_rows.append([
                 Paragraph(ctrl.get("control_id", ""), body_style),
                 Paragraph(ctrl.get("title", ""), body_style),
-                Paragraph(
-                    f'<b><font color="{s_hex}">{score_val}</font></b>',
-                    body_style,
-                ),
+                Paragraph(result_markup, body_style),
                 Paragraph(f"{numeric * 100:.0f}%", body_style),
             ])
 
@@ -505,12 +549,45 @@ def generate_pdf_report(assessment: dict) -> bytes:
         elements.append(Spacer(1, 12))
 
     # ─────────────────────────────────────────────────────────────────────
+    # 5. VENDOR FOLLOW-UP QUESTIONS (when generated)
+    # ─────────────────────────────────────────────────────────────────────
+
+    follow_ups = (assessment.get("follow_up_questions") or {}).get("questions", [])
+    if follow_ups:
+        elements.append(Paragraph("Recommended Vendor Follow-up Questions", section_title_style))
+        elements.append(Paragraph(
+            "One question per control that did not fully pass — ready to send "
+            "to the vendor to close the evidence gaps.",
+            small_style,
+        ))
+        elements.append(Spacer(1, 6))
+        fu_rows = []
+        for i, q in enumerate(follow_ups, start=1):
+            fu_rows.append([Paragraph(
+                f'<b>{i}. [{_sanitize(q.get("control_id", ""))}]</b>  '
+                f'{_sanitize(q.get("question", ""))}',
+                body_style,
+            )])
+        fu_table = Table(fu_rows, colWidths=[PAGE_W])
+        fu_table.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), LIGHT_GRAY),
+            ("BOX",           (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+            ("LINEBELOW",     (0, 0), (-1, -2), 0.5, BORDER_GRAY),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 12),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
+            ("TOPPADDING",    (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(fu_table)
+        elements.append(Spacer(1, 12))
+
+    # ─────────────────────────────────────────────────────────────────────
     # 10. STYLED FOOTER DISCLAIMER
     # ─────────────────────────────────────────────────────────────────────
 
     elements.append(Spacer(1, 10))
     footer_data = [[Paragraph(
-        f"Generated by VendorShield  •  NIST SP 800-53 Rev.5"
+        f"Generated by VendorShield  •  {framework_name}"
         f"  •  Confidential  •  {date_str}",
         footer_style,
     )]]

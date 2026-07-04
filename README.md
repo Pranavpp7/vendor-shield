@@ -109,10 +109,18 @@ retries evaluation once before aggregating.
 Prerequisites: Python 3.11+ with [uv](https://docs.astral.sh/uv/), Node 18+,
 Docker, and an [OpenRouter API key](https://openrouter.ai/keys).
 
+**Fully containerized** (one command, nothing else installed):
+
 ```bash
 git clone https://github.com/Pranavpp7/vendor-shield-1.git
 cd vendor-shield-1
+OPENROUTER_API_KEY=sk-... docker compose --profile full up -d
+# → http://localhost:8000
+```
 
+**Local development:**
+
+```bash
 # 1. Vector database
 docker-compose up -d
 
@@ -123,6 +131,9 @@ cp .env.example .env        # then set OPENROUTER_API_KEY
 
 # 3. Build frontend + start everything on http://localhost:8000
 uv run start.py
+
+# Optional: load three demo vendors so the app starts warm
+uv run python seed.py
 ```
 
 For development mode (Vite hot reload + uvicorn `--reload`), environment
@@ -157,27 +168,48 @@ vendor-shield-1/
 └── dist/                # built frontend, served by FastAPI
 ```
 
-## Testing
+## Testing & evals
 
 ```bash
-# Backend — 99 tests: framework loader, scoring math, risk matrix,
-# LangGraph routing, LLM-output parsers, and API endpoints (no LLM
-# key or Qdrant needed; storage is isolated per test)
+# Backend — 115 tests: framework loader, scoring math, risk matrix,
+# LangGraph routing, LLM-output parsers, SSRF guard, PDF rendering,
+# and API endpoints (no LLM key or Qdrant needed; storage is
+# isolated per test)
 cd backend && uv run pytest
 
 # Frontend — mapper unit tests
 npm run test
+
+# LLM scoring evals — golden vendor documents with expected score
+# bands, run against the REAL pipeline (needs Qdrant + an API key,
+# ~20 LLM calls ≈ $0.01). Run before/after changing prompts or models.
+cd backend && uv run python evals/run_evals.py
 ```
 
-Both suites plus a production build run in CI on every push.
+Both unit suites plus a production build run in CI on every push. The
+eval harness is separate by design (it costs money) — on its first run
+it caught a real bug: a provider returning bare \`\`\` fences that silently
+turned PASS verdicts into NO_EVIDENCE. Current agreement: **20/20**.
+
+## Security posture
+
+For a tool that judges other vendors' security, VendorShield audits its
+own: URL ingestion validates every redirect hop against private,
+loopback, and cloud-metadata address space (SSRF guard, unit-tested);
+uploads enforce type allowlists and size caps; each assessment's vectors
+live in an isolated Qdrant collection; and LLM outputs are
+schema-validated with sanitized fallbacks — model text is never trusted
+blindly.
 
 ## Roadmap
 
 - [x] Test suite (pytest for services/graph routing, vitest for frontend)
 - [x] GitHub Actions CI (tests + type-check + build)
-- [ ] Single-command Docker deployment of the full stack + live demo
-- [ ] Structured-output enforcement for LLM scoring responses
-- [ ] Golden-dataset evals to regression-test scoring prompts (seeded by analyst overrides)
+- [x] Structured LLM outputs (JSON mode with provider fallback) + fully async, concurrency-bounded evaluation
+- [x] Golden-dataset evals to regression-test scoring prompts
+- [x] Single-command Docker deployment of the full stack
+- [x] Per-run cost & latency metering (tokens, estimated $, wall time)
+- [ ] Live hosted demo (Fly.io / Railway)
 
 ## License
 

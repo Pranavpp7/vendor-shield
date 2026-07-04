@@ -17,7 +17,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp, RotateCcw, Loader2, PieChart } from "lucide-react";
+import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp, RotateCcw, Loader2, PieChart, UserCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { RiskDonut } from "@/components/assessment/RiskDonut";
 import { Sparkline } from "@/components/assessment/Sparkline";
@@ -45,6 +45,16 @@ export default function Dashboard() {
   const avgScore = assessments.length
     ? Math.round(assessments.reduce((s, a) => s + a.score, 0) / assessments.length)
     : 0;
+
+  // AI ↔ analyst agreement: of all human-reviewed (overridden or confirmed)
+  // controls, how often did the analyst's verdict match the AI's?
+  const reviewed = assessments.flatMap((a) =>
+    a.controls.filter((c) => c.analystScore != null)
+  );
+  const agreedCount = reviewed.filter((c) => c.analystScore === c.aiScore).length;
+  const agreementPct = reviewed.length
+    ? Math.round((agreedCount / reviewed.length) * 100)
+    : null;
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) =>
@@ -136,10 +146,24 @@ export default function Dashboard() {
                   Risk Distribution
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <RiskDonut
                   counts={{ High: highRisk, Medium: mediumRisk, Low: lowRisk }}
                 />
+                <div className="border-t pt-2.5 flex items-center gap-2 text-xs text-muted-foreground">
+                  <UserCheck className="h-3.5 w-3.5 shrink-0" />
+                  {agreementPct === null ? (
+                    <span>AI–analyst agreement: no reviewed controls yet</span>
+                  ) : (
+                    <span>
+                      AI–analyst agreement:{" "}
+                      <span className="font-semibold text-foreground tabular-nums">
+                        {agreementPct}%
+                      </span>{" "}
+                      ({reviewed.length} reviewed)
+                    </span>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </motion.div>
