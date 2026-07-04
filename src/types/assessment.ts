@@ -136,6 +136,8 @@ export type Assessment = {
   error?: string;
   frameworkId?: string;
   reviewQueue?: string[];
+  /** Score snapshots from previous runs of this assessment (oldest first). */
+  runHistory?: { score: number; ranAt: string }[];
   riskProfile?: RiskProfile | null;
   inherentRisk?: { tier: string; points: number } | null;
   residualRisk?: string | null;

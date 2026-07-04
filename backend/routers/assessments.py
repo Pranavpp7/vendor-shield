@@ -56,17 +56,9 @@ from storage.qdrant_store import delete_collection
 logger = logging.getLogger(__name__)
 
 # ── In-process SSE progress state ────────────────────────────────────────────
-# Simple in-memory dict keyed by assessment_id.  Sufficient for single-process
-# deployments; replace with Redis pub/sub if horizontal scaling is needed.
-_progress: dict[str, dict] = {}
-
-
-def set_progress(assessment_id: str, step: str, message: str, percent: int) -> None:
-    _progress[assessment_id] = {"step": step, "message": message, "percent": percent}
-
-
-def clear_progress(assessment_id: str) -> None:
-    _progress.pop(assessment_id, None)
+# Shared store in services/progress.py — written by the LangGraph nodes and
+# the evaluation service, streamed to the frontend from here.
+from services.progress import set_progress, get_progress, clear_progress
 
 
 async def stream_progress(assessment_id: str):
@@ -80,9 +72,7 @@ async def stream_progress(assessment_id: str):
     max_idle_ticks = 1200  # 600 s ÷ 0.5 s per tick
 
     while idle_ticks < max_idle_ticks:
-        current = _progress.get(
-            assessment_id, {"step": "idle", "message": "", "percent": 0}
-        )
+        current = get_progress(assessment_id)
         if current != last_sent:
             last_sent = dict(current)
             idle_ticks = 0

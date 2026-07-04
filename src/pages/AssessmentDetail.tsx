@@ -22,6 +22,8 @@ import { DomainScoresChart } from "@/components/assessment/DomainScoresChart";
 import { SendReportButton } from "@/components/SendReportButton";
 import { ReviewPanel } from "@/components/assessment/ReviewPanel";
 import { FollowUpPanel } from "@/components/assessment/FollowUpPanel";
+import { ScoreGauge } from "@/components/assessment/ScoreGauge";
+import { RunDiffPanel } from "@/components/assessment/RunDiffPanel";
 
 export default function AssessmentDetail() {
   const { vendorSlug } = useParams();
@@ -158,19 +160,18 @@ export default function AssessmentDetail() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-3xl font-bold">{assessment.score}</p>
-              <p className="text-xs text-muted-foreground">/ 100</p>
+          <div className="flex items-center gap-4">
+            <ScoreGauge score={assessment.score} riskLevel={assessment.riskLevel} />
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" onClick={() => setSummaryOpen(true)}>
+                <FileText className="h-4 w-4 mr-2" />
+                Summary
+              </Button>
+              <SendReportButton
+                assessmentId={assessment.id}
+                vendorName={assessment.vendorName}
+              />
             </div>
-            <Button variant="outline" onClick={() => setSummaryOpen(true)}>
-              <FileText className="h-4 w-4 mr-2" />
-              Summary
-            </Button>
-            <SendReportButton
-              assessmentId={assessment.id}
-              vendorName={assessment.vendorName}
-            />
           </div>
         </div>
 
@@ -390,10 +391,16 @@ export default function AssessmentDetail() {
           </TabsContent>
 
           <TabsContent value="trend">
-            <VendorTrendView
-              vendorName={assessment.vendorName}
-              currentAssessmentId={assessment.id}
-            />
+            <div className="space-y-4">
+              <RunDiffPanel
+                vendorName={assessment.vendorName}
+                currentAssessmentId={assessment.id}
+              />
+              <VendorTrendView
+                vendorName={assessment.vendorName}
+                currentAssessmentId={assessment.id}
+              />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

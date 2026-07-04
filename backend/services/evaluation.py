@@ -36,6 +36,7 @@ from openai import AsyncOpenAI
 from config import get_settings
 from models.controls import get_all_controls, get_scoring_prompt
 from models.schemas import ControlResult, Citation, ControlScore
+from services.progress import set_progress
 from services.retrieval import search_documents
 
 logger = logging.getLogger(__name__)
@@ -256,10 +257,21 @@ async def evaluate_all_controls(
     )
 
     semaphore = asyncio.Semaphore(settings.llm_concurrency)
+    done = 0
+    set_progress(assessment_id, "evaluate", f"Scoring controls (0/{total})…", 30)
 
     async def _bounded(control: dict) -> ControlResult:
+        nonlocal done
         async with semaphore:
-            return await evaluate_control(control, assessment_id)
+            result = await evaluate_control(control, assessment_id)
+        # Per-control progress for the SSE pipeline view (30% → 85%)
+        done += 1
+        set_progress(
+            assessment_id, "evaluate",
+            f"Scoring controls ({done}/{total})…",
+            30 + int(55 * done / total),
+        )
+        return result
 
     results = list(await asyncio.gather(*[_bounded(c) for c in controls]))
 

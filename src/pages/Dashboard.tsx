@@ -17,8 +17,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp, RotateCcw, Loader2 } from "lucide-react";
+import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, TrendingUp, RotateCcw, Loader2, PieChart } from "lucide-react";
 import { motion } from "framer-motion";
+import { RiskDonut } from "@/components/assessment/RiskDonut";
+import { Sparkline } from "@/components/assessment/Sparkline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
@@ -38,6 +40,7 @@ export default function Dashboard() {
       : assessments.filter((a) => a.riskLevel === riskFilter);
 
   const highRisk = assessments.filter((a) => a.riskLevel === "High").length;
+  const mediumRisk = assessments.filter((a) => a.riskLevel === "Medium").length;
   const lowRisk = assessments.filter((a) => a.riskLevel === "Low").length;
   const avgScore = assessments.length
     ? Math.round(assessments.reduce((s, a) => s + a.score, 0) / assessments.length)
@@ -96,29 +99,50 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {statCards.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-            >
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-xl ${stat.bgClass}`}>
-                      <stat.icon className={`h-5 w-5 ${stat.iconClass}`} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {statCards.map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.08 }}
+              >
+                <Card className="hover:shadow-lg transition-shadow h-full">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl ${stat.bgClass}`}>
+                        <stat.icon className={`h-5 w-5 ${stat.iconClass}`} />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">{stat.value}</p>
+                        <p className="text-xs text-muted-foreground">{stat.label}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{stat.value}</p>
-                      <p className="text-xs text-muted-foreground">{stat.label}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.32 }}
+          >
+            <Card className="hover:shadow-lg transition-shadow h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <PieChart className="h-4 w-4" />
+                  Risk Distribution
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RiskDonut
+                  counts={{ High: highRisk, Medium: mediumRisk, Low: lowRisk }}
+                />
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
 
         <Card className="shadow-sm">
@@ -204,7 +228,12 @@ export default function Dashboard() {
                         {a.status}
                       </span>
                     </TableCell>
-                    <TableCell className="font-semibold">{a.score}/100</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <span className="font-semibold tabular-nums">{a.score}/100</span>
+                        <Sparkline values={(a.runHistory ?? []).map((r) => r.score)} />
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <RiskBadge level={a.riskLevel} />
                     </TableCell>

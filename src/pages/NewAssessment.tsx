@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, Link as LinkIcon, X, ArrowRight, ArrowLeft, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { FrameworkSummary, RiskProfile } from "@/types/assessment";
+import { AssessmentPipeline, PipelineEvent } from "@/components/assessment/AssessmentPipeline";
 
 const RISK_LEVELS = ["low", "moderate", "high"] as const;
 
@@ -131,6 +132,7 @@ export default function NewAssessment() {
   };
 
   const [statusMessage, setStatusMessage] = useState("");
+  const [pipelineEvent, setPipelineEvent] = useState<PipelineEvent | null>(null);
 
   const startAssessment = async () => {
     setLoading(true);
@@ -184,6 +186,7 @@ export default function NewAssessment() {
       eventSource.onmessage = (e) => {
         try {
           const data = JSON.parse(e.data);
+          if (data.step && data.step !== "idle") setPipelineEvent(data);
           if (data.message) setStatusMessage(data.message);
         } catch { /* ignore parse errors */ }
       };
@@ -197,6 +200,7 @@ export default function NewAssessment() {
     const result = await generateChecklistFromAI(vendorName, checklistAllControls, id, frameworkId);
 
     eventSource?.close();
+    setPipelineEvent(null);
 
     const assessmentData = {
       id,
@@ -402,13 +406,25 @@ export default function NewAssessment() {
                   {loading || uploading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {statusMessage || (uploading ? "Uploading Files…" : "Running Assessment…")}
+                      {uploading ? "Uploading Files…" : "Running Assessment…"}
                     </>
                   ) : (
                     "Start Assessment"
                   )}
                 </Button>
               </div>
+
+              {loading && (
+                <AssessmentPipeline
+                  event={
+                    pipelineEvent ?? {
+                      step: "idle",
+                      message: statusMessage || "Preparing documents…",
+                      percent: 0,
+                    }
+                  }
+                />
+              )}
             </CardContent>
           </Card>
         )}

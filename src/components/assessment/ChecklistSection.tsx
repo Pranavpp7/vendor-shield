@@ -116,8 +116,20 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                               {statusLabel(control.status)}
                             </span>
                             {typeof control.confidence === "number" && (
-                              <span className="text-[10px] text-muted-foreground ml-2">
-                                {Math.round(control.confidence * 100)}% confidence
+                              <span className="inline-flex items-center gap-1.5 ml-2 align-middle">
+                                <span
+                                  className="inline-block h-1 w-10 rounded-full bg-muted overflow-hidden"
+                                  role="img"
+                                  aria-label={`Confidence ${Math.round(control.confidence * 100)}%`}
+                                >
+                                  <span
+                                    className="block h-full rounded-full bg-accent transition-all duration-500"
+                                    style={{ width: `${Math.round(control.confidence * 100)}%` }}
+                                  />
+                                </span>
+                                <span className="text-[10px] text-muted-foreground tabular-nums">
+                                  {Math.round(control.confidence * 100)}%
+                                </span>
                               </span>
                             )}
                           </>
@@ -163,15 +175,8 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                               (() => {
                                 const isUrl = control.evidenceSource!.startsWith("http");
                                 return (
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                                      isUrl
-                                        ? "bg-primary/10 text-primary border border-primary/20"
-                                        : "bg-accent/10 text-accent border border-accent/20"
-                                    }`}>
-                                      {isUrl ? <Globe className="h-2.5 w-2.5" /> : <FileText className="h-2.5 w-2.5" />}
-                                      {isUrl ? "Public Source" : "Uploaded Document"}
-                                    </span>
+                                  <div className="space-y-1.5 mt-1">
+                                    {/* The evidence quote, presented as a citation */}
                                     {isUrl ? (
                                       <a
                                         href={control.evidenceSource}
@@ -186,19 +191,40 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                                         <ExternalLink className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
                                       </a>
                                     ) : (
-                                      <button
-                                        className="flex items-center gap-1 group/evidence cursor-pointer hover:opacity-80 transition-opacity"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          onNavigateToDocs?.(control.evidenceSource);
-                                        }}
-                                      >
-                                        <span className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2">
-                                          {control.evidenceSource}
-                                        </span>
-                                        <ExternalLink className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
-                                      </button>
+                                      <blockquote className="border-l-2 border-accent pl-3 py-1 text-xs italic text-foreground/75 bg-accent/5 rounded-r">
+                                        “{control.evidenceSource}”
+                                      </blockquote>
                                     )}
+                                    {/* Source chips: which documents backed the retrieval */}
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {(control.citations ?? []).slice(0, 3).map((cite, ci) => (
+                                        <button
+                                          key={`${cite.document}-${ci}`}
+                                          className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors"
+                                          title={cite.excerpt}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onNavigateToDocs?.(cite.document);
+                                          }}
+                                        >
+                                          {cite.document.startsWith("http")
+                                            ? <Globe className="h-2.5 w-2.5" />
+                                            : <FileText className="h-2.5 w-2.5" />}
+                                          <span className="truncate max-w-[160px]">{cite.document}</span>
+                                          {typeof cite.similarity === "number" && (
+                                            <span className="text-accent/70 tabular-nums">
+                                              {Math.round(cite.similarity * 100)}%
+                                            </span>
+                                          )}
+                                        </button>
+                                      ))}
+                                      {(control.citations ?? []).length === 0 && !isUrl && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
+                                          <FileText className="h-2.5 w-2.5" />
+                                          Uploaded Document
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 );
                               })()

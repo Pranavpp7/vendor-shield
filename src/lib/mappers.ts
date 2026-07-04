@@ -76,6 +76,10 @@ export function mapBackendAssessment(row: any): Assessment {
     error: row.error,
     frameworkId: row.framework_id || "nist-800-53",
     reviewQueue: row.review_queue || [],
+    runHistory: (row.run_history || []).map((r: any) => ({
+      score: r.score ?? 0,
+      ranAt: r.ran_at || "",
+    })),
     riskProfile: row.risk_profile || null,
     inherentRisk: row.inherent_risk
       ? { tier: row.inherent_risk.tier, points: row.inherent_risk.points }
