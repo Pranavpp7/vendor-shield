@@ -171,64 +171,73 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                                 <span className="font-bold">Gap:</span> {control.gap}
                               </div>
                             )}
-                            {control.evidenceSource && control.evidenceSource !== "No evidence found" && control.evidenceSource !== "No documents uploaded" && (
-                              (() => {
-                                const isUrl = control.evidenceSource!.startsWith("http");
-                                return (
-                                  <div className="space-y-1.5 mt-1">
-                                    {/* The evidence quote, presented as a citation */}
-                                    {isUrl ? (
-                                      <a
-                                        href={control.evidenceSource}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1 group/evidence cursor-pointer hover:opacity-80 transition-opacity"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <span className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors truncate max-w-[250px] underline underline-offset-2">
-                                          {control.evidenceSource}
-                                        </span>
-                                        <ExternalLink className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
-                                      </a>
-                                    ) : (
-                                      <blockquote className="border-l-2 border-accent pl-3 py-1 text-xs italic text-foreground/75 bg-accent/5 rounded-r">
-                                        “{control.evidenceSource}”
-                                      </blockquote>
-                                    )}
-                                    {/* Source chips: which documents backed the retrieval */}
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      {(control.citations ?? []).slice(0, 3).map((cite, ci) => (
-                                        <button
-                                          key={`${cite.document}-${ci}`}
-                                          className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors"
-                                          title={cite.excerpt}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onNavigateToDocs?.(cite.document);
-                                          }}
-                                        >
-                                          {cite.document.startsWith("http")
-                                            ? <Globe className="h-2.5 w-2.5" />
-                                            : <FileText className="h-2.5 w-2.5" />}
-                                          <span className="truncate max-w-[160px]">{cite.document}</span>
-                                          {typeof cite.similarity === "number" && (
-                                            <span className="text-accent/70 tabular-nums">
-                                              {Math.round(cite.similarity * 100)}%
-                                            </span>
-                                          )}
-                                        </button>
-                                      ))}
-                                      {(control.citations ?? []).length === 0 && !isUrl && (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
-                                          <FileText className="h-2.5 w-2.5" />
-                                          Uploaded Document
-                                        </span>
+                            {(() => {
+                              const hasQuote =
+                                control.evidenceSource &&
+                                control.evidenceSource !== "No evidence found" &&
+                                control.evidenceSource !== "No documents uploaded";
+                              const isUrl = hasQuote && control.evidenceSource!.startsWith("http");
+                              const citations = control.citations ?? [];
+                              if (!hasQuote && citations.length === 0) return null;
+                              return (
+                                <div className="space-y-1.5 mt-1">
+                                  {/* The evidence quote, presented as a citation */}
+                                  {isUrl ? (
+                                    <a
+                                      href={control.evidenceSource}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1 group/evidence cursor-pointer hover:opacity-80 transition-opacity"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <span className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors truncate max-w-[250px] underline underline-offset-2">
+                                        {control.evidenceSource}
+                                      </span>
+                                      <ExternalLink className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
+                                    </a>
+                                  ) : hasQuote ? (
+                                    <blockquote className="border-l-2 border-accent pl-3 py-1 text-xs italic text-foreground/75 bg-accent/5 rounded-r">
+                                      “{control.evidenceSource}”
+                                    </blockquote>
+                                  ) : null}
+                                  {/* Source chips — ALWAYS shown when retrieval found passages,
+                                      even without a direct quote, so a negative finding shows
+                                      what was actually reviewed */}
+                                  {citations.length > 0 && (
+                                    <div className="space-y-1">
+                                      {!hasQuote && (
+                                        <p className="text-[10px] text-muted-foreground">
+                                          No direct evidence — closest passages reviewed:
+                                        </p>
                                       )}
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {citations.slice(0, 3).map((cite, ci) => (
+                                          <button
+                                            key={`${cite.document}-${ci}`}
+                                            className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors"
+                                            title={cite.excerpt}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onNavigateToDocs?.(cite.document);
+                                            }}
+                                          >
+                                            {cite.document.startsWith("http")
+                                              ? <Globe className="h-2.5 w-2.5" />
+                                              : <FileText className="h-2.5 w-2.5" />}
+                                            <span className="truncate max-w-[160px]">{cite.document}</span>
+                                            {typeof cite.similarity === "number" && (
+                                              <span className="text-accent/70 tabular-nums">
+                                                {Math.round(cite.similarity * 100)}%
+                                              </span>
+                                            )}
+                                          </button>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                );
-                              })()
-                            )}
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </motion.div>
                       )}

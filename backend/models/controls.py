@@ -262,9 +262,29 @@ WHAT GOOD LOOKS LIKE (the standard):
 RETRIEVED EVIDENCE FROM VENDOR DOCUMENTS:
 {chunks_text}
 
+WHAT TO LOOK FOR:
+{control.get('what_to_look_for', 'Evidence relevant to the control description above.')}
+
 SCORING INSTRUCTIONS:
 Based ONLY on the evidence above from the vendor's own documents, score this control.
 Do NOT use any knowledge outside of these documents.
+
+ATTRIBUTION RULE (critical — check this BEFORE scoring):
+Evidence only counts if it is the VENDOR asserting something about ITS OWN
+practices, systems, or policies ("we encrypt...", "our SOC monitors...",
+"the platform enforces...").  Do NOT credit:
+- Generic how-to or best-practice guidance addressed to the reader
+  ("you should enable MFA", "configure alerts in your SIEM")
+- Lists of example products or vendors ("SIEM options: Datadog, Splunk,
+  SolarWinds") — naming tools the READER might use is not a claim that the
+  vendor uses them
+- Descriptions of industry standards, threat landscapes, or what
+  organizations in general do
+Vendor documents often include educational/marketing content written FOR
+customers; treating that as the vendor's self-attestation fabricates claims
+the vendor never made.  If the only relevant text is generic guidance,
+score NO_EVIDENCE and state in "reasoning" that the documents contain
+guidance about the topic but never state the vendor's own practice.
 
 Score definitions:
 - PASS: Clear, specific evidence that the vendor meets this control
@@ -272,14 +292,29 @@ Score definitions:
 - FAIL: The documents contain evidence that the vendor does NOT meet this control
 - NO_EVIDENCE: The documents contain no relevant information about this control
 
+Write like an auditor preparing a workpaper that a security reviewer will rely on:
+- "evidence_quote" must be a VERBATIM quote copied exactly from one of the
+  chunks above (the single strongest passage). Never paraphrase. null only
+  when truly nothing relevant exists.
+- "reasoning" must be 2-4 sentences: state what the evidence says, how it
+  compares to the standard in "what good looks like", and what (if anything)
+  falls short. Name specifics (mechanisms, frequencies, scopes) — never write
+  generic filler like "the vendor addresses this control".
+- If NO_EVIDENCE: in "reasoning", name the specific topics you searched the
+  chunks for (e.g. "no mention of MFA, one-time passwords, hardware tokens,
+  or any second authentication factor") so a human can trust the negative
+  finding without re-reading the documents.
+- "gap" must be actionable: what document, policy detail, or artifact the
+  vendor should provide to close it.
+
 Respond in this exact JSON format:
 {{
   "control_id": "{control['id']}",
   "score": "PASS|PARTIAL|FAIL|NO_EVIDENCE",
   "confidence": 0.85,
-  "evidence_quote": "exact quote from the vendor documents that supports your score, or null if NO_EVIDENCE",
+  "evidence_quote": "verbatim quote from the chunks above, or null if NO_EVIDENCE",
   "evidence_chunk": 1,
-  "reasoning": "1-2 sentence explanation of your scoring decision",
+  "reasoning": "2-4 auditor-grade sentences as specified above",
   "gap": "what is missing or needs improvement, or null if PASS"
 }}
 
@@ -296,7 +331,12 @@ confidence is a float from 0.0 to 1.0:
 # Score calculation
 # -------------------------------------------------------------------------
 
+# Values for VERIFIED findings only.  NO_EVIDENCE is deliberately absent:
+# "the documents don't mention this" is a documentation gap (reported as
+# reduced coverage), NOT a confirmed deficiency (that's FAIL, worth 0.0).
 SCORE_MAP = {"PASS": 1.0, "PARTIAL": 0.5, "FAIL": 0.0, "NO_EVIDENCE": 0.0}
+
+_UNVERIFIED = "NO_EVIDENCE"
 
 
 def effective_score(result: dict) -> str:
@@ -314,36 +354,59 @@ def calculate_scores(
     """
     Given a list of scored controls, calculate domain and overall scores.
 
+    SCORING SEMANTICS (coverage-adjusted):
+        The score answers "of what we could verify, how good is it?"
+        - PASS=1.0, PARTIAL=0.5, FAIL=0.0 count toward the score.
+        - NO_EVIDENCE and unevaluated controls are EXCLUDED from every
+          denominator: an absent document is an unknown, not a failure.
+          Punishing unknowns as failures conflates "we couldn't check"
+          with "we checked and it's bad" — a well-certified vendor
+          assessed from thin public docs would otherwise score like a
+          genuinely deficient one.
+        - The unknown surface is reported separately as `coverage`
+          (percent of framework controls with verifiable findings).
+          Consumers MUST show coverage next to the score; a 90/100 at
+          30% coverage is a very different statement than at 100%.
+
     control_results format:
     [{"control_id": "IAM-001", "score": "PASS", ...}, ...]
     When a result carries an "analyst_score" (human override), it takes
-    precedence over the AI "score".
-
-    Score values: PASS=1.0, PARTIAL=0.5, FAIL=0.0, NO_EVIDENCE=0.0
+    precedence over the AI "score" — overriding NO_EVIDENCE to a real
+    verdict moves that control INTO the scored set (raises coverage).
     """
     results_by_id = {r["control_id"]: r for r in control_results}
 
     domain_scores = {}
-    all_scores = []
+    verified_vals: list[float] = []
+    total_controls = 0
 
     for domain in get_domains(framework_id):
         domain_controls = get_controls_by_domain(domain, framework_id)
-        domain_total = 0.0
-        domain_count = len(domain_controls)
+        total_controls += len(domain_controls)
+        domain_vals: list[float] = []
 
         for control in domain_controls:
             result = results_by_id.get(control["id"])
-            if result:
-                score_val = SCORE_MAP.get(effective_score(result), 0.0)
-                domain_total += score_val
-                all_scores.append(score_val)
-            else:
-                all_scores.append(0.0)
+            if result is None:
+                continue  # never evaluated → unknown, not a failure
+            score = effective_score(result)
+            if score == _UNVERIFIED:
+                continue  # documentation gap → coverage, not score
+            domain_vals.append(SCORE_MAP.get(score, 0.0))
 
-        domain_pct = round((domain_total / domain_count) * 100) if domain_count > 0 else 0
-        domain_scores[domain] = domain_pct
+        verified_vals.extend(domain_vals)
+        # A domain with nothing verifiable scores 0 — the control-level
+        # counts (all "no evidence") make the reason visible in the UI.
+        domain_scores[domain] = (
+            round(sum(domain_vals) / len(domain_vals) * 100) if domain_vals else 0
+        )
 
-    overall = round(sum(all_scores) / len(all_scores) * 100) if all_scores else 0
+    overall = (
+        round(sum(verified_vals) / len(verified_vals) * 100) if verified_vals else 0
+    )
+    coverage = (
+        round(len(verified_vals) / total_controls * 100) if total_controls else 0
+    )
 
     if overall >= 70:
         risk_level = "Low"
@@ -356,4 +419,7 @@ def calculate_scores(
         "overall_score": overall,
         "risk_level": risk_level,
         "domain_scores": domain_scores,
+        "coverage": coverage,
+        "verified_controls": len(verified_vals),
+        "total_controls": total_controls,
     }

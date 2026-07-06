@@ -131,10 +131,60 @@ class TestCalculateScores:
         ]
         assert calculate_scores(results, "soc2-tsc")["overall_score"] == 50
 
-    def test_missing_controls_count_as_zero(self):
+    def test_unevaluated_controls_reduce_coverage_not_score(self):
+        # A control that was never evaluated is an unknown, not a failure
         soc2 = get_all_controls("soc2-tsc")
         results = [{"control_id": soc2[0]["id"], "score": "PASS"}]
-        assert calculate_scores(results, "soc2-tsc")["overall_score"] == 10
+        scores = calculate_scores(results, "soc2-tsc")
+        assert scores["overall_score"] == 100
+        assert scores["coverage"] == 10
+        assert scores["verified_controls"] == 1
+        assert scores["total_controls"] == 10
+
+    def test_no_evidence_excluded_from_score_but_counted_in_coverage(self):
+        # THE Bug-1 regression test: "documents don't mention it" must not
+        # score like "documents prove it's broken".  A certified vendor
+        # assessed from thin public docs is unknown, not High Risk.
+        soc2 = get_all_controls("soc2-tsc")
+        results = [
+            {"control_id": c["id"], "score": "PASS" if i < 5 else "NO_EVIDENCE"}
+            for i, c in enumerate(soc2)
+        ]
+        scores = calculate_scores(results, "soc2-tsc")
+        assert scores["overall_score"] == 100   # everything verified passed
+        assert scores["coverage"] == 50         # but only half was verifiable
+        assert scores["risk_level"] == "Low"
+
+    def test_fail_still_tanks_the_score(self):
+        # FAIL is a VERIFIED deficiency — it must keep counting as 0
+        soc2 = get_all_controls("soc2-tsc")
+        results = [
+            {"control_id": c["id"], "score": "PASS" if i < 5 else "FAIL"}
+            for i, c in enumerate(soc2)
+        ]
+        scores = calculate_scores(results, "soc2-tsc")
+        assert scores["overall_score"] == 50
+        assert scores["coverage"] == 100
+
+    def test_all_no_evidence_scores_zero_with_zero_coverage(self):
+        results = [
+            {"control_id": c["id"], "score": "NO_EVIDENCE"}
+            for c in get_all_controls("soc2-tsc")
+        ]
+        scores = calculate_scores(results, "soc2-tsc")
+        assert scores["overall_score"] == 0
+        assert scores["coverage"] == 0
+        assert scores["risk_level"] == "High"
+
+    def test_overriding_no_evidence_raises_coverage(self):
+        soc2 = get_all_controls("soc2-tsc")
+        results = [
+            {"control_id": c["id"], "score": "NO_EVIDENCE"} for c in soc2
+        ]
+        results[0]["analyst_score"] = "PASS"  # human verified out-of-band
+        scores = calculate_scores(results, "soc2-tsc")
+        assert scores["coverage"] == 10
+        assert scores["overall_score"] == 100
 
     def test_overrides_change_the_math(self):
         results = [

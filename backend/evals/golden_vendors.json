@@ -20,6 +20,23 @@
       }
     },
     {
+      "id": "eval-generic-guide",
+      "name": "Generic buyer's guide (attribution trap — nothing is self-attestation)",
+      "document": "A Practical Roadmap to Zero Trust Security (Vendor-Agnostic Guide)\n\nThis guide helps your organization plan its zero trust journey, whichever products you choose.\n\nStep 1 — Identity: You should enforce multi-factor authentication across your entire workforce. Popular identity providers include Okta, Azure AD, Duo, and Ping Identity; any of them can enforce MFA and single sign-on for your applications.\n\nStep 2 — Least privilege: Adopt role-based access control in your organization. Map job functions to roles, grant each role only the permissions it needs, and schedule quarterly access reviews with your IT team.\n\nStep 3 — Monitoring: Configure alerts in the SIEM based on findings over time. Common SIEM choices: Datadog, Splunk, SolarWinds, and Microsoft Sentinel. Route alerts to your on-call rotation and tune rules monthly to reduce noise.\n\nStep 4 — Encrypt everything: Ensure your data is encrypted at rest (AES-256 is the industry standard) and in transit (TLS 1.2 or higher). Most cloud providers offer these features — enable them in your configuration.\n\nStep 5 — Prepare for incidents: Every organization needs an incident response plan. Define severity levels, assign an on-call rotation, and rehearse with tabletop exercises at least annually.\n\nRemember: zero trust is a journey, not a product. Assess your current posture, pick the tools that fit your stack, and iterate.",
+      "expected": {
+        "GR-001": ["NO_EVIDENCE"],
+        "GR-002": ["NO_EVIDENCE"],
+        "AC-001": ["NO_EVIDENCE"],
+        "AC-002": ["NO_EVIDENCE"],
+        "AC-003": ["NO_EVIDENCE"],
+        "SO-001": ["NO_EVIDENCE"],
+        "SO-002": ["NO_EVIDENCE"],
+        "SO-003": ["NO_EVIDENCE"],
+        "CV-001": ["NO_EVIDENCE"],
+        "CV-002": ["NO_EVIDENCE"]
+      }
+    },
+    {
       "id": "eval-weak-vendor",
       "name": "Vague vendor (should be PARTIAL / NO_EVIDENCE heavy)",
       "document": "PixelBarn — Your Data Is Safe With Us\n\nAt PixelBarn we care deeply about security. Our team uses strong passwords and we encourage two-factor authentication for administrators. Files are hosted on well-known cloud providers, which keep things secure. We look into problems whenever they come up and fix bugs quickly. From time to time we review who has access to what. We back up important data regularly.",

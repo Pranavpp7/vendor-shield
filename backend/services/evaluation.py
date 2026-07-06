@@ -102,8 +102,10 @@ def _parse_llm_json(raw: str, control_id: str) -> dict:
             "confidence": 0.0,
             "evidence_quote": None,
             "evidence_chunk": None,
-            "reasoning": "Unable to evaluate — document evidence was insufficient or the model timed out. Try re-running the assessment.",
-            "gap": "Could not evaluate — retry may help",
+            # Honest fallback: this is a SYSTEM failure, not a finding about
+            # the vendor — never imply the documents were reviewed and lacking.
+            "reasoning": "This control could not be scored: the AI model's response was malformed and could not be processed. This is a system issue, not a finding about the vendor's documents.",
+            "gap": "Re-run the assessment to score this control.",
         }
 
 
@@ -202,8 +204,8 @@ async def evaluate_control(control: dict, assessment_id: str) -> ControlResult:
             "confidence": 0.0,
             "evidence_quote": None,
             "evidence_chunk": None,
-            "reasoning": "Model call failed due to rate limiting. Re-run the assessment to retry this control.",
-            "gap": "Could not evaluate due to LLM error",
+            "reasoning": "This control could not be scored: the AI provider call failed (rate limit or network error). This is a system issue, not a finding about the vendor's documents.",
+            "gap": "Re-run the assessment to score this control.",
         })
 
     # 4. Parse the JSON response

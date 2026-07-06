@@ -154,6 +154,20 @@ export default function AssessmentDetail() {
                     Framework: {assessment.frameworkId === "soc2-tsc" ? "SOC 2 TSC" : "NIST 800-53"}
                   </span>
                 )}
+                {assessment.evidenceCoverage && (
+                  <span
+                    className={`text-sm font-medium ${
+                      assessment.evidenceCoverage.pct < 50
+                        ? "text-amber-600"
+                        : "text-muted-foreground"
+                    }`}
+                    title="Percent of framework controls with a verified finding (PASS/PARTIAL/FAIL). Unverified controls are excluded from the score — they are documentation gaps, not failures."
+                  >
+                    Coverage: {assessment.evidenceCoverage.pct}% (
+                    {assessment.evidenceCoverage.verified}/{assessment.evidenceCoverage.total}{" "}
+                    verified)
+                  </span>
+                )}
                 <span className="text-sm text-muted-foreground">
                   Date: {assessment.createdAt}
                 </span>

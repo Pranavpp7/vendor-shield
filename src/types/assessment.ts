@@ -138,6 +138,10 @@ export type Assessment = {
   reviewQueue?: string[];
   /** Score snapshots from previous runs of this assessment (oldest first). */
   runHistory?: { score: number; ranAt: string }[];
+  /** Evidence coverage: verified controls (PASS/PARTIAL/FAIL) vs framework
+   *  total. Unverified (NO_EVIDENCE) controls are excluded from the score,
+   *  not counted as failures — always shown next to the score. */
+  evidenceCoverage?: { verified: number; total: number; pct: number } | null;
   /** Economics of the latest run: LLM calls, tokens, cost, wall time. */
   runMetrics?: {
     llmCalls: number;

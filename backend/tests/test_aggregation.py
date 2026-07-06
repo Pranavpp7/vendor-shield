@@ -58,6 +58,9 @@ class TestAggregateResults:
         assert response.overall_score == 100
         assert response.risk_level.value == "Low"
         assert response.framework_id == "soc2-tsc"
+        assert response.coverage == 100
+        assert response.verified_controls == 10
+        assert response.total_controls == 10
         assert set(response.domain_scores) == set(
             c["domain"] for c in get_all_controls("soc2-tsc")
         )

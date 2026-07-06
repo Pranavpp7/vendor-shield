@@ -85,8 +85,9 @@ class TestOverride:
         r = client.patch("/api/assessments/a2/controls/GR-001/override",
                          json={"score": "PASS", "comment": "verified out-of-band"})
         assert r.status_code == 200
-        # soc2 has 10 controls: PASS(1) + PARTIAL(0.5) + 8 missing → 15%
-        assert r.json()["overall_score"] == 15
+        # Coverage-adjusted: PASS(1) + PARTIAL(0.5) verified; the NO_EVIDENCE
+        # control and 7 unevaluated ones reduce coverage, not the score → 75%
+        assert r.json()["overall_score"] == 75
 
         stored = get_assessment("a2")
         c = next(x for x in stored["control_results"] if x["control_id"] == "GR-001")

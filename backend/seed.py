@@ -34,24 +34,62 @@ from storage.local_store import (
 # ── Score patterns per vendor ────────────────────────────────────────────────
 # control index → score; anything unlisted falls back to the default.
 
-REASONING = {
-    "PASS": "The documentation directly and specifically addresses this control with named mechanisms and scope.",
-    "PARTIAL": "The documentation mentions this area but lacks specifics on scope, frequency, or enforcement.",
-    "FAIL": "The documentation indicates practices that do not meet this control's standard.",
-    "NO_EVIDENCE": "No relevant statements about this control were found in the provided documents.",
-}
-
 GAP = {
     "PASS": None,
-    "PARTIAL": "Request specifics: named tooling, defined frequency, and enforcement scope.",
+    "PARTIAL": "Request specifics: named tooling, defined frequency, and enforcement scope for this control.",
     "FAIL": "This practice must be remediated before the vendor meets the control standard.",
-    "NO_EVIDENCE": "Ask the vendor to provide documentation covering this control.",
+    "NO_EVIDENCE": "Ask the vendor for documentation covering this control — policy excerpt, audit report section, or configuration evidence.",
 }
 
-EVIDENCE = {
-    "PASS": "See the vendor security overview — the relevant section names the mechanism and its scope explicitly.",
-    "PARTIAL": "A brief mention appears in the security overview, without implementation detail.",
+# Verbatim sentences from each vendor's seed document, used as evidence
+# quotes so the demo reads like real pipeline output (which quotes verbatim).
+VENDOR_QUOTES = {
+    "acme": [
+        "All customer data at rest is encrypted with AES-256; keys live in a dedicated KMS with annual rotation.",
+        "All traffic uses TLS 1.3 with mTLS between internal services.",
+        "MFA with hardware keys is mandatory for every employee.",
+        "Quarterly access reviews are logged and audited.",
+        "An independent firm performs annual penetration tests; findings are tracked to closure within 30 days.",
+        "Our 24/7 SOC monitors a central SIEM with 13-month log retention.",
+    ],
+    "shadowpix": [
+        "Passwords are required for all accounts.",
+        "Our team reviews systems periodically and applies updates when available.",
+    ],
+    "meridian": [
+        "Cardholder data is encrypted at rest (AES-256) and in transit (TLS 1.2+).",
+        "MFA is enforced for administrative access.",
+        "We maintain an incident response plan reviewed annually and notify customers of confirmed breaches within 72 hours.",
+        "Vulnerability scans run monthly; we are working to formalize our data retention schedule and centralized log correlation.",
+    ],
 }
+
+
+def _reasoning(score: str, title: str, quote: str | None) -> str:
+    t = title.lower()
+    if score == "PASS":
+        return (
+            f"The security overview directly evidences {t}: \"{(quote or '')[:90]}…\" "
+            f"The stated mechanism and scope align with the standard for this control, "
+            f"with no qualifying language or exceptions noted."
+        )
+    if score == "PARTIAL":
+        return (
+            f"The documents touch on {t} — \"{(quote or '')[:80]}…\" — but stop short of "
+            f"the standard: no defined frequency, enforcement scope, or named tooling is "
+            f"given, so full conformance cannot be confirmed from this evidence alone."
+        )
+    if score == "FAIL":
+        return (
+            f"The available statements indicate practices below the standard for {t}: "
+            f"the described approach is reactive and lacks the required controls, which "
+            f"constitutes affirmative evidence of a gap rather than mere silence."
+        )
+    return (
+        f"No mention of {t} was found: the retrieved passages do not reference the "
+        f"expected mechanisms, policies, or artifacts for this control, and the closest "
+        f"matching text covers unrelated practices."
+    )
 
 
 def _iso(days_ago: int) -> str:
@@ -59,23 +97,42 @@ def _iso(days_ago: int) -> str:
 
 
 def build_controls(framework_id: str, pattern: dict[int, str], default: str,
-                   confidences: dict[int, float] | None = None) -> list[dict]:
+                   confidences: dict[int, float] | None = None,
+                   vendor: str = "acme", doc_name: str = "security-overview.txt") -> list[dict]:
+    quotes = VENDOR_QUOTES[vendor]
     controls = get_all_controls(framework_id)
     results = []
     for i, c in enumerate(controls):
         score = pattern.get(i, default)
-        confidence = (confidences or {}).get(i, 0.9 if score == "PASS" else 0.7)
+        has_quote = score in ("PASS", "PARTIAL")
+        quote = quotes[i % len(quotes)] if has_quote else None
+        confidence = (confidences or {}).get(
+            i, round(0.82 + (i % 4) * 0.04, 2) if score == "PASS"
+            else 0.6 if score == "PARTIAL" else 0.45 if score == "FAIL" else 0.15
+        )
+        # Real pipeline always records what retrieval returned — mirror that:
+        # strong matches for evidenced controls, weak ones for negatives.
+        base_sim = 0.78 if has_quote else 0.42
+        citations = [
+            {
+                "document": doc_name,
+                "page": None,
+                "excerpt": (quote or quotes[i % len(quotes)])[:140],
+                "similarity": round(base_sim - k * 0.07 + (i % 3) * 0.015, 3),
+            }
+            for k in range(2)
+        ]
         results.append({
             "control_id": c["id"],
             "score": score,
             "confidence": confidence,
-            "evidence_quote": EVIDENCE.get(score),
-            "evidence_chunk": 1 if score in EVIDENCE else None,
-            "reasoning": REASONING[score],
+            "evidence_quote": quote,
+            "evidence_chunk": 1 if has_quote else None,
+            "reasoning": _reasoning(score, c["title"], quote),
             "gap": GAP[score],
             "domain": c["domain"],
             "title": c["title"],
-            "citations": [],
+            "citations": citations,
             "analyst_score": None,
             "analyst_comment": None,
             "overridden_by": None,
@@ -123,7 +180,8 @@ def seed() -> None:
     now = datetime.now(timezone.utc)
 
     # ── 1. AcmeCloud — strong vendor, NIST, two runs (improvement story) ────
-    strong = build_controls("nist-800-53", {3: "PARTIAL", 13: "PARTIAL"}, "PASS")
+    strong = build_controls("nist-800-53", {3: "PARTIAL", 13: "PARTIAL"}, "PASS",
+                            vendor="acme", doc_name="acme-cloud-security-overview.txt")
     strong_scores = compute("nist-800-53", strong)
     save_assessment("acme-cloud-demo", {
         "vendor_name": "AcmeCloud (Demo)",
@@ -153,6 +211,7 @@ def seed() -> None:
         "nist-800-53",
         {3: "PARTIAL", 13: "PARTIAL", 5: "NO_EVIDENCE", 9: "NO_EVIDENCE", 11: "FAIL", 17: "FAIL", 7: "PARTIAL"},
         "PASS",
+        vendor="acme", doc_name="acme-cloud-security-overview.txt",
     )
     earlier_scores = compute("nist-800-53", earlier)
     save_assessment("acme-cloud-demo-r1", {
@@ -173,6 +232,7 @@ def seed() -> None:
         {0: "PARTIAL", 2: "PARTIAL", 4: "FAIL", 6: "NO_EVIDENCE"},
         "NO_EVIDENCE",
         confidences={1: 0.3, 3: 0.35, 6: 0.25},  # low-confidence → review queue
+        vendor="shadowpix", doc_name="shadowpix-security-overview.txt",
     )
     # One analyst override with audit trail: AI said NO_EVIDENCE, human
     # confirmed backups exist after a call with the vendor.
@@ -213,6 +273,7 @@ def seed() -> None:
         {0: "PASS", 5: "PASS", 6: "PASS", 8: "PARTIAL", 9: "NO_EVIDENCE",
          10: "PASS", 13: "PASS", 15: "PASS", 16: "PARTIAL", 18: "NO_EVIDENCE"},
         "PARTIAL",
+        vendor="meridian", doc_name="meridian-pay-security-overview.txt",
     )
     mid_scores = compute("nist-800-53", mid)
     save_assessment("meridian-pay-demo", {

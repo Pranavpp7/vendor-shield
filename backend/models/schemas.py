@@ -217,6 +217,12 @@ class AssessmentResponse(BaseModel):
     summary: str = ""                           # LLM-generated executive summary
     created_at: str = ""                        # ISO-8601 UTC timestamp of assessment run
     framework_id: str = "nist-800-53"           # framework the controls came from
+    # Evidence coverage: % of framework controls with a VERIFIED finding
+    # (PASS/PARTIAL/FAIL). NO_EVIDENCE controls are excluded from the score
+    # denominator and surface here instead — always display next to the score.
+    coverage: Optional[int] = None
+    verified_controls: Optional[int] = None
+    total_controls: Optional[int] = None
 
 
 class ChatResponse(BaseModel):

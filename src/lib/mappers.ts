@@ -53,6 +53,19 @@ export function mapDomainScores(
 
 export function mapBackendAssessment(row: any): Assessment {
   const rawControls = row.control_results || [];
+  // Coverage is computed from the effective (override-aware) scores so an
+  // analyst overriding NO_EVIDENCE to a real verdict raises coverage live.
+  const verified = rawControls.filter(
+    (r: any) => (r.analyst_score || r.score) !== "NO_EVIDENCE"
+  ).length;
+  const evidenceCoverage =
+    rawControls.length > 0
+      ? {
+          verified,
+          total: rawControls.length,
+          pct: Math.round((verified / rawControls.length) * 100),
+        }
+      : null;
   const rawStatus: string = row.status || "completed";
   const status = (
     rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)
@@ -76,6 +89,7 @@ export function mapBackendAssessment(row: any): Assessment {
     error: row.error,
     frameworkId: row.framework_id || "nist-800-53",
     reviewQueue: row.review_queue || [],
+    evidenceCoverage,
     runHistory: (row.run_history || []).map((r: any) => ({
       score: r.score ?? 0,
       ranAt: r.ran_at || "",

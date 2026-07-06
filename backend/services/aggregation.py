@@ -130,6 +130,9 @@ def aggregate_results(
         gaps_summary=gaps_summary,
         created_at=datetime.now(timezone.utc).isoformat(),
         framework_id=framework_id or "nist-800-53",
+        coverage=scores.get("coverage"),
+        verified_controls=scores.get("verified_controls"),
+        total_controls=scores.get("total_controls"),
     )
 
 

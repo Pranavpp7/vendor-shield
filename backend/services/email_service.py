@@ -368,14 +368,20 @@ def generate_pdf_report(assessment: dict) -> bytes:
     except Exception:
         framework_name = "NIST SP 800-53 Rev.5"
 
+    verified_count = len(controls) - no_ev_count
+    coverage_pct = round(verified_count / len(controls) * 100) if controls else 0
     summary_text = (
         f"VendorShield evaluated <b>{vendor_name}</b> against the "
         f"<b>{len(controls)}</b> security controls of <b>{framework_name}</b> "
         f"across {len(domain_scores) or 4} domains. "
-        f"The assessment identified <b>{pass_count}</b> controls as fully satisfied, "
-        f"<b>{partial_count}</b> as partially satisfied, and "
-        f"<b>{fail_count + no_ev_count}</b> requiring immediate attention. "
-        f"Immediate focus is recommended on <b>{weakest_domain}</b>."
+        f"Of the <b>{verified_count}</b> controls verifiable from the provided "
+        f"documents (<b>{coverage_pct}%</b> evidence coverage), "
+        f"<b>{pass_count}</b> were fully satisfied, <b>{partial_count}</b> "
+        f"partially satisfied, and <b>{fail_count}</b> found deficient. "
+        f"<b>{no_ev_count}</b> controls could not be verified and are excluded "
+        f"from the score rather than counted as failures — see the follow-up "
+        f"questions for the evidence to request. "
+        f"Focus is recommended on <b>{weakest_domain}</b>."
     )
     if override_count:
         summary_text += (
