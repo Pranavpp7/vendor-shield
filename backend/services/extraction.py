@@ -37,6 +37,10 @@ class UnsafeURLError(ValueError):
     """Raised when a URL targets a private, loopback, or reserved address (SSRF guard)."""
 
 
+class ScannedPDFError(ValueError):
+    """Raised when a PDF has pages but effectively no extractable text (needs OCR)."""
+
+
 def _assert_public_http_url(url: str) -> None:
     """Reject URLs that could reach internal services (SSRF guard).
 
@@ -96,6 +100,18 @@ def extract_pdf(file_bytes: bytes, filename: str) -> list[ExtractedPage]:
                 page_number=i + 1,
                 source=filename,
             ))
+
+    # Honest failure for scanned/image-only PDFs: silently ingesting zero
+    # text would produce an all-NO_EVIDENCE assessment that looks like a
+    # vendor problem when it's actually an input problem.
+    total_chars = sum(len(p.text) for p in pages)
+    if len(reader.pages) > 0 and total_chars < 40 * len(reader.pages):
+        raise ScannedPDFError(
+            f"'{filename}' appears to be a scanned/image-only PDF — "
+            f"{len(reader.pages)} page(s) yielded almost no extractable text. "
+            "Run it through OCR first, or upload a text-based export."
+        )
+
     logger.info(f"Extracted {len(pages)} pages from PDF '{filename}'")
     return pages
 

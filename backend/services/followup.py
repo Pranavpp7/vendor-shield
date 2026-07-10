@@ -37,6 +37,8 @@ def _get_client() -> OpenAI:
         _client = OpenAI(
             api_key=settings.openrouter_api_key,
             base_url=settings.openrouter_base_url,
+            # Free-tier endpoints 429 under burst load; SDK retries with backoff.
+            max_retries=5,
         )
     return _client
 

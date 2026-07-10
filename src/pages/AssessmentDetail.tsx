@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, AlertCircle, Loader2, Info, History, AlertTriangle, XCircle, TrendingUp, UserCheck, MessageSquareText, Clock } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle, Loader2, Info, History, AlertTriangle, XCircle, TrendingUp, UserCheck, MessageSquareText, Clock, Download } from "lucide-react";
 import { ChatMessage, Assessment } from "@/types/assessment";
 import { useChecklistSchema } from "@/hooks/useChecklistSchema";
-import { generateChecklistFromAI, fetchAssessmentDetail } from "@/lib/api";
+import { generateChecklistFromAI, fetchAssessmentDetail, downloadAssessmentCsv } from "@/lib/api";
 import { toast } from "sonner";
 import { RunHistoryPanel } from "@/components/assessment/RunHistoryPanel";
 import { VendorTrendView } from "@/components/assessment/VendorTrendView";
@@ -192,6 +192,17 @@ export default function AssessmentDetail() {
               <Button variant="outline" onClick={() => setSummaryOpen(true)}>
                 <FileText className="h-4 w-4 mr-2" />
                 Summary
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  downloadAssessmentCsv(assessment.id).catch((err) =>
+                    toast.error(`Export failed: ${err.message}`)
+                  )
+                }
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
               </Button>
               <SendReportButton
                 assessmentId={assessment.id}

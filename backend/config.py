@@ -30,14 +30,26 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     # OpenRouter is OpenAI-compatible — point the OpenAI SDK at this URL.
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    # Model ID as it appears on OpenRouter.
+    # Model ID as it appears on OpenRouter.  ~$0.006 per 20-control
+    # assessment at current pricing — the eval-gated, verified default.
+    #
+    # Model changes MUST pass the eval gate first:
+    #     uv run python evals/run_evals.py
+    # Eval-gate history (don't retry these without new evidence):
+    #   - openai/gpt-oss-120b:free  → REJECTED 19/30 (malformed/truncated JSON)
+    #   - this model's ":free" tag  → REJECTED 19/30 (free-tier rate limits
+    #     exhaust retries under concurrent runs; fine for light manual use
+    #     with LLM_CONCURRENCY=1, unreliable for full assessments)
+    # For a true $0 setup, run a local model via Ollama and point
+    # OPENROUTER_BASE_URL at http://localhost:11434/v1.
     openrouter_model: str = "meta-llama/llama-3.3-70b-instruct"
     # Max concurrent LLM calls during an assessment run.  Higher = faster
-    # runs but more likely to hit provider rate limits.
+    # runs but more likely to hit provider rate limits (free tiers are
+    # stricter — the client retries 429s with backoff automatically).
     llm_concurrency: int = 4
     # USD per million tokens — used to estimate per-run cost shown in the UI.
-    # Defaults track meta-llama/llama-3.3-70b-instruct on OpenRouter; update
-    # these when changing openrouter_model.
+    # Defaults track meta-llama/llama-3.3-70b-instruct; set to 0 for
+    # :free models or local Ollama.
     llm_price_in_per_m: float = 0.12
     llm_price_out_per_m: float = 0.30
 

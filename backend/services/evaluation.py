@@ -53,6 +53,9 @@ def _get_client() -> AsyncOpenAI:
         _client = AsyncOpenAI(
             api_key=settings.openrouter_api_key,
             base_url=settings.openrouter_base_url,
+            # Free-tier endpoints 429 under burst load; the SDK retries
+            # rate limits and transient 5xx with exponential backoff.
+            max_retries=5,
         )
     return _client
 
@@ -120,7 +123,7 @@ async def _call_llm_json(prompt: str, assessment_id: str) -> str:
             model=settings.openrouter_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
-            max_tokens=1024,
+            max_tokens=2048,  # reasoning models spend completion tokens thinking
             response_format={"type": "json_object"},
         )
     except Exception as e:
@@ -131,7 +134,7 @@ async def _call_llm_json(prompt: str, assessment_id: str) -> str:
             model=settings.openrouter_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
-            max_tokens=1024,
+            max_tokens=2048,  # reasoning models spend completion tokens thinking
         )
     if response.usage is not None:
         record_usage(

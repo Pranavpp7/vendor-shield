@@ -321,8 +321,29 @@ export default function Dashboard() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No assessments found
+                    <TableCell colSpan={7} className="py-12">
+                      {assessments.length === 0 ? (
+                        <div className="flex flex-col items-center text-center gap-3 max-w-md mx-auto">
+                          <div className="p-3 rounded-xl bg-accent/10">
+                            <Shield className="h-7 w-7 text-accent" />
+                          </div>
+                          <p className="font-medium">Assess your first vendor</p>
+                          <p className="text-sm text-muted-foreground">
+                            Upload a vendor's security documents (SOC 2 report,
+                            security whitepaper, or trust-center page) and get a
+                            control-by-control risk assessment with cited evidence
+                            in a couple of minutes.
+                          </p>
+                          <Button onClick={() => navigate("/assessment/new")} className="mt-1">
+                            <Plus className="h-4 w-4 mr-2" />
+                            New Assessment
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-center text-muted-foreground">
+                          No assessments match this filter
+                        </p>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}

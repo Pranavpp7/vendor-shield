@@ -604,6 +604,56 @@ async def set_risk_profile(
     return response
 
 
+# ── CSV export ───────────────────────────────────────────────────────────────
+
+
+@router.get("/{assessment_id}/export.csv")
+async def export_assessment_csv(
+    assessment_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    """Download the control results as CSV — the artifact every analyst
+    actually pastes into their tracking spreadsheet."""
+    import csv
+    import io
+
+    record = get_assessment(assessment_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow([
+        "control_id", "domain", "title", "effective_score", "ai_score",
+        "analyst_score", "analyst_comment", "confidence", "evidence_quote",
+        "reasoning", "gap", "source_documents",
+    ])
+    for c in record.get("control_results", []):
+        writer.writerow([
+            c.get("control_id", ""),
+            c.get("domain", ""),
+            c.get("title", ""),
+            effective_score(c),
+            c.get("score", ""),
+            c.get("analyst_score") or "",
+            c.get("analyst_comment") or "",
+            c.get("confidence", ""),
+            c.get("evidence_quote") or "",
+            c.get("reasoning", ""),
+            c.get("gap") or "",
+            "; ".join(sorted({x.get("document", "") for x in c.get("citations", [])})),
+        ])
+
+    vendor_slug = (record.get("vendor_name") or "vendor").replace(" ", "-").lower()
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="vendorshield-{vendor_slug}-{assessment_id[:8]}.csv"'
+        },
+    )
+
+
 # ── Vendor follow-up questions ───────────────────────────────────────────────
 
 

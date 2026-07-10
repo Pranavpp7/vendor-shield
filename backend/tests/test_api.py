@@ -156,6 +156,48 @@ class TestRiskProfile:
         assert r.status_code == 422
 
 
+class TestCsvExport:
+    def test_csv_contains_effective_scores_and_override(self, client):
+        seed_assessment("csv1", {"GR-001": "FAIL", "GR-002": "PASS"})
+        # analyst overrides GR-001 → CSV must show effective PASS + audit columns
+        client.patch("/api/assessments/csv1/controls/GR-001/override",
+                     json={"score": "PASS", "comment": "verified on call"})
+        r = client.get("/api/assessments/csv1/export.csv")
+        assert r.status_code == 200
+        assert "text/csv" in r.headers["content-type"]
+        assert 'attachment; filename="vendorshield-' in r.headers["content-disposition"]
+        lines = r.text.strip().splitlines()
+        assert lines[0].startswith("control_id,domain,title,effective_score,ai_score")
+        gr1 = next(l for l in lines if l.startswith("GR-001"))
+        assert ",PASS,FAIL,PASS," in gr1          # effective, ai, analyst
+        assert "verified on call" in gr1
+
+    def test_csv_missing_assessment_404(self, client):
+        assert client.get("/api/assessments/ghost/export.csv").status_code == 404
+
+
+class TestScannedPdfRejection:
+    def _blank_pdf(self, pages: int = 2) -> bytes:
+        from io import BytesIO
+        from reportlab.pdfgen import canvas
+        buf = BytesIO()
+        c = canvas.Canvas(buf)
+        for _ in range(pages):
+            c.showPage()  # image-less, text-less page — like a scan
+        c.save()
+        return buf.getvalue()
+
+    def test_upload_rejects_scanned_pdf_with_clear_error(self, client):
+        r = client.post(
+            "/api/documents/upload",
+            files={"file": ("scan.pdf", self._blank_pdf(), "application/pdf")},
+            data={"assessment_id": "scan-test", "vendor_name": "X"},
+        )
+        assert r.status_code == 422
+        assert "scanned" in r.json()["detail"].lower()
+        assert "OCR" in r.json()["detail"]
+
+
 class TestFollowUps:
     def test_blocked_until_completed(self, client):
         save_assessment("draft1", {"vendor_name": "X", "status": "draft", "control_results": []})

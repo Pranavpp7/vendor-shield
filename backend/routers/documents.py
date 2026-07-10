@@ -85,6 +85,8 @@ async def upload_document(
         )
 
     # 5. Run synchronous ingestion pipeline in a thread (embedding is CPU-heavy)
+    from services.extraction import ScannedPDFError
+
     try:
         result = await asyncio.to_thread(
             ingest_file,
@@ -94,6 +96,10 @@ async def upload_document(
             vendor_name,
         )
         return result
+    except ScannedPDFError as e:
+        # Input problem, clearly explained — not a server error
+        logger.warning(f"Scanned PDF rejected: {file.filename}")
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Upload failed for '{file.filename}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

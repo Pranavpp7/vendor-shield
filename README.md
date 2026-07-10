@@ -90,9 +90,14 @@ retries evaluation once before aggregating.
 
 - **Local-first, near-zero cost.** Embeddings run locally
   (BGE-large-en-v1.5), vectors live in a local Qdrant container, structured
-  data in SQLite. The only external paid service is LLM inference — and the
-  frontend is served by FastAPI itself, so the whole app is one process plus
-  one container.
+  data in SQLite. The only external spend is LLM inference at
+  **~$0.006 per full assessment** (Llama 3.3 70B via OpenRouter). For a
+  true $0 setup, point `OPENROUTER_BASE_URL` at
+  [Ollama](https://ollama.com) (`http://localhost:11434/v1`) and the stack
+  runs **fully offline** — vendor documents never leave the machine.
+  Model swaps are gated by the eval harness
+  (`uv run python evals/run_evals.py`) — which has already rejected two
+  free-tier configurations for returning malformed output under load.
 - **Strictly layered backend.** Seven layers (config → storage → services →
   MCP → agent graph → routers → app), each importing only from layers below.
   One service file per responsibility keeps every module small and testable.
@@ -139,11 +144,40 @@ uv run python seed.py
 For development mode (Vite hot reload + uvicorn `--reload`), environment
 variable reference, and API docs, see the **[backend README](backend/README.md)**.
 
+## Demo
+
+VendorShield is **self-hosted by design** — vendor security documents are
+sensitive, so the whole stack (embeddings, vector search, storage) runs on
+your machine; only LLM inference leaves it. To see everything in two
+minutes:
+
+```bash
+cd backend && uv run python seed.py    # three demo vendors, zero LLM cost
+```
+
+Then explore:
+
+1. **Dashboard** — risk distribution donut, AI–analyst agreement stat, and
+   a score sparkline on the vendor with two runs
+2. **AcmeCloud → Trend tab** — the run-diff panel showing a +23-point
+   improvement, control by control
+3. **ShadowPix → Review tab** — the low-confidence review queue and an
+   analyst override with its audit trail (AI said NO_EVIDENCE, human
+   verified backups on a call)
+4. **ShadowPix → Follow-ups tab** — generated vendor questions, plus the
+   stale-evidence warning (its document is over a year old)
+5. **MeridianPay** — a decent score that still reads **High residual
+   risk**, because the relationship profile is Critical
+
+Run a real assessment (upload any security PDF) to watch the **live
+LangGraph pipeline view** step through ingest → retrieve → score →
+aggregate, and see the run's cost and latency stamped on the result.
+
 ## Tech stack
 
 | Layer | Technology |
 |---|---|
-| LLM | Llama 3.3 70B via [OpenRouter](https://openrouter.ai) (OpenAI-compatible API) |
+| LLM | Llama 3.3 70B via [OpenRouter](https://openrouter.ai) (~$0.006/assessment) — any OpenAI-compatible model works, incl. local Ollama for $0 |
 | Agent orchestration | LangChain + LangGraph, MCP for tool calls |
 | Embeddings | BGE-large-en-v1.5 (local, 1024-dim) |
 | Vector DB | Qdrant (Docker, pinned v1.17.1) |
@@ -209,7 +243,9 @@ blindly.
 - [x] Golden-dataset evals to regression-test scoring prompts
 - [x] Single-command Docker deployment of the full stack
 - [x] Per-run cost & latency metering (tokens, estimated $, wall time)
-- [ ] Live hosted demo (Fly.io / Railway)
+- [x] Seeded local demo (see [Demo](#demo)) — a hosted instance is deliberately
+      out of scope: this tool processes sensitive vendor documents and is
+      built to run on your own hardware
 
 ## License
 
