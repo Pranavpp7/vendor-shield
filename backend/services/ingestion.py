@@ -50,6 +50,7 @@ def ingest_file(
     filename: str,
     assessment_id: str,
     vendor_name: str,
+    doc_type: str = "vendor",
 ) -> DocumentUploadResponse:
     """Run the full ingestion pipeline for an uploaded file.
 
@@ -113,7 +114,7 @@ def ingest_file(
     logger.info(f"Generated {len(vectors)} embeddings")
 
     # 6. Store vectors in Qdrant
-    vector_count = add_chunks(assessment_id, chunks, vectors, filename)
+    vector_count = add_chunks(assessment_id, chunks, vectors, filename, doc_type=doc_type)
 
     # 7. Save document metadata as JSON
     save_document_meta(document_id, {
@@ -122,6 +123,7 @@ def ingest_file(
         "file_name": filename,
         "file_size": len(file_bytes),
         "source_type": "file",
+        "doc_type": doc_type,
         "status": "processed",
         "chunks_created": len(chunks),
         "upload_path": str(upload_path),  # stored for cleanup on delete
@@ -145,6 +147,7 @@ def ingest_url(
     url: str,
     assessment_id: str,
     vendor_name: str,
+    doc_type: str = "vendor",
 ) -> DocumentUploadResponse:
     """Run the full ingestion pipeline for a URL.
 
@@ -177,7 +180,7 @@ def ingest_url(
     vectors = embed_chunks(chunks)
 
     # 5. Store vectors in Qdrant
-    vector_count = add_chunks(assessment_id, chunks, vectors, source_name)
+    vector_count = add_chunks(assessment_id, chunks, vectors, source_name, doc_type=doc_type)
 
     # 6. Save document metadata as JSON
     save_document_meta(document_id, {
@@ -186,6 +189,7 @@ def ingest_url(
         "file_name": source_name,
         "source_url": url,
         "source_type": "url",
+        "doc_type": doc_type,
         "status": "processed",
         "chunks_created": len(chunks),
     })

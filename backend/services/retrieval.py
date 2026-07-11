@@ -27,6 +27,25 @@ logger = logging.getLogger(__name__)
 # How many candidates to pull from Qdrant before diversifying down to top_k.
 POOL_MULTIPLIER = 3
 
+# Similarity multiplier for chunks from "reference" documents (generic
+# guidance/marketing the user tagged at upload) — vendor-authored evidence
+# should outrank generic material of equal semantic similarity.
+REFERENCE_WEIGHT = 0.85
+
+
+def apply_doc_type_weights(results: list[dict]) -> list[dict]:
+    """Down-weight reference-document chunks, then re-sort by score.
+
+    Mutates scores in place (retrieval results are per-call dicts).
+    Chunks ingested before doc-type tagging have no doc_type and are
+    treated as vendor-authored.
+    """
+    for r in results:
+        if r.get("doc_type") == "reference":
+            r["score"] = r["score"] * REFERENCE_WEIGHT
+    results.sort(key=lambda r: r["score"], reverse=True)
+    return results
+
 
 def diversify_by_document(results: list[dict], top_k: int) -> list[dict]:
     """Select top_k results with guaranteed document diversity.
@@ -111,8 +130,9 @@ def search_documents(
     # 1. Embed the query (with BGE search prefix)
     query_vector = embed_query(query)
 
-    # 2. Pull a deeper pool, then diversify across documents
+    # 2. Pull a deeper pool, down-weight reference docs, diversify across docs
     pool = similarity_search(assessment_id, query_vector, top_k * POOL_MULTIPLIER)
+    pool = apply_doc_type_weights(pool)
     results = diversify_by_document(pool, top_k)
 
     logger.info(

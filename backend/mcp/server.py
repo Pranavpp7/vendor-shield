@@ -432,6 +432,23 @@ TOOL_HANDLERS = {
 async def mcp_endpoint(request: Request):
     """MCP Streamable HTTP endpoint — handles JSON-RPC requests from AI agents."""
 
+    # --- API-key guard (only when API_KEY is configured) ---
+    # External agents authenticate with X-API-Key; the internal MCPClient
+    # (LangGraph agent) calls this same endpoint, so it sends the key too.
+    from config import get_settings as _gs
+    if _gs().api_key:
+        from auth import verify_api_key
+        provided = request.headers.get("X-API-Key")
+        auth_header = request.headers.get("Authorization", "")
+        bearer = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else None
+        if not (verify_api_key(provided) or verify_api_key(bearer)):
+            return JSONResponse(
+                {"jsonrpc": "2.0",
+                 "error": {"code": -32001, "message": "Invalid or missing API key"},
+                 "id": None},
+                status_code=401,
+            )
+
     # --- Parse request body ---
     try:
         body = await request.json()

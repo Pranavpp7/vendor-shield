@@ -105,6 +105,9 @@ export type ChatMessage = {
 export type UploadedFile = {
   name: string;
   size: number;
+  /** "vendor" = vendor-authored evidence, "reference" = generic guidance
+   *  (down-weighted in retrieval, labeled for the LLM judge). */
+  docType?: "vendor" | "reference";
 };
 
 export type DomainScore = {

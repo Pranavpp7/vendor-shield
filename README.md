@@ -18,6 +18,11 @@ VendorShield automates the evaluation of vendor security documentation against 2
   TODO: Once deployed, add: **[Live demo →](https://your-deployment-url)**
 -->
 
+> **📖 [Read the case study](docs/CASE_STUDY.md)** — how the eval harness
+> caught the model lying, why the scoring semantics took three iterations,
+> and what one day of real-document field testing found. The short version
+> of everything interesting about this project.
+
 ## The problem
 
 Third-party vendor risk reviews are slow and manual: an analyst reads a stack

@@ -144,6 +144,7 @@ def add_chunks(
     chunks: list[str],
     vectors: list[list[float]],
     document_name: str,
+    doc_type: str = "vendor",
 ) -> int:
     """Add text chunks and their embeddings to the assessment's collection.
 
@@ -152,6 +153,9 @@ def add_chunks(
         chunks: List of plain text strings (the chunk content).
         vectors: List of 1024-dim embedding vectors, one per chunk.
         document_name: Source filename or URL — stored in payload for citations.
+        doc_type: "vendor" (vendor-authored evidence) or "reference"
+            (generic guidance/marketing) — retrieval down-weights reference
+            docs and the LLM judge sees the label.
 
     Returns:
         Number of vectors successfully added.
@@ -187,6 +191,7 @@ def add_chunks(
                     "content": chunk_text[:4000],  # cap payload size
                     "document_name": document_name,
                     "chunk_index": i,
+                    "doc_type": doc_type,
                 },
             )
         )
@@ -291,6 +296,7 @@ def similarity_search(
             "content": payload.get("content", ""),
             "document_name": payload.get("document_name", ""),
             "chunk_index": payload.get("chunk_index", 0),
+            "doc_type": payload.get("doc_type", "vendor"),  # legacy chunks = vendor
             "score": point.score,
         })
 

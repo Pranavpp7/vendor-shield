@@ -30,16 +30,26 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { fetchAssessments, fetchCompareAssessments } from "@/lib/api";
+import { formatDate } from "@/lib/utils";
 import type { Assessment as AppAssessment } from "@/types/assessment";
 
-const VENDOR_A_COLOR = "#2563eb";
-const VENDOR_B_COLOR = "#16a34a";
+// Categorical series pair — deliberately distinct from the reserved
+// status colors (green/amber/red mean PASS/PARTIAL/FAIL app-wide).
+const VENDOR_A_COLOR = "#0d9488";
+const VENDOR_B_COLOR = "#6366f1";
 
 const STATUS_VALUE: Record<string, number> = {
   PASS: 1.0,
   PARTIAL: 0.5,
   FAIL: 0.0,
   NO_EVIDENCE: 0.0,
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  PASS: "PASS",
+  PARTIAL: "PARTIAL",
+  FAIL: "FAIL",
+  NO_EVIDENCE: "NEEDS INFO",
 };
 
 const STATUS_CLASS: Record<string, string> = {
@@ -65,9 +75,14 @@ function scoreLabel(score: number) {
 type RawControl = {
   control_id: string;
   score: string;
+  analyst_score?: string | null;
   domain: string;
   title: string;
 };
+
+/** Analyst override supersedes the AI score everywhere in the app. */
+const effective = (c: RawControl | undefined): string =>
+  c ? (c.analyst_score || c.score) : "NO_EVIDENCE";
 
 type RawAssessment = {
   id: string;
@@ -76,6 +91,13 @@ type RawAssessment = {
   domain_scores: Record<string, number>;
   control_results: RawControl[];
   created_at?: string;
+};
+
+const coverageOf = (v: RawAssessment) => {
+  const controls = v.control_results ?? [];
+  if (controls.length === 0) return null;
+  const verified = controls.filter((c) => effective(c) !== "NO_EVIDENCE").length;
+  return { verified, total: controls.length, pct: Math.round((verified / controls.length) * 100) };
 };
 
 export default function Compare() {
@@ -175,8 +197,8 @@ export default function Compare() {
       .map((id) => {
         const a = aById.get(id);
         const b = bById.get(id);
-        const aScore = a?.score ?? "NO_EVIDENCE";
-        const bScore = b?.score ?? "NO_EVIDENCE";
+        const aScore = effective(a);
+        const bScore = effective(b);
         return {
           control_id: id,
           title: a?.title ?? b?.title ?? id,
@@ -248,7 +270,7 @@ export default function Compare() {
             <div>
               <h1 className="text-2xl font-bold">Vendor Comparison</h1>
               <p className="text-sm text-muted-foreground">
-                Side-by-side NIST control assessment
+                Side-by-side control assessment across two vendors
               </p>
             </div>
           </div>
@@ -382,6 +404,15 @@ export default function Compare() {
                     >
                       {scoreLabel(v.overall_score)}
                     </p>
+                    {(() => {
+                      const cov = coverageOf(v);
+                      return (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {v.created_at ? `Assessed ${formatDate(v.created_at)} · ` : ""}
+                          {cov ? `coverage ${cov.pct}% (${cov.verified}/${cov.total} verified)` : ""}
+                        </p>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               ))}
@@ -453,23 +484,15 @@ export default function Compare() {
                         <TableRow key={row.name}>
                           <TableCell className="font-medium">{row.name}</TableCell>
                           <TableCell
-                            className={`text-center font-semibold tabular-nums ${
-                              aWins
-                                ? "text-risk-low"
-                                : bWins
-                                ? "text-risk-high"
-                                : "text-muted-foreground"
+                            className={`text-center tabular-nums ${
+                              aWins ? "font-bold" : "font-medium text-muted-foreground"
                             }`}
                           >
                             {row.A}
                           </TableCell>
                           <TableCell
-                            className={`text-center font-semibold tabular-nums ${
-                              bWins
-                                ? "text-risk-low"
-                                : aWins
-                                ? "text-risk-high"
-                                : "text-muted-foreground"
+                            className={`text-center tabular-nums ${
+                              bWins ? "font-bold" : "font-medium text-muted-foreground"
                             }`}
                           >
                             {row.B}
@@ -480,7 +503,7 @@ export default function Compare() {
                                 Tie
                               </span>
                             ) : (
-                              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-risk-low-bg text-risk-low">
+                              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-accent/10 text-accent border border-accent/20">
                                 {aWins ? a.vendor_name : b.vendor_name}
                               </span>
                             )}
@@ -534,7 +557,7 @@ export default function Compare() {
                               STATUS_CLASS[r.aScore] ?? STATUS_CLASS.NO_EVIDENCE
                             }`}
                           >
-                            {r.aScore}
+                            {STATUS_LABEL[r.aScore] ?? r.aScore}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -543,7 +566,7 @@ export default function Compare() {
                               STATUS_CLASS[r.bScore] ?? STATUS_CLASS.NO_EVIDENCE
                             }`}
                           >
-                            {r.bScore}
+                            {STATUS_LABEL[r.bScore] ?? r.bScore}
                           </span>
                         </TableCell>
                       </TableRow>

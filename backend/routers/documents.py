@@ -45,6 +45,7 @@ async def upload_document(
     file: UploadFile = File(...),
     assessment_id: str = Form(...),
     vendor_name: str = Form(...),
+    doc_type: str = Form("vendor"),
 ):
     """Upload a PDF/DOCX/text file → extract → chunk → embed → store.
 
@@ -53,6 +54,12 @@ async def upload_document(
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
+
+    if doc_type not in ("vendor", "reference"):
+        raise HTTPException(
+            status_code=422,
+            detail="doc_type must be 'vendor' (vendor-authored evidence) or 'reference' (generic guidance)",
+        )
 
     # 1. File type validation
     ext = Path(file.filename).suffix.lower()
@@ -94,6 +101,7 @@ async def upload_document(
             file.filename,
             assessment_id,
             vendor_name,
+            doc_type,
         )
         return result
     except ScannedPDFError as e:
@@ -119,6 +127,7 @@ async def ingest_url_endpoint(req: URLIngestRequest):
             req.url,
             req.assessment_id,
             req.vendor_name,
+            req.doc_type,
         )
         return result
     except UnsafeURLError as e:

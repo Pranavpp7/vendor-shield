@@ -102,6 +102,9 @@ class URLIngestRequest(BaseModel):
     url: str
     assessment_id: str
     vendor_name: str
+    # "vendor" = vendor-authored evidence; "reference" = generic guidance
+    # (down-weighted in retrieval, labeled for the LLM judge)
+    doc_type: Literal["vendor", "reference"] = "vendor"
 
 
 class AssessmentRunRequest(BaseModel):

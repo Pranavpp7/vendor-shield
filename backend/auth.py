@@ -8,15 +8,16 @@ RESPONSIBILITY:
     get_current_user() is the FastAPI dependency used by all protected routes.
     It replaces the old API-key-based verify_api_key().
 
-DEV MODE (CLERK_JWKS_URL is empty):
-    Verification is skipped entirely. An empty string is returned as the
-    user_id. Storage functions treat "" as "no filter", so all data remains
-    visible — identical to pre-auth behaviour.
-
-PRODUCTION (CLERK_JWKS_URL is set):
-    The JWT is verified against Clerk's public keys fetched from the JWKS URL.
-    The 'sub' claim (e.g. "user_2abc123") is returned as the user_id.
-    Requests without a valid token receive HTTP 401.
+THREE TIERS (checked in order):
+    1. CLERK (CLERK_JWKS_URL set): full multi-user auth — the JWT is
+       verified against Clerk's public keys; the 'sub' claim is the
+       user_id.  Invalid/missing tokens → 401.
+    2. API KEY (API_KEY set, no Clerk): single-tenant shared-secret auth
+       for self-hosted deployments exposed beyond localhost.  Requests
+       must send `X-API-Key: <key>` (or `Authorization: Bearer <key>`).
+       user_id is "" (single tenant).  Wrong/missing key → 401.
+    3. DEV MODE (neither set): verification skipped entirely, "" returned
+       as user_id.  Local development only — main.py logs a loud warning.
 
 HOW TO CONFIGURE:
     1. Go to Clerk Dashboard → API Keys → Advanced → JWKS URL
@@ -25,6 +26,8 @@ HOW TO CONFIGURE:
 """
 
 import logging
+import secrets
+
 from fastapi import Header, HTTPException
 import jwt
 from jwt import PyJWKClient, PyJWKClientError
@@ -46,10 +49,19 @@ def _get_jwks_client() -> PyJWKClient:
     return _jwks_client
 
 
+def verify_api_key(provided: str | None) -> bool:
+    """Constant-time comparison of a provided key against settings.api_key."""
+    expected = get_settings().api_key
+    if not expected or not provided:
+        return False
+    return secrets.compare_digest(provided, expected)
+
+
 async def get_current_user(
     authorization: str | None = Header(default=None, alias="Authorization"),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> str:
-    """FastAPI dependency — returns the Clerk user_id from the JWT.
+    """FastAPI dependency — returns the authenticated user_id.
 
     Usage (endpoint-level injection, value available in handler):
         @router.get("/foo")
@@ -61,9 +73,21 @@ async def get_current_user(
     """
     settings = get_settings()
 
-    # Dev mode: skip verification, return empty user_id
+    # Tier 2: API-key auth (single tenant) when Clerk is not configured
     if not settings.clerk_jwks_url:
-        return ""
+        if not settings.api_key:
+            return ""  # Tier 3: dev mode — fully open
+        bearer = (
+            authorization.split(" ", 1)[1]
+            if authorization and authorization.startswith("Bearer ")
+            else None
+        )
+        if verify_api_key(x_api_key) or verify_api_key(bearer):
+            return ""  # single-tenant: authenticated, no per-user identity
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API key (send X-API-Key header)",
+        )
 
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(

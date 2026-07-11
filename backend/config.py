@@ -127,9 +127,16 @@ class Settings(BaseSettings):
     # Empty string = dev mode: auth is skipped, all data is visible.
     clerk_jwks_url: str = ""
 
-    # ── Legacy API Key (kept for MCP tool access from external agents) ───────
-    # Empty string = dev mode (auth is skipped entirely).
+    # ── API Key (single-tenant shared-secret auth) ───────────────────────────
+    # When set (and Clerk is not configured), every /api and /mcp request
+    # must send X-API-Key: <this value>.  Empty string = dev mode (open).
     api_key: str = ""
+
+    # ── Demo mode (free read-only hosting) ───────────────────────────────────
+    # When true, all mutating requests (POST/PUT/PATCH/DELETE) to /api and
+    # /mcp return 403 — the app serves seeded data read-only with zero LLM
+    # spend possible.  Built for free-tier hosting (e.g. HF Spaces).
+    demo_mode: bool = False
 
     # ── pydantic-settings config ─────────────────────────────────────────────
     model_config = {

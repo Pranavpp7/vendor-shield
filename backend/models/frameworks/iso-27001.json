@@ -1,0 +1,218 @@
+{
+  "id": "iso-27001",
+  "name": "ISO/IEC 27001:2022 Annex A",
+  "description": "12 vendor security controls mapped to ISO/IEC 27001:2022 Annex A across its four themes (Organizational, People, Physical, Technological). Suited to vendors that hold or claim ISO 27001 certification — pairs well with requesting their Statement of Applicability.",
+  "version": "2022",
+  "domain_weights": {
+    "Organizational Controls": 1.0,
+    "People Controls": 1.0,
+    "Physical Controls": 1.0,
+    "Technological Controls": 1.0
+  },
+  "controls": [
+    {
+      "id": "ORG-001",
+      "ref": "ISO 27001:2022 A.5.1, A.5.2",
+      "domain": "Organizational Controls",
+      "title": "Information security policies and roles defined",
+      "description": "The vendor maintains approved information security policies, reviews them at planned intervals, and assigns clear security roles and responsibilities.",
+      "search_query": "information security policy approved reviewed annually security roles responsibilities ISMS management commitment",
+      "what_to_look_for": "Evidence of a governed policy suite. Look for: information security policy, policy review cycle, ISMS, security roles and responsibilities, CISO, security committee, management approval of policies, policy acknowledgment by staff.",
+      "what_good_looks_like": "A.5.1 requires information security policies defined, approved by management, published, and reviewed at planned intervals. A.5.2 requires security roles and responsibilities to be defined and allocated. Best practice: an ISMS-governed policy suite reviewed at least annually with a named accountable owner.",
+      "scoring_guide": {
+        "pass": "Approved policy suite with review cadence and named security ownership",
+        "partial": "Policies mentioned but approval, review cycle, or ownership unclear",
+        "fail": "Evidence that no formal security policies exist",
+        "no_evidence": "No mention of security policies or roles"
+      },
+      "weight": 1
+    },
+    {
+      "id": "ORG-002",
+      "ref": "ISO 27001:2022 A.5.9, A.5.12",
+      "domain": "Organizational Controls",
+      "title": "Asset inventory and information classification",
+      "description": "The vendor maintains an inventory of information and associated assets, and classifies information according to sensitivity and criticality.",
+      "search_query": "asset inventory asset management information classification data classification sensitivity labels asset owners",
+      "what_to_look_for": "Evidence of asset and data governance. Look for: asset inventory, asset register, asset owners, information classification, classification levels (public/internal/confidential/restricted), labeling, handling requirements per class.",
+      "what_good_looks_like": "A.5.9 requires an inventory of information and other associated assets with owners. A.5.12 requires information to be classified per confidentiality, integrity, and availability needs. Best practice: a maintained asset register with owners and a 3–4 tier classification scheme applied in practice.",
+      "scoring_guide": {
+        "pass": "Asset inventory with owners plus a defined, applied classification scheme",
+        "partial": "Inventory or classification mentioned without both owners and applied tiers",
+        "fail": "Evidence assets/data are unmanaged or treated uniformly regardless of sensitivity",
+        "no_evidence": "No mention of asset inventory or classification"
+      },
+      "weight": 1
+    },
+    {
+      "id": "ORG-003",
+      "ref": "ISO 27001:2022 A.5.19, A.5.21",
+      "domain": "Organizational Controls",
+      "title": "Supplier and supply-chain security managed",
+      "description": "The vendor manages information security risks in its own supplier relationships, including ICT supply-chain risks and contractual security requirements.",
+      "search_query": "supplier security third-party risk management subprocessor due diligence supply chain security contractual requirements DPA",
+      "what_to_look_for": "Evidence of supplier risk management. Look for: supplier security policy, third-party/vendor risk assessments, subprocessor list, DPAs, contractual security clauses, supply-chain risk, periodic supplier reviews.",
+      "what_good_looks_like": "A.5.19 requires processes to manage security risks in supplier relationships. A.5.21 extends this to the ICT supply chain. Best practice: due diligence before onboarding suppliers, security clauses and DPAs in contracts, a published subprocessor list, and periodic reassessment of critical suppliers.",
+      "scoring_guide": {
+        "pass": "Supplier risk program with due diligence, contractual requirements, and ongoing review",
+        "partial": "Supplier management mentioned but depth or recurrence unclear",
+        "fail": "Evidence suppliers are engaged without security review",
+        "no_evidence": "No mention of supplier or supply-chain security"
+      },
+      "weight": 1
+    },
+    {
+      "id": "ORG-004",
+      "ref": "ISO 27001:2022 A.5.24, A.5.26",
+      "domain": "Organizational Controls",
+      "title": "Incident management planned and executed",
+      "description": "The vendor plans and prepares for incident management, assesses security events, and responds to confirmed incidents through a defined process.",
+      "search_query": "incident management plan security incident response process breach notification escalation lessons learned",
+      "what_to_look_for": "Evidence of incident readiness and execution. Look for: incident response plan, incident classification/severity, escalation paths, response team, breach notification commitments, post-incident review, tabletop exercises.",
+      "what_good_looks_like": "A.5.24 requires planning and preparing for incident management with defined processes, roles, and responsibilities. A.5.26 requires incidents to be responded to per documented procedures. Best practice: a tested plan with severity levels, defined customer notification timeframes, and post-incident reviews.",
+      "scoring_guide": {
+        "pass": "Documented, tested incident process with roles and notification timelines",
+        "partial": "Incident handling mentioned but testing, roles, or timelines unclear",
+        "fail": "Evidence of ad-hoc or absent incident handling",
+        "no_evidence": "No mention of incident management"
+      },
+      "weight": 1
+    },
+    {
+      "id": "PEO-001",
+      "ref": "ISO 27001:2022 A.6.3",
+      "domain": "People Controls",
+      "title": "Security awareness training delivered",
+      "description": "Personnel receive appropriate information security awareness education and training, with regular updates relevant to their role.",
+      "search_query": "security awareness training employee education phishing training annual training onboarding security program",
+      "what_to_look_for": "Evidence of a training program. Look for: security awareness training, annual/onboarding training, phishing simulations, role-based training, training completion tracking, security culture programs.",
+      "what_good_looks_like": "A.6.3 requires security awareness, education, and training with regular updates for all relevant personnel. Best practice: mandatory training at hire and at least annually, phishing simulations, and completion tracked to closure.",
+      "scoring_guide": {
+        "pass": "Mandatory recurring training described with tracking or reinforcement (e.g. phishing tests)",
+        "partial": "Training mentioned but frequency, coverage, or tracking unclear",
+        "fail": "Evidence that staff receive no security training",
+        "no_evidence": "No mention of security training or awareness"
+      },
+      "weight": 1
+    },
+    {
+      "id": "PEO-002",
+      "ref": "ISO 27001:2022 A.6.1, A.6.5",
+      "domain": "People Controls",
+      "title": "Personnel screening and offboarding controls",
+      "description": "Background verification is performed before employment where legally permitted, and security responsibilities survive termination — with access and assets revoked on exit.",
+      "search_query": "background checks screening employment verification offboarding termination access revocation NDA confidentiality",
+      "what_to_look_for": "Evidence of employment lifecycle security. Look for: background checks, screening, NDAs/confidentiality agreements, termination checklist, access revoked on departure, asset return, post-employment obligations.",
+      "what_good_looks_like": "A.6.1 requires background verification proportional to business requirements and risk. A.6.5 requires security responsibilities that remain valid after termination to be defined and enforced. Best practice: screening for all hires, NDAs, and same-day access revocation with asset recovery on exit.",
+      "scoring_guide": {
+        "pass": "Screening plus formal offboarding with timely access revocation described",
+        "partial": "One of screening/offboarding described, or timeliness unclear",
+        "fail": "Evidence departed staff retain access or no screening occurs",
+        "no_evidence": "No mention of screening or offboarding"
+      },
+      "weight": 1
+    },
+    {
+      "id": "PHY-001",
+      "ref": "ISO 27001:2022 A.7.1, A.7.2",
+      "domain": "Physical Controls",
+      "title": "Physical security perimeters and entry control",
+      "description": "Facilities processing sensitive information are protected by defined physical perimeters and appropriate entry controls (badges, visitor management, monitored access).",
+      "search_query": "physical security data center access badge entry controls visitor management CCTV perimeter security facilities",
+      "what_to_look_for": "Evidence of physical protections. Look for: physical security perimeters, badge/card access, biometric entry, visitor logs and escorts, CCTV, 24/7 security staff, data-center certifications (SOC 2/ISO of the facility), locked server rooms.",
+      "what_good_looks_like": "A.7.1 requires security perimeters protecting areas with sensitive information. A.7.2 requires those areas to have appropriate entry controls. Best practice: layered physical controls; for cloud-hosted vendors, evidence that hosting providers' certified data centers (e.g. AWS/GCP/Azure) provide this layer counts.",
+      "scoring_guide": {
+        "pass": "Physical/entry controls described directly or inherited via certified hosting providers",
+        "partial": "Physical security mentioned generally without specific controls",
+        "fail": "Evidence of unrestricted physical access to systems",
+        "no_evidence": "No mention of physical security"
+      },
+      "weight": 1
+    },
+    {
+      "id": "TEC-001",
+      "ref": "ISO 27001:2022 A.8.2, A.8.5",
+      "domain": "Technological Controls",
+      "title": "Privileged access and strong authentication",
+      "description": "Privileged access rights are restricted and managed, and secure authentication — including multi-factor authentication — controls access to systems.",
+      "search_query": "privileged access management multi-factor authentication MFA secure authentication admin accounts least privilege",
+      "what_to_look_for": "Evidence of access rigor. Look for: MFA/2FA, privileged access management, separate admin accounts, just-in-time elevation, least privilege, SSO with strong auth, session logging for admins.",
+      "what_good_looks_like": "A.8.2 requires allocation and management of privileged access rights to be restricted. A.8.5 requires secure authentication per the access control policy. Best practice: MFA for all users (phishing-resistant preferred), tightly managed and logged privileged accounts.",
+      "scoring_guide": {
+        "pass": "MFA for all users plus managed privileged access described",
+        "partial": "MFA or PAM described but scope/enforcement unclear or admin-only",
+        "fail": "Evidence of password-only auth or unmanaged admin accounts",
+        "no_evidence": "No mention of authentication or privileged access"
+      },
+      "weight": 1
+    },
+    {
+      "id": "TEC-002",
+      "ref": "ISO 27001:2022 A.8.24",
+      "domain": "Technological Controls",
+      "title": "Cryptography applied to data at rest and in transit",
+      "description": "Rules for effective use of cryptography, including key management, are defined and implemented — encrypting sensitive data at rest and in transit.",
+      "search_query": "encryption cryptography AES-256 TLS key management KMS data at rest in transit crypto policy",
+      "what_to_look_for": "Evidence of applied cryptography. Look for: AES-256 at rest, TLS 1.2+/1.3 in transit, key management (KMS/HSM), key rotation, crypto policy, encrypted backups.",
+      "what_good_looks_like": "A.8.24 requires rules for effective use of cryptography including key management. Best practice: AES-256 at rest (including backups), TLS 1.2+ everywhere, keys managed in a KMS/HSM separate from data with rotation.",
+      "scoring_guide": {
+        "pass": "Encryption at rest and in transit with key management described",
+        "partial": "Encryption described but scope or key management unclear",
+        "fail": "Evidence of unencrypted sensitive data",
+        "no_evidence": "No mention of cryptography"
+      },
+      "weight": 1
+    },
+    {
+      "id": "TEC-003",
+      "ref": "ISO 27001:2022 A.8.8",
+      "domain": "Technological Controls",
+      "title": "Technical vulnerabilities managed",
+      "description": "Information about technical vulnerabilities is obtained, exposure is evaluated, and appropriate measures (scanning, patching, testing) are taken in a timely way.",
+      "search_query": "vulnerability management scanning patching penetration testing remediation SLA CVE patch cadence",
+      "what_to_look_for": "Evidence of vulnerability lifecycle. Look for: vulnerability scanning cadence, patch SLAs by severity, penetration testing, bug bounty/disclosure program, remediation tracking.",
+      "what_good_looks_like": "A.8.8 requires obtaining vulnerability information, evaluating exposure, and taking appropriate measures. Best practice: automated scanning at least monthly, severity-based patch SLAs (criticals in days), annual independent penetration tests, findings tracked to closure.",
+      "scoring_guide": {
+        "pass": "Scanning + patch SLAs + independent testing described with cadence",
+        "partial": "Some vulnerability practices described without cadence or SLAs",
+        "fail": "Evidence of known vulnerabilities left unmanaged",
+        "no_evidence": "No mention of vulnerability management"
+      },
+      "weight": 1
+    },
+    {
+      "id": "TEC-004",
+      "ref": "ISO 27001:2022 A.8.15, A.8.16",
+      "domain": "Technological Controls",
+      "title": "Logging and monitoring in place",
+      "description": "Logs of activities, exceptions, and events are produced, protected, and analyzed; networks and systems are monitored for anomalous behavior.",
+      "search_query": "logging monitoring SIEM audit logs anomaly detection alerting log retention centralized logs",
+      "what_to_look_for": "Evidence of observability for security. Look for: centralized logging, SIEM, log retention periods, log protection/immutability, monitoring/alerting, anomaly detection, SOC coverage.",
+      "what_good_looks_like": "A.8.15 requires logs to be produced, stored, protected, and analyzed. A.8.16 requires monitoring for anomalous behavior with appropriate action. Best practice: centralized, protected logs retained 12+ months with automated alerting and defined response.",
+      "scoring_guide": {
+        "pass": "Centralized, protected logging plus active monitoring/alerting described",
+        "partial": "Logging or monitoring described but centralization, protection, or retention unclear",
+        "fail": "Evidence of absent or unprotected logging",
+        "no_evidence": "No mention of logging or monitoring"
+      },
+      "weight": 1
+    },
+    {
+      "id": "TEC-005",
+      "ref": "ISO 27001:2022 A.8.13, A.8.14",
+      "domain": "Technological Controls",
+      "title": "Backups and redundancy for availability",
+      "description": "Backups of information, software, and systems are maintained and regularly tested, and processing facilities have redundancy sufficient to meet availability requirements.",
+      "search_query": "backup restore testing redundancy failover disaster recovery RTO RPO availability multi-region",
+      "what_to_look_for": "Evidence of recoverability. Look for: backup frequency and encryption, restore testing, DR plans and exercises, RTO/RPO targets, redundancy/failover, multi-AZ or multi-region architecture, uptime SLAs.",
+      "what_good_looks_like": "A.8.13 requires backups maintained and tested per policy. A.8.14 requires redundancy sufficient for availability requirements. Best practice: automated encrypted backups with periodic restore tests, defined RTO/RPO, and redundant infrastructure with a published SLA.",
+      "scoring_guide": {
+        "pass": "Tested backups plus redundancy/DR with recovery targets described",
+        "partial": "Backups or redundancy described without testing or targets",
+        "fail": "Evidence that backups or redundancy are absent",
+        "no_evidence": "No mention of backups or availability measures"
+      },
+      "weight": 1
+    }
+  ]
+}

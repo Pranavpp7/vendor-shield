@@ -32,7 +32,9 @@ export default function NewAssessment() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [vendorName, setVendorName] = useState("");
-  const [files, setFiles] = useState<{ name: string; size: number }[]>([]);
+  const [files, setFiles] = useState<
+    { name: string; size: number; docType: "vendor" | "reference" }[]
+  >([]);
   const [rawFiles, setRawFiles] = useState<File[]>([]);
   const [links, setLinks] = useState<string[]>([]);
   const [linkInput, setLinkInput] = useState("");
@@ -61,7 +63,9 @@ export default function NewAssessment() {
       if (draft && draft.status === "Draft") {
         setDraftId(id);
         setVendorName(draft.vendorName);
-        setFiles(draft.uploadedFiles);
+        setFiles(
+          draft.uploadedFiles.map((f) => ({ ...f, docType: f.docType ?? "vendor" }))
+        );
         setLinks(draft.links);
       }
     }
@@ -71,14 +75,24 @@ export default function NewAssessment() {
     e.preventDefault();
     const dropped = Array.from(e.dataTransfer.files);
     setRawFiles((prev) => [...prev, ...dropped]);
-    setFiles((prev) => [...prev, ...dropped.map((f) => ({ name: f.name, size: f.size }))]);
+    setFiles((prev) => [
+      ...prev,
+      ...dropped.map((f) => ({ name: f.name, size: f.size, docType: "vendor" as const })),
+    ]);
   }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const selected = Array.from(e.target.files);
     setRawFiles((prev) => [...prev, ...selected]);
-    setFiles((prev) => [...prev, ...selected.map((f) => ({ name: f.name, size: f.size }))]);
+    setFiles((prev) => [
+      ...prev,
+      ...selected.map((f) => ({ name: f.name, size: f.size, docType: "vendor" as const })),
+    ]);
+  };
+
+  const setFileDocType = (index: number, docType: "vendor" | "reference") => {
+    setFiles((prev) => prev.map((f, j) => (j === index ? { ...f, docType } : f)));
   };
 
   const removeFile = (index: number) => {
@@ -96,9 +110,9 @@ export default function NewAssessment() {
   const uploadFilesToBackend = async (assessmentId: string) => {
     if (rawFiles.length === 0) return;
     setUploading(true);
-    for (const file of rawFiles) {
+    for (const [i, file] of rawFiles.entries()) {
       try {
-        await ingestDocument(file, assessmentId, vendorName);
+        await ingestDocument(file, assessmentId, vendorName, files[i]?.docType ?? "vendor");
       } catch (err: any) {
         console.error("Upload error:", err);
         toast({ title: "Upload failed", description: `Failed to upload ${file.name}: ${err.message}`, variant: "destructive" });
@@ -344,19 +358,34 @@ export default function NewAssessment() {
                   {files.map((f, i) => (
                     <div
                       key={i}
-                      className="flex items-center justify-between p-2 rounded bg-muted text-sm"
+                      className="flex items-center gap-2 p-2 rounded bg-muted text-sm"
                     >
-                      <span>
+                      <span className="flex-1 min-w-0 truncate">
                         {f.name} ({(f.size / 1024).toFixed(1)} KB)
                       </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => removeFile(i)}
+                      <Select
+                        value={f.docType}
+                        onValueChange={(v) => setFileDocType(i, v as "vendor" | "reference")}
+                      >
+                        <SelectTrigger
+                          className="h-7 w-[170px] text-xs shrink-0"
+                          title="Vendor evidence = the vendor's own claims about their practices. Reference = generic guides/marketing — down-weighted in retrieval and never treated as the vendor's self-attestation."
                         >
-                          <X className="h-3 w-3" />
-                        </Button>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="vendor">Vendor evidence</SelectItem>
+                          <SelectItem value="reference">Reference material</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        onClick={() => removeFile(i)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
                 </div>

@@ -45,7 +45,11 @@ class MCPClient:
 
     def _get_http(self) -> httpx.AsyncClient:
         if self._http is None:
-            self._http = httpx.AsyncClient(timeout=300.0)
+            # When API_KEY auth is enabled, the internal agent must
+            # authenticate to its own MCP server like any other client.
+            settings = get_settings()
+            headers = {"X-API-Key": settings.api_key} if settings.api_key else {}
+            self._http = httpx.AsyncClient(timeout=300.0, headers=headers)
         return self._http
 
     async def aclose(self) -> None:

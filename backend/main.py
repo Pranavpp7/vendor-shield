@@ -128,6 +128,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Demo mode: read-only guard ───────────────────────────────────────────────
+# When DEMO_MODE=1, every mutating request is refused — the app serves its
+# seeded data read-only, making $0 public hosting safe by construction
+# (no LLM spend, no data changes, no abuse surface).
+@app.middleware("http")
+async def demo_mode_guard(request: Request, call_next):
+    if (
+        get_settings().demo_mode
+        and request.method not in ("GET", "HEAD", "OPTIONS")
+        and (request.url.path.startswith("/api") or request.url.path.startswith("/mcp"))
+    ):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "This is a read-only demo instance — running assessments, "
+                "uploads, chat, and edits are disabled. Clone the repo to run your own: "
+                "https://github.com/Pranavpp7/vendor-shield-1"
+            },
+        )
+    return await call_next(request)
+
+
 # ── API Routers ──────────────────────────────────────────────────────────────
 app.include_router(documents.router)
 app.include_router(assessments.router)

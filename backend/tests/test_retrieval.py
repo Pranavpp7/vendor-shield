@@ -1,6 +1,10 @@
 """Document-diversified retrieval selection — pure logic, no Qdrant."""
 
-from services.retrieval import diversify_by_document
+from services.retrieval import (
+    REFERENCE_WEIGHT,
+    apply_doc_type_weights,
+    diversify_by_document,
+)
 
 
 def chunk(doc: str, score: float, idx: int = 0) -> dict:
@@ -67,3 +71,24 @@ class TestDiversifyByDocument:
     def test_small_pool_passthrough(self):
         pool = make_pool({"a.pdf": [0.9], "b.pdf": [0.8]})
         assert diversify_by_document(pool, top_k=8) == pool
+
+
+class TestDocTypeWeights:
+    def test_reference_chunks_down_weighted_and_resorted(self):
+        results = [
+            {**chunk("generic-guide.pdf", 0.80), "doc_type": "reference"},
+            {**chunk("vendor-2pager.pdf", 0.72), "doc_type": "vendor"},
+        ]
+        weighted = apply_doc_type_weights(results)
+        # 0.80 × 0.85 = 0.68 < 0.72 → vendor doc now outranks the generic guide
+        assert weighted[0]["document_name"] == "vendor-2pager.pdf"
+        assert abs(weighted[1]["score"] - 0.80 * REFERENCE_WEIGHT) < 1e-9
+
+    def test_legacy_chunks_without_doc_type_untouched(self):
+        results = [{**chunk("old.pdf", 0.7)}]  # pre-tagging chunk, no doc_type
+        weighted = apply_doc_type_weights(results)
+        assert weighted[0]["score"] == 0.7
+
+    def test_vendor_chunks_untouched(self):
+        results = [{**chunk("v.pdf", 0.5), "doc_type": "vendor"}]
+        assert apply_doc_type_weights(results)[0]["score"] == 0.5

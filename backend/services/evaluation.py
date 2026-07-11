@@ -190,8 +190,17 @@ async def evaluate_control(control: dict, assessment_id: str) -> ControlResult:
         [round(r["score"], 3) for r in results],
     )
 
-    # Extract just the text content for the prompt
-    chunk_texts = [r["content"] for r in results]
+    # Extract chunk text for the prompt, labeling reference-document chunks
+    # so the ATTRIBUTION RULE has metadata to work with, not just inference
+    chunk_texts = [
+        (
+            f"[SOURCE TYPE: REFERENCE — generic guidance/marketing material, "
+            f"NOT vendor self-attestation]\n{r['content']}"
+            if r.get("doc_type") == "reference"
+            else r["content"]
+        )
+        for r in results
+    ]
 
     # 2. Build the scoring prompt from controls.py
     prompt = get_scoring_prompt(control, chunk_texts)

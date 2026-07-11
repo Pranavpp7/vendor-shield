@@ -12,6 +12,10 @@ export function setTokenGetter(fn: TokenGetter): void {
 export const apiFetch = async (input: string, init: RequestInit = {}): Promise<Response> => {
   const token = _getToken ? await _getToken() : null;
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  // Single-tenant API-key auth (backend API_KEY set, no Clerk): build with
+  // VITE_API_KEY so the SPA can authenticate to its own backend.
+  const apiKey = import.meta.env.VITE_API_KEY as string | undefined;
+  if (apiKey) authHeaders["X-API-Key"] = apiKey;
   return fetch(input, {
     ...init,
     headers: {
@@ -148,11 +152,13 @@ export async function ingestDocument(
   file: File,
   assessmentId: string,
   vendorName: string,
+  docType: "vendor" | "reference" = "vendor",
 ): Promise<any> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("assessment_id", assessmentId);
   formData.append("vendor_name", vendorName);
+  formData.append("doc_type", docType);
 
   const response = await apiFetch(`${API_BASE}/api/documents/upload`, {
     method: "POST",

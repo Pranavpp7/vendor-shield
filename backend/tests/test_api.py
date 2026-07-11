@@ -211,6 +211,15 @@ class TestScannedPdfRejection:
         c.save()
         return buf.getvalue()
 
+    def test_upload_rejects_invalid_doc_type(self, client):
+        r = client.post(
+            "/api/documents/upload",
+            files={"file": ("a.txt", b"hello world", "text/plain")},
+            data={"assessment_id": "x", "vendor_name": "X", "doc_type": "marketing"},
+        )
+        assert r.status_code == 422
+        assert "doc_type" in r.json()["detail"]
+
     def test_upload_rejects_scanned_pdf_with_clear_error(self, client):
         r = client.post(
             "/api/documents/upload",
