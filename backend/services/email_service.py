@@ -378,9 +378,10 @@ def generate_pdf_report(assessment: dict) -> bytes:
         f"documents (<b>{coverage_pct}%</b> evidence coverage), "
         f"<b>{pass_count}</b> were fully satisfied, <b>{partial_count}</b> "
         f"partially satisfied, and <b>{fail_count}</b> found deficient. "
-        f"<b>{no_ev_count}</b> controls could not be verified and are excluded "
-        f"from the score rather than counted as failures — see the follow-up "
-        f"questions for the evidence to request. "
+        f"<b>{no_ev_count}</b> controls could not be verified; unverified "
+        f"controls count as unaccepted risk in the overall score (they are "
+        f"not confirmed deficiencies — see the follow-up questions for the "
+        f"evidence to request). "
         f"Focus is recommended on <b>{weakest_domain}</b>."
     )
     if override_count:

@@ -58,12 +58,26 @@ export function mapBackendAssessment(row: any): Assessment {
   const verified = rawControls.filter(
     (r: any) => (r.analyst_score || r.score) !== "NO_EVIDENCE"
   ).length;
+  // Average over verified controls only — context shown beside the
+  // evidence-weighted headline score (which counts unknowns as 0).
+  const verifiedPoints = rawControls
+    .filter((r: any) => (r.analyst_score || r.score) !== "NO_EVIDENCE")
+    .map((r: any) => ({ PASS: 1, PARTIAL: 0.5, FAIL: 0 }[
+      (r.analyst_score || r.score) as "PASS" | "PARTIAL" | "FAIL"
+    ] ?? 0));
   const evidenceCoverage =
     rawControls.length > 0
       ? {
           verified,
           total: rawControls.length,
           pct: Math.round((verified / rawControls.length) * 100),
+          verifiedScore:
+            verifiedPoints.length > 0
+              ? Math.round(
+                  (verifiedPoints.reduce((s: number, v: number) => s + v, 0) /
+                    verifiedPoints.length) * 100
+                )
+              : 0,
         }
       : null;
   const rawStatus: string = row.status || "completed";

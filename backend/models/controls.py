@@ -354,55 +354,73 @@ def calculate_scores(
     """
     Given a list of scored controls, calculate domain and overall scores.
 
-    SCORING SEMANTICS (coverage-adjusted):
-        The score answers "of what we could verify, how good is it?"
-        - PASS=1.0, PARTIAL=0.5, FAIL=0.0 count toward the score.
-        - NO_EVIDENCE and unevaluated controls are EXCLUDED from every
-          denominator: an absent document is an unknown, not a failure.
-          Punishing unknowns as failures conflates "we couldn't check"
-          with "we checked and it's bad" — a well-certified vendor
-          assessed from thin public docs would otherwise score like a
-          genuinely deficient one.
-        - The unknown surface is reported separately as `coverage`
-          (percent of framework controls with verifiable findings).
-          Consumers MUST show coverage next to the score; a 90/100 at
-          30% coverage is a very different statement than at 100%.
+    SCORING SEMANTICS (evidence-weighted headline + verified context):
+        Two numbers, because one can't carry both meanings.  This design
+        is the product of two real-world bug reports that pulled in
+        opposite directions:
+          v1  NO_EVIDENCE counted as 0 in the denominator → a certified
+              vendor assessed from thin public docs scored 28/100 High
+              ("unknown" was punished exactly like "verified bad").
+          v2  NO_EVIDENCE excluded from the denominator → a vendor with
+              11 of 20 controls unverifiable scored a comfortable 50/100
+              Medium ("unknown" became a free pass).
+        v3 (current) keeps both signals visible:
+
+        - overall_score (THE HEADLINE, drives risk_level and domain
+          scores): points ÷ ALL framework controls.  PASS=1.0,
+          PARTIAL=0.5, FAIL=0.0, NO_EVIDENCE/unevaluated=0.0 — an
+          unverifiable control is a risk you cannot accept, so it drags
+          the headline down.  9 PARTIALs of 20 controls = 22/100 High,
+          not 50/100 Medium.
+        - verified_score (CONTEXT, shown beside coverage): points ÷
+          verified controls only.  This is what protects the certified-
+          vendor case: "55/100 High-ish headline, but verified controls
+          average 100/100 at 55% coverage" reads as 'gather the missing
+          evidence', not 'this vendor is deficient'.
+        - coverage: percent of framework controls with a verified
+          finding.  Consumers MUST display coverage and verified_score
+          next to the headline.
 
     control_results format:
     [{"control_id": "IAM-001", "score": "PASS", ...}, ...]
     When a result carries an "analyst_score" (human override), it takes
     precedence over the AI "score" — overriding NO_EVIDENCE to a real
-    verdict moves that control INTO the scored set (raises coverage).
+    verdict moves that control into the verified set (raises coverage
+    AND the headline).
     """
     results_by_id = {r["control_id"]: r for r in control_results}
 
     domain_scores = {}
-    verified_vals: list[float] = []
-    total_controls = 0
+    all_points: list[float] = []       # one entry per framework control
+    verified_vals: list[float] = []    # only verified (PASS/PARTIAL/FAIL)
 
     for domain in get_domains(framework_id):
         domain_controls = get_controls_by_domain(domain, framework_id)
-        total_controls += len(domain_controls)
-        domain_vals: list[float] = []
+        domain_points: list[float] = []
 
         for control in domain_controls:
             result = results_by_id.get(control["id"])
-            if result is None:
-                continue  # never evaluated → unknown, not a failure
-            score = effective_score(result)
+            score = effective_score(result) if result else _UNVERIFIED
             if score == _UNVERIFIED:
-                continue  # documentation gap → coverage, not score
-            domain_vals.append(SCORE_MAP.get(score, 0.0))
+                domain_points.append(0.0)  # unverifiable = unaccepted risk
+            else:
+                val = SCORE_MAP.get(score, 0.0)
+                domain_points.append(val)
+                verified_vals.append(val)
 
-        verified_vals.extend(domain_vals)
-        # A domain with nothing verifiable scores 0 — the control-level
-        # counts (all "no evidence") make the reason visible in the UI.
+        all_points.extend(domain_points)
         domain_scores[domain] = (
-            round(sum(domain_vals) / len(domain_vals) * 100) if domain_vals else 0
+            round(sum(domain_points) / len(domain_points) * 100)
+            if domain_points else 0
         )
 
+    total_controls = len(all_points)
     overall = (
-        round(sum(verified_vals) / len(verified_vals) * 100) if verified_vals else 0
+        round(sum(all_points) / total_controls * 100) if total_controls else 0
+    )
+    verified_score = (
+        round(sum(verified_vals) / len(verified_vals) * 100)
+        if verified_vals else 0
     )
     coverage = (
         round(len(verified_vals) / total_controls * 100) if total_controls else 0
@@ -419,6 +437,7 @@ def calculate_scores(
         "overall_score": overall,
         "risk_level": risk_level,
         "domain_scores": domain_scores,
+        "verified_score": verified_score,
         "coverage": coverage,
         "verified_controls": len(verified_vals),
         "total_controls": total_controls,

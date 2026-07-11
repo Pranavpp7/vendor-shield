@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/ui/markdown-text";
-import { Loader2, FileText } from "lucide-react";
-import { generateSummaryFromAI } from "@/lib/api";
+import { Loader2, FileText, Download } from "lucide-react";
+import { toast } from "sonner";
+import { generateSummaryFromAI, downloadAssessmentPdf } from "@/lib/api";
 import { Assessment } from "@/types/assessment";
 
 type Props = {
@@ -15,6 +16,18 @@ type Props = {
 export function SummaryModal({ open, onOpenChange, assessment }: Props) {
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadPdf = async () => {
+    setDownloading(true);
+    try {
+      await downloadAssessmentPdf(assessment.id);
+    } catch (err: any) {
+      toast.error(`PDF download failed: ${err.message}`);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const generate = async () => {
     setLoading(true);
@@ -54,9 +67,13 @@ export function SummaryModal({ open, onOpenChange, assessment }: Props) {
           <div>
             <div className="text-sm leading-relaxed"><MarkdownText content={summary} /></div>
             <div className="mt-4 pt-4 border-t">
-              <Button variant="outline" size="sm" disabled>
-                <FileText className="h-4 w-4 mr-2" />
-                Download PDF (coming soon)
+              <Button variant="outline" size="sm" onClick={downloadPdf} disabled={downloading}>
+                {downloading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Download PDF Report
               </Button>
             </div>
           </div>

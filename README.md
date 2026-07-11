@@ -1,6 +1,6 @@
 # VendorShield
 
-VendorShield automates the evaluation of vendor security documentation against 20 controls grounded in NIST SP 800-53 Revision 5. Upload a vendor's security policies, SOC 2 reports, or ISO 27001 certificates and get back a structured risk score, control-by-control evidence citations, RAG-powered Q&A, and an emailable PDF report - all in minutes instead of days.
+VendorShield automates the evaluation of vendor security documentation against 21 controls grounded in NIST SP 800-53 Revision 5. Upload a vendor's security policies, SOC 2 reports, or ISO 27001 certificates and get back a structured risk score, control-by-control evidence citations, RAG-powered Q&A, and an emailable PDF report - all in minutes instead of days.
 
 ![CI](https://github.com/Pranavpp7/vendor-shield-1/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -32,12 +32,12 @@ instead of raw documents.
 Upload PDF/DOCX/URL          Run assessment                       Review
        │                          │                                  │
        ▼                          ▼                                  ▼
- extract text ──► chunk ──► embed locally ──► Qdrant     20 controls scored
+ extract text ──► chunk ──► embed locally ──► Qdrant     21 controls scored
  (500-word chunks)     (BGE-large-en-v1.5,    vectors    with evidence quotes,
                         1024-dim, no API cost)           reasoning & gap analysis
 ```
 
-For each of the 20 NIST controls, a LangGraph agent retrieves the most
+For each of the 21 NIST controls, a LangGraph agent retrieves the most
 relevant document chunks from Qdrant and asks an LLM (Llama 3.3 70B via
 OpenRouter) to score the control as **PASS / PARTIAL / FAIL / NO_EVIDENCE**,
 returning a direct evidence quote, its reasoning, and the identified gap.
@@ -52,7 +52,7 @@ backend/
 ├── main.py                  ← Layer 7: FastAPI entry point
 ├── start.py                 ← build frontend + launch uvicorn; --dev for hot-reload
 ├── models/
-│   ├── controls.py          ← 20 NIST controls
+│   ├── controls.py          ← 21 NIST controls
 │   └── schemas.py           ← Pydantic request/response models
 ├── storage/
 │   ├── qdrant_store.py      ← Layer 2: vector DB operations

@@ -10,9 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, ShieldAlert, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { overrideControlScore } from "@/lib/api";
+import { needsAnalystJudgment, reviewQueue } from "@/lib/reviewQueue";
 import { BackendScore, ControlResult } from "@/types/assessment";
 
 const SCORE_OPTIONS: BackendScore[] = ["PASS", "PARTIAL", "FAIL", "NO_EVIDENCE"];
@@ -39,6 +41,7 @@ type Props = {
 export function ReviewPanel({ assessmentId, controls, onUpdated }: Props) {
   const [drafts, setDrafts] = useState<Record<string, { score: string; comment: string }>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [view, setView] = useState<"queue" | "all">("queue");
 
   const draftFor = (c: ControlResult) =>
     drafts[c.id] ?? {
@@ -80,11 +83,12 @@ export function ReviewPanel({ assessmentId, controls, onUpdated }: Props) {
     }
   };
 
-  const needsReviewCount = controls.filter((c) => c.needsReview).length;
+  // SAME filter as the tab badge (lib/reviewQueue) — they cannot drift.
+  const queue = reviewQueue(controls);
   const overriddenCount = controls.filter((c) => c.analystScore).length;
 
   // Low-confidence, unreviewed controls first; then by id
-  const sorted = [...controls].sort((a, b) => {
+  const sorted = [...(view === "queue" ? queue : controls)].sort((a, b) => {
     if (!!a.needsReview !== !!b.needsReview) return a.needsReview ? -1 : 1;
     return a.id.localeCompare(b.id);
   });
@@ -92,22 +96,27 @@ export function ReviewPanel({ assessmentId, controls, onUpdated }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
+        <CardTitle className="flex items-center gap-2 text-base flex-wrap">
           <UserCheck className="h-4 w-4" />
           Analyst Review
-          {needsReviewCount > 0 && (
-            <Badge variant="outline" className="text-amber-600 border-amber-400">
-              {needsReviewCount} need review
-            </Badge>
-          )}
           {overriddenCount > 0 && (
             <Badge variant="outline">{overriddenCount} overridden</Badge>
           )}
+          <Tabs value={view} onValueChange={(v) => setView(v as "queue" | "all")} className="ml-auto">
+            <TabsList className="h-8">
+              <TabsTrigger value="queue" className="text-xs px-2.5">
+                Needs judgment ({queue.length})
+              </TabsTrigger>
+              <TabsTrigger value="all" className="text-xs px-2.5">
+                All controls ({controls.length})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          The AI verdict is a first pass. Confirm or override each score — the
-          original AI score is preserved as an audit trail and all totals are
-          recalculated from your decisions.
+          The AI verdict is a first pass. The queue holds every control awaiting
+          your judgment — unverified, partial, or low-confidence. Overriding
+          preserves the AI score as an audit trail and recalculates all totals.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -185,9 +194,19 @@ export function ReviewPanel({ assessmentId, controls, onUpdated }: Props) {
             </div>
           );
         })}
-        {controls.length === 0 && (
+        {controls.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Run the assessment first — there are no scored controls to review yet.
+          </p>
+        ) : sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Queue clear — every control has a verdict. Switch to "All controls"
+            to revisit any decision.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground pt-1">
+            Showing {sorted.length} of {controls.length} controls
+            {view === "queue" ? " (awaiting judgment)" : ""}
           </p>
         )}
       </CardContent>

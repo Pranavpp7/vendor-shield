@@ -110,30 +110,58 @@ async def generate_summary(
     """Generate executive summary using LLM."""
     settings = get_settings()
 
-    # Format controls as readable lines instead of raw Python repr
+    # Consistent terminology contract — must match the rest of the app:
+    # "Failed" is reserved for VERIFIED deficiencies; unverified controls
+    # are "Needs Info", never "failed".
+    _LABELS = {
+        "passed": "PASSED",
+        "partial": "PARTIAL",
+        "failed": "FAILED",
+        "needs_info": "NEEDS INFO (unverified — no evidence provided)",
+    }
     controls_text = "\n".join(
         f"  - {c.get('id', '?')} [{c.get('category', '')}] {c.get('name', '')}: "
-        f"{c.get('status', 'unknown').upper()}"
-        for c in controls[:20]
+        f"{_LABELS.get(c.get('status', ''), str(c.get('status', 'unknown')).upper())}"
+        for c in controls[:40]
     ) if controls else "  No controls evaluated."
+
+    counts = {s: sum(1 for c in controls if c.get("status") == s)
+              for s in ("passed", "partial", "failed", "needs_info")}
 
     messages = [
         {
             "role": "system",
             "content": (
-                "You are a security assessment report writer. "
-                "Generate a concise executive summary. Use markdown with headers and bullet points."
+                "You are a security assessment report writer. Generate a concise "
+                "executive summary in markdown with headers and bullet points.\n\n"
+                "TERMINOLOGY RULES (strict):\n"
+                "- 'Failed' means a VERIFIED deficiency — evidence proved the "
+                "vendor does not meet the control. Only controls marked FAILED "
+                "may ever appear under a failed/deficient heading.\n"
+                "- NEEDS INFO means the documents contained no evidence either "
+                "way. These are documentation gaps to chase, NOT failures — "
+                "never describe them as failed, deficient, or non-compliant.\n"
+                "- Do not invent findings beyond the control list given."
             ),
         },
         {
             "role": "user",
             "content": (
                 f"Vendor: {vendor_name}\n"
-                f"Score: {score}/100\n"
+                f"Score: {score}/100 (unverified controls count as 0)\n"
                 f"Risk Level: {risk_level}\n"
+                f"Status counts: {counts['passed']} passed, {counts['partial']} partial, "
+                f"{counts['failed']} failed, {counts['needs_info']} needs info\n"
                 f"Controls:\n{controls_text}\n"
                 f"Analyst Notes: {notes or 'None'}\n\n"
-                "Generate: executive overview, key findings, failed controls, recommendations."
+                "Generate these sections:\n"
+                "1. Executive Overview\n"
+                "2. Key Findings\n"
+                "3. Confirmed Gaps — FAILED controls only; if none, state "
+                "'No verified control failures.'\n"
+                "4. Unverified Controls (Needs Info) — list them as evidence "
+                "to request from the vendor\n"
+                "5. Recommendations"
             ),
         },
     ]
@@ -143,8 +171,8 @@ async def generate_summary(
         client.chat.completions.create,
         model=settings.openrouter_model,
         messages=messages,
-        temperature=0.7,
-        max_tokens=1000,
+        temperature=0.2,  # report writing wants consistency, not creativity
+        max_tokens=1200,
     )
 
     return response.choices[0].message.content

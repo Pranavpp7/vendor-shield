@@ -398,21 +398,34 @@ export async function fetchFollowUpQuestions(
 
 // ── CSV export ───────────────────────────────────────────────────────────────
 
-export async function downloadAssessmentCsv(assessmentId: string): Promise<void> {
-  const response = await apiFetch(`${API_BASE}/api/assessments/${assessmentId}/export.csv`);
+async function downloadFromApi(path: string, fallbackName: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE}${path}`);
   if (!response.ok) {
-    throw new Error(`Export failed: ${response.status}`);
+    throw new Error(`Download failed: ${response.status}`);
   }
   const blob = await response.blob();
   const disposition = response.headers.get("Content-Disposition") || "";
-  const filename =
-    disposition.match(/filename="([^"]+)"/)?.[1] ?? `vendorshield-${assessmentId}.csv`;
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? fallbackName;
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export async function downloadAssessmentCsv(assessmentId: string): Promise<void> {
+  return downloadFromApi(
+    `/api/assessments/${assessmentId}/export.csv`,
+    `vendorshield-${assessmentId}.csv`
+  );
+}
+
+export async function downloadAssessmentPdf(assessmentId: string): Promise<void> {
+  return downloadFromApi(
+    `/api/assessments/${assessmentId}/report.pdf`,
+    `vendorshield-${assessmentId}.pdf`
+  );
 }
 
 // ── Re-assessment diff ───────────────────────────────────────────────────────

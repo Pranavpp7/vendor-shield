@@ -192,16 +192,23 @@ def _enrich_record(record: dict) -> dict:
     """
     settings = get_settings()
 
-    # Human-review flags
+    # Human-review flags.  Two related but distinct signals:
+    #   needs_review  — per control: AI confidence below threshold and no
+    #                   analyst verdict yet (drives the "low confidence" badge)
+    #   review_queue  — ids awaiting analyst JUDGMENT: no verdict yet AND
+    #                   (unverified, partial, or low-confidence).  This is
+    #                   the same definition as the frontend's
+    #                   lib/reviewQueue.needsAnalystJudgment — keep in sync.
     threshold = settings.review_confidence_threshold
     queue: list[str] = []
     for c in record.get("control_results", []):
-        needs = (
-            float(c.get("confidence", 1.0)) < threshold
-            and not c.get("analyst_score")
-        )
-        c["needs_review"] = needs
-        if needs:
+        overridden = bool(c.get("analyst_score"))
+        low_confidence = float(c.get("confidence", 1.0)) < threshold and not overridden
+        c["needs_review"] = low_confidence
+        effective = effective_score(c)
+        if not overridden and (
+            effective in ("NO_EVIDENCE", "PARTIAL") or low_confidence
+        ):
             queue.append(c.get("control_id", ""))
     record["review_queue"] = queue
 
@@ -650,6 +657,35 @@ async def export_assessment_csv(
         media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="vendorshield-{vendor_slug}-{assessment_id[:8]}.csv"'
+        },
+    )
+
+
+# ── PDF report download ──────────────────────────────────────────────────────
+
+
+@router.get("/{assessment_id}/report.pdf")
+async def download_assessment_pdf(
+    assessment_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    """Download the full PDF report — same generator the email feature uses
+    (override audit trail, residual risk, coverage, follow-up questions)."""
+    from services.email_service import generate_pdf_report
+
+    record = get_assessment(assessment_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # ReportLab is CPU-bound — keep the event loop free
+    pdf_bytes = await asyncio.to_thread(generate_pdf_report, record)
+
+    vendor_slug = (record.get("vendor_name") or "vendor").replace(" ", "-").lower()
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="vendorshield-{vendor_slug}-{assessment_id[:8]}.pdf"'
         },
     )
 

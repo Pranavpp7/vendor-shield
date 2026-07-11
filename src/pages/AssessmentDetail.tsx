@@ -22,6 +22,8 @@ import { DomainScoresChart } from "@/components/assessment/DomainScoresChart";
 import { SendReportButton } from "@/components/SendReportButton";
 import { ReviewPanel } from "@/components/assessment/ReviewPanel";
 import { FollowUpPanel } from "@/components/assessment/FollowUpPanel";
+import { reviewQueue } from "@/lib/reviewQueue";
+import { formatDateTime } from "@/lib/utils";
 import { ScoreGauge } from "@/components/assessment/ScoreGauge";
 import { RunDiffPanel } from "@/components/assessment/RunDiffPanel";
 
@@ -161,15 +163,17 @@ export default function AssessmentDetail() {
                         ? "text-amber-600"
                         : "text-muted-foreground"
                     }`}
-                    title="Percent of framework controls with a verified finding (PASS/PARTIAL/FAIL). Unverified controls are excluded from the score — they are documentation gaps, not failures."
+                    title="The headline score counts unverified controls as 0 — an unverifiable control is a risk you cannot accept. 'Verified avg' is how the controls that COULD be verified performed; close the gap via the Follow-ups tab."
                   >
                     Coverage: {assessment.evidenceCoverage.pct}% (
                     {assessment.evidenceCoverage.verified}/{assessment.evidenceCoverage.total}{" "}
-                    verified)
+                    verified{assessment.evidenceCoverage.pct < 100
+                      ? ` · verified avg ${assessment.evidenceCoverage.verifiedScore}/100`
+                      : ""})
                   </span>
                 )}
                 <span className="text-sm text-muted-foreground">
-                  Date: {assessment.createdAt}
+                  Date: {formatDateTime(assessment.createdAt)}
                 </span>
                 {assessment.runMetrics && assessment.runMetrics.llmCalls > 0 && (
                   <span
@@ -253,9 +257,9 @@ export default function AssessmentDetail() {
             <TabsTrigger value="review">
               <UserCheck className="h-3.5 w-3.5 mr-1.5" />
               Review
-              {(assessment.reviewQueue?.length ?? 0) > 0 && (
+              {reviewQueue(assessment.controls).length > 0 && (
                 <span className="ml-1.5 rounded-full bg-amber-500/20 text-amber-600 text-xs px-1.5">
-                  {assessment.reviewQueue!.length}
+                  {reviewQueue(assessment.controls).length}
                 </span>
               )}
             </TabsTrigger>
@@ -397,9 +401,16 @@ export default function AssessmentDetail() {
                     score: assessment.score,
                     controls: assessment.controls,
                   })}
-                  onNewMessage={(msgs: ChatMessage[]) =>
-                    updateAssessment(assessment.id, { chatHistory: msgs })
-                  }
+                  onNewMessage={(msgs: ChatMessage[]) => {
+                    // detailAssessment shadows the context copy (assessment =
+                    // detailAssessment ?? contextAssessment), so the rendered
+                    // chat only updates if we write to BOTH: local state for
+                    // the live render, context for persistence.
+                    setDetailAssessment((prev) =>
+                      prev ? { ...prev, chatHistory: msgs } : prev
+                    );
+                    updateAssessment(assessment.id, { chatHistory: msgs });
+                  }}
                   assessmentId={assessment.id}
                 />
               </CardContent>

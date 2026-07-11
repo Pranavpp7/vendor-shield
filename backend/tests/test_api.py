@@ -67,13 +67,26 @@ class TestFrameworkEndpoints:
 
 class TestDetailEnrichment:
     def test_needs_review_and_queue(self, client):
-        seed_assessment("a1", {"GR-001": "FAIL", "GR-002": "PASS"})
+        # GR-001 FAIL @ conf 0.3 (low conf → queued), GR-002 PASS @ 0.9
+        # (settled → not queued), AC-001 PARTIAL @ 0.9 (inconclusive →
+        # queued), AC-002 NO_EVIDENCE @ 0.9 (unverified → queued)
+        seed_assessment("a1", {"GR-001": "FAIL", "GR-002": "PASS",
+                               "AC-001": "PARTIAL", "AC-002": "NO_EVIDENCE"})
         d = client.get("/api/assessments/a1").json()
         by_id = {c["control_id"]: c for c in d["control_results"]}
         assert by_id["GR-001"]["needs_review"] is True    # confidence 0.3
         assert by_id["GR-002"]["needs_review"] is False   # confidence 0.9
-        assert d["review_queue"] == ["GR-001"]
+        # review_queue = needs analyst JUDGMENT (same rule as frontend
+        # lib/reviewQueue): unoverridden NO_EVIDENCE/PARTIAL/low-confidence
+        assert set(d["review_queue"]) == {"GR-001", "AC-001", "AC-002"}
         assert "evidence_freshness" in d
+
+    def test_override_removes_from_review_queue(self, client):
+        seed_assessment("a1b", {"GR-001": "NO_EVIDENCE"})
+        assert client.get("/api/assessments/a1b").json()["review_queue"] == ["GR-001"]
+        client.patch("/api/assessments/a1b/controls/GR-001/override",
+                     json={"score": "PASS", "comment": "verified"})
+        assert client.get("/api/assessments/a1b").json()["review_queue"] == []
 
     def test_missing_assessment_404(self, client):
         assert client.get("/api/assessments/ghost").status_code == 404
@@ -85,9 +98,9 @@ class TestOverride:
         r = client.patch("/api/assessments/a2/controls/GR-001/override",
                          json={"score": "PASS", "comment": "verified out-of-band"})
         assert r.status_code == 200
-        # Coverage-adjusted: PASS(1) + PARTIAL(0.5) verified; the NO_EVIDENCE
-        # control and 7 unevaluated ones reduce coverage, not the score → 75%
-        assert r.json()["overall_score"] == 75
+        # v3 evidence-weighted headline: PASS(1) + PARTIAL(0.5) over all 10
+        # framework controls (NO_EVIDENCE + unevaluated count as 0) → 15
+        assert r.json()["overall_score"] == 15
 
         stored = get_assessment("a2")
         c = next(x for x in stored["control_results"] if x["control_id"] == "GR-001")
@@ -174,6 +187,17 @@ class TestCsvExport:
 
     def test_csv_missing_assessment_404(self, client):
         assert client.get("/api/assessments/ghost/export.csv").status_code == 404
+
+    def test_pdf_report_download(self, client):
+        seed_assessment("pdf1", {"GR-001": "PASS", "GR-002": "NO_EVIDENCE"})
+        r = client.get("/api/assessments/pdf1/report.pdf")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("application/pdf")
+        assert 'attachment; filename="vendorshield-' in r.headers["content-disposition"]
+        assert r.content.startswith(b"%PDF")
+
+    def test_pdf_missing_assessment_404(self, client):
+        assert client.get("/api/assessments/ghost/report.pdf").status_code == 404
 
 
 class TestScannedPdfRejection:

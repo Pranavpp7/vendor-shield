@@ -1,7 +1,7 @@
 {
   "id": "nist-800-53",
   "name": "NIST SP 800-53 Rev.5",
-  "description": "20 vendor security controls grounded in NIST SP 800-53 Revision 5, covering Identity & Access Management, Data Protection, Security Operations, and Logging & Monitoring.",
+  "description": "21 vendor security controls grounded in NIST SP 800-53 Revision 5, covering Identity & Access Management, Data Protection, Security Operations, and Logging & Monitoring.",
   "version": "Rev. 5",
   "domain_weights": {
     "Identity & Access Management": 1.0,
@@ -264,6 +264,23 @@
       },
       "weight": 1,
       "ref": "NIST SP 800-53 Rev.5 SI-4, SI-4(2)"
+    },
+    {
+      "id": "SO-006",
+      "domain": "Security Operations",
+      "title": "Independent security certifications and attestations",
+      "description": "The vendor's security program has been examined by qualified independent third parties, evidenced by current certifications and audit attestations such as SOC 2 Type II, ISO/IEC 27001, ISO 27701, or PCI DSS.",
+      "search_query": "SOC 2 Type II ISO 27001 ISO 27701 ISO 27017 PCI DSS certification attestation independent audit report compliance certified standards",
+      "what_to_look_for": "Evidence of current third-party certifications and attestations. Look for: SOC 1, SOC 2 Type I/Type II, SOC 3, ISO/IEC 27001, ISO 27002, ISO 27017, ISO 27018, ISO 27701, PCI DSS, CSA STAR, FedRAMP, HIPAA attestation, C5, audited annually, independent auditor, certification body, attestation report, compliance certifications page, validated by third parties.",
+      "what_good_looks_like": "NIST CA-2 requires control assessments at a defined frequency; CA-2(1) requires assessors independent of the organization. Best practice: a current (within 12 months) SOC 2 Type II report and ISO/IEC 27001 certification from accredited independent auditors, with reports available to customers under NDA, and scope covering the services being purchased.",
+      "scoring_guide": {
+        "pass": "Named current certifications/attestations (e.g. SOC 2 Type II, ISO 27001) from independent auditors",
+        "partial": "Certifications claimed but currency, scope, or independence unclear, or only self-assessments cited",
+        "fail": "Evidence that certifications lapsed, failed, or were never obtained despite being required",
+        "no_evidence": "No mention of third-party certifications, audits, or attestations"
+      },
+      "weight": 1,
+      "ref": "NIST SP 800-53 Rev.5 CA-2, CA-2(1)"
     },
     {
       "id": "LM-001",

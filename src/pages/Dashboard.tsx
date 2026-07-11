@@ -21,6 +21,7 @@ import { Plus, GitCompare, Eye, Shield, AlertTriangle, CheckCircle, Trash2, Tren
 import { motion } from "framer-motion";
 import { RiskDonut } from "@/components/assessment/RiskDonut";
 import { Sparkline } from "@/components/assessment/Sparkline";
+import { formatDate } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChecklistSchema } from "@/hooks/useChecklistSchema";
 import { generateChecklistFromAI } from "@/lib/api";
@@ -261,7 +262,7 @@ export default function Dashboard() {
                     <TableCell>
                       <RiskBadge level={a.riskLevel} />
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{a.createdAt}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(a.createdAt)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button

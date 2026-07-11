@@ -46,7 +46,14 @@ export function ChatPanel({ chatHistory, checklistJson, onNewMessage, assessment
     <div className="flex flex-col h-full">
       <div className="flex gap-2 flex-wrap mb-4">
         {QUICK_QUESTIONS.map((q) => (
-          <Button key={q} variant="outline" size="sm" onClick={() => setInput(q)} className="text-xs">
+          <Button
+            key={q}
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={() => sendMessage(q)}
+            className="text-xs"
+          >
             {q}
           </Button>
         ))}

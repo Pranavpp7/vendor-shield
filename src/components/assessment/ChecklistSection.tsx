@@ -128,7 +128,7 @@ export function ChecklistSection({ controls, isRunning, revealedCount = controls
                                   />
                                 </span>
                                 <span className="text-[10px] text-muted-foreground tabular-nums">
-                                  {Math.round(control.confidence * 100)}%
+                                  {Math.round(control.confidence * 100)}% confidence
                                 </span>
                               </span>
                             )}

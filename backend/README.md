@@ -1,7 +1,7 @@
 # VendorShield Backend
 
 AI-powered vendor security risk assessment system. Evaluates vendor documents
-against 20 security controls grounded in NIST SP 800-53 Rev.5.
+against 21 security controls grounded in NIST SP 800-53 Rev.5.
 
 ## Architecture (7 Layers)
 
@@ -28,7 +28,7 @@ backend/
 ├── models/
 │   ├── controls.py          ← framework loader + scoring helpers
 │   ├── frameworks/          ← control frameworks as JSON data
-│   │   ├── nist-800-53.json ←   20 controls, NIST SP 800-53 Rev.5 (default)
+│   │   ├── nist-800-53.json ←   21 controls, NIST SP 800-53 Rev.5 (default)
 │   │   └── soc2-tsc.json    ←   10 controls, SOC 2 Trust Services Criteria
 │   └── schemas.py           ← Pydantic request/response models
 ├── storage/
