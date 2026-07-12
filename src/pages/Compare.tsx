@@ -31,6 +31,7 @@ import {
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { fetchAssessments, fetchCompareAssessments } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
+import { SCORE_POINTS, effectiveScore, isVerified } from "@/lib/scoring";
 import type { Assessment as AppAssessment } from "@/types/assessment";
 
 // Categorical series pair — deliberately distinct from the reserved
@@ -38,12 +39,7 @@ import type { Assessment as AppAssessment } from "@/types/assessment";
 const VENDOR_A_COLOR = "#0d9488";
 const VENDOR_B_COLOR = "#6366f1";
 
-const STATUS_VALUE: Record<string, number> = {
-  PASS: 1.0,
-  PARTIAL: 0.5,
-  FAIL: 0.0,
-  NO_EVIDENCE: 0.0,
-};
+
 
 const STATUS_LABEL: Record<string, string> = {
   PASS: "PASS",
@@ -80,9 +76,7 @@ type RawControl = {
   title: string;
 };
 
-/** Analyst override supersedes the AI score everywhere in the app. */
-const effective = (c: RawControl | undefined): string =>
-  c ? (c.analyst_score || c.score) : "NO_EVIDENCE";
+
 
 type RawAssessment = {
   id: string;
@@ -96,7 +90,7 @@ type RawAssessment = {
 const coverageOf = (v: RawAssessment) => {
   const controls = v.control_results ?? [];
   if (controls.length === 0) return null;
-  const verified = controls.filter((c) => effective(c) !== "NO_EVIDENCE").length;
+  const verified = controls.filter(isVerified).length;
   return { verified, total: controls.length, pct: Math.round((verified / controls.length) * 100) };
 };
 
@@ -197,8 +191,8 @@ export default function Compare() {
       .map((id) => {
         const a = aById.get(id);
         const b = bById.get(id);
-        const aScore = effective(a);
-        const bScore = effective(b);
+        const aScore = effectiveScore(a);
+        const bScore = effectiveScore(b);
         return {
           control_id: id,
           title: a?.title ?? b?.title ?? id,
@@ -206,7 +200,7 @@ export default function Compare() {
           aScore,
           bScore,
           gap: Math.abs(
-            (STATUS_VALUE[aScore] ?? 0) - (STATUS_VALUE[bScore] ?? 0)
+            (SCORE_POINTS[aScore] ?? 0) - (SCORE_POINTS[bScore] ?? 0)
           ),
         };
       })

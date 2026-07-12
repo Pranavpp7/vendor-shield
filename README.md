@@ -106,10 +106,14 @@ retries evaluation once before aggregating.
 - **Strictly layered backend.** Seven layers (config → storage → services →
   MCP → agent graph → routers → app), each importing only from layers below.
   One service file per responsibility keeps every module small and testable.
-- **MCP as the tool boundary.** The LangGraph agent doesn't import services
-  directly — it calls them as [MCP](https://modelcontextprotocol.io) tools.
-  The same tool surface that powers the internal agent is exposed to external
-  AI agents at `/mcp`.
+- **MCP as the external surface, in-process calls internally.** The full
+  tool set (run assessments, query documents, RAG chat, reports) is exposed
+  to external AI agents via [MCP](https://modelcontextprotocol.io) at
+  `/mcp`. Internally, the LangGraph agent calls the same services
+  in-process — an earlier design routed internal calls through the MCP
+  HTTP endpoint on its own port, which coupled the workflow to deployment
+  topology and caused real timeout/staleness bugs; the boundary now exists
+  where boundaries pay for themselves, at the edge.
 - **Namespace isolation per assessment.** Each assessment gets its own Qdrant
   collection, so retrieval for one vendor can never leak evidence from
   another.

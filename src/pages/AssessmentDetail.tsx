@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/context/AssessmentContext";
 import { RiskBadge } from "@/components/assessment/RiskBadge";
@@ -38,32 +39,28 @@ export default function AssessmentDetail() {
   const [highlightDoc, setHighlightDoc] = useState<string | null>(null);
   const [docsStillIndexing, setDocsStillIndexing] = useState(false);
 
-  const contextAssessment = getAssessmentBySlug(vendorSlug || "");
-  const [detailAssessment, setDetailAssessment] = useState<Assessment | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
-
-  const loadDetail = useCallback(() => {
-    if (!vendorSlug) return;
-    console.log("[AssessmentDetail] fetching detail for id:", vendorSlug);
-    setDetailLoading(true);
-    fetchAssessmentDetail(vendorSlug)
-      .then((data) => {
-        setDetailAssessment(data);
-        setDetailError(null);
-      })
-      .catch((err) => {
-        console.error("fetchAssessmentDetail failed:", err);
-        setDetailError(err.message || "Failed to load latest assessment data");
-      })
-      .finally(() => setDetailLoading(false));
-  }, [vendorSlug]);
-
-  useEffect(() => {
-    loadDetail();
-  }, [loadDetail]);
-
-  const assessment = detailAssessment ?? contextAssessment;
+  // SINGLE source of truth: the TanStack Query cache.  The old design kept
+  // a local copy shadowing the context copy — child updates rendered nowhere
+  // (the chat bug).  Now every child mutation either invalidates this key
+  // (refetch from backend truth) or patches the cache directly.
+  const queryClient = useQueryClient();
+  const detailKey = ["assessment", vendorSlug];
+  const {
+    data: queried,
+    isLoading: detailLoading,
+    error: detailQueryError,
+  } = useQuery({
+    queryKey: detailKey,
+    queryFn: () => fetchAssessmentDetail(vendorSlug!),
+    enabled: !!vendorSlug,
+  });
+  const detailError = detailQueryError
+    ? (detailQueryError as Error).message || "Failed to load latest assessment data"
+    : null;
+  const refetchDetail = () =>
+    queryClient.invalidateQueries({ queryKey: detailKey });
+  // Context copy only as a last-resort fallback while the query errors
+  const assessment = queried ?? getAssessmentBySlug(vendorSlug || "");
 
   // Local notes state with 1-second debounce to avoid API calls on every keystroke
   const [notesValue, setNotesValue] = useState(assessment?.notes ?? "");
@@ -87,14 +84,10 @@ export default function AssessmentDetail() {
     if (!assessment) return;
     setRerunning(true);
     try {
-      const result = await generateChecklistFromAI(assessment.vendorName, checklistAllControls, assessment.id);
-      updateAssessment(assessment.id, {
-        controls: result.controls,
-        score: result.score,
-        riskLevel: result.riskLevel as "Low" | "Medium" | "High",
-        domainScores: result.domainScores,
-        gapsSummary: result.gapsSummary,
-      });
+      await generateChecklistFromAI(assessment.vendorName, checklistAllControls, assessment.id);
+      // The backend saved the results — refetch the truth rather than
+      // hand-patching two stores (the bug class this page used to have).
+      await refetchDetail();
       toast.success("Checklist re-run complete with latest document data.");
     } catch {
       toast.error("Failed to re-run checklist.");
@@ -153,7 +146,12 @@ export default function AssessmentDetail() {
                 )}
                 {assessment.frameworkId && (
                   <span className="text-sm text-muted-foreground">
-                    Framework: {assessment.frameworkId === "soc2-tsc" ? "SOC 2 TSC" : "NIST 800-53"}
+                    Framework:{" "}
+                    {{
+                      "nist-800-53": "NIST 800-53",
+                      "soc2-tsc": "SOC 2 TSC",
+                      "iso-27001": "ISO 27001",
+                    }[assessment.frameworkId] ?? assessment.frameworkId}
                   </span>
                 )}
                 {assessment.evidenceCoverage && (
@@ -358,7 +356,7 @@ export default function AssessmentDetail() {
             <ReviewPanel
               assessmentId={assessment.id}
               controls={assessment.controls}
-              onUpdated={loadDetail}
+              onUpdated={refetchDetail}
             />
           </TabsContent>
 
@@ -402,11 +400,9 @@ export default function AssessmentDetail() {
                     controls: assessment.controls,
                   })}
                   onNewMessage={(msgs: ChatMessage[]) => {
-                    // detailAssessment shadows the context copy (assessment =
-                    // detailAssessment ?? contextAssessment), so the rendered
-                    // chat only updates if we write to BOTH: local state for
-                    // the live render, context for persistence.
-                    setDetailAssessment((prev) =>
+                    // Patch the query cache (the single render source) and
+                    // persist via the context (PUT + list-cache sync).
+                    queryClient.setQueryData(detailKey, (prev: Assessment | undefined) =>
                       prev ? { ...prev, chatHistory: msgs } : prev
                     );
                     updateAssessment(assessment.id, { chatHistory: msgs });

@@ -1,4 +1,5 @@
 import { Assessment, ControlResult, ControlStatus, DomainScore } from "@/types/assessment";
+import { SCORE_POINTS, effectiveScore, isVerified } from "@/lib/scoring";
 
 export function scoreToStatus(s: string): ControlStatus {
   if (s === "PASS") return "passed";
@@ -10,7 +11,7 @@ export function scoreToStatus(s: string): ControlStatus {
 export function mapControl(r: any): ControlResult {
   // The effective score is what the UI shows: analyst override wins,
   // the AI score stays available as the audit trail.
-  const effective: string = r.analyst_score || r.score;
+  const effective = effectiveScore(r);
   return {
     id: r.control_id,
     category: r.domain,
@@ -36,17 +37,17 @@ export function mapDomainScores(
   rawControls: any[]
 ): DomainScore[] {
   if (!dict) return [];
-  const eff = (r: any): string => r.analyst_score || r.score;
+
   return Object.entries(dict).map(([domain, score]) => {
     const dc = rawControls.filter((r) => r.domain === domain);
     return {
       domain,
       score: score as number,
       total_controls: dc.length,
-      passed: dc.filter((r) => eff(r) === "PASS").length,
-      partial: dc.filter((r) => eff(r) === "PARTIAL").length,
-      failed: dc.filter((r) => eff(r) === "FAIL").length,
-      no_evidence: dc.filter((r) => eff(r) === "NO_EVIDENCE").length,
+      passed: dc.filter((r) => effectiveScore(r) === "PASS").length,
+      partial: dc.filter((r) => effectiveScore(r) === "PARTIAL").length,
+      failed: dc.filter((r) => effectiveScore(r) === "FAIL").length,
+      no_evidence: dc.filter((r) => effectiveScore(r) === "NO_EVIDENCE").length,
     };
   });
 }
@@ -55,16 +56,12 @@ export function mapBackendAssessment(row: any): Assessment {
   const rawControls = row.control_results || [];
   // Coverage is computed from the effective (override-aware) scores so an
   // analyst overriding NO_EVIDENCE to a real verdict raises coverage live.
-  const verified = rawControls.filter(
-    (r: any) => (r.analyst_score || r.score) !== "NO_EVIDENCE"
-  ).length;
+  const verified = rawControls.filter(isVerified).length;
   // Average over verified controls only — context shown beside the
   // evidence-weighted headline score (which counts unknowns as 0).
   const verifiedPoints = rawControls
-    .filter((r: any) => (r.analyst_score || r.score) !== "NO_EVIDENCE")
-    .map((r: any) => ({ PASS: 1, PARTIAL: 0.5, FAIL: 0 }[
-      (r.analyst_score || r.score) as "PASS" | "PARTIAL" | "FAIL"
-    ] ?? 0));
+    .filter(isVerified)
+    .map((r: any) => SCORE_POINTS[effectiveScore(r)] ?? 0);
   const evidenceCoverage =
     rawControls.length > 0
       ? {

@@ -15,9 +15,12 @@ RESPONSIBILITY:
                                                         ├─(re_retrieve)──→ re_retrieve_node ──→ evaluate_node
                                                         └─(aggregate)──→ aggregate_node ──→ save_results ──→ END
 
-IMPORTS FROM: mcp/client (services are called as MCP tools, not imported),
-              storage/local_store, models/schemas, models/controls, config
-IMPORTED BY:  mcp/server.py
+IMPORTS FROM: services/evaluation, services/aggregation, services/retrieval,
+              services/progress, storage/local_store, models/*, config
+IMPORTED BY:  mcp/server.py (the MCP server exposes this workflow as the
+              run_assessment tool for EXTERNAL agents; internally the graph
+              calls services in-process — no HTTP hop to its own port, no
+              stale-server or timeout coupling)
 """
 
 import asyncio
@@ -32,26 +35,14 @@ from langgraph.graph import StateGraph, END
 from config import get_settings
 from models.schemas import AssessmentResponse, ControlResult, ControlScore
 from models.controls import get_all_controls
-from mcp.client import MCPClient
+from services.aggregation import aggregate_results
+from services.evaluation import evaluate_all_controls
 from services.progress import set_progress
+from services.retrieval import search_documents
 from services.usage import pop_usage
-from storage.local_store import save_assessment, update_assessment, get_assessment
+from storage.local_store import save_assessment, update_assessment, get_assessment, list_documents
 
 logger = logging.getLogger(__name__)
-_mcp_client: MCPClient | None = None
-
-
-def _get_mcp_client() -> MCPClient:
-    global _mcp_client
-    if _mcp_client is None:
-        _mcp_client = MCPClient()
-    return _mcp_client
-
-
-async def _ensure_mcp_client() -> MCPClient:
-    client = _get_mcp_client()
-    await client.initialize()
-    return client
 
 
 # ── State Definition ─────────────────────────────────────────────────────────
@@ -135,14 +126,13 @@ def route_after_evaluate(state: AssessmentState) -> str:
 
 
 async def ingest_node(state: AssessmentState) -> dict:
-    """Check whether the assessment has indexed documents via MCP."""
+    """Check whether the assessment has indexed documents (SQLite lookup)."""
     assessment_id = state["assessment_id"]
     logger.info(f"[{assessment_id}] ingesting: Checking documents... (10%)")
     set_progress(assessment_id, "ingest", "Checking indexed documents…", 5)
 
     try:
-        client = await _ensure_mcp_client()
-        docs = await client.get_documents(assessment_id)
+        docs = await asyncio.to_thread(list_documents, assessment_id=assessment_id)
         has_docs = len(docs) > 0
     except Exception as e:
         logger.warning(f"Could not check documents for {assessment_id}: {e}")
@@ -164,13 +154,13 @@ async def retrieve_node(state: AssessmentState) -> dict:
     set_progress(assessment_id, "retrieve", "Retrieving evidence for each control…", 15)
     settings = get_settings()
     controls = get_all_controls(state["framework_id"])
-    client = await _ensure_mcp_client()
 
     async def _fetch_one(control: dict) -> tuple[str, list[dict]]:
         try:
-            chunks = await client.query_documents(
-                assessment_id=assessment_id,
+            chunks = await asyncio.to_thread(
+                search_documents,
                 query=control["search_query"],
+                assessment_id=assessment_id,
                 top_k=settings.retrieval_top_k,
             )
             return control["id"], chunks
@@ -220,14 +210,12 @@ async def no_documents_node(state: AssessmentState) -> dict:
         for c in controls
     ]
 
-    client = await _ensure_mcp_client()
-    response_data = await client.aggregate_scores(
+    response = aggregate_results(
         assessment_id=assessment_id,
         vendor_name=vendor_name,
-        control_results=[r.model_dump(mode="json") for r in control_results],
+        control_results=control_results,
         framework_id=state["framework_id"],
     )
-    response = AssessmentResponse(**response_data)
 
     logger.info(
         f"No-documents path: score={response.overall_score}/100, "
@@ -265,16 +253,13 @@ async def sparse_evidence_node(state: AssessmentState) -> dict:
 
 
 async def evaluate_node(state: AssessmentState) -> dict:
-    """Score the framework's controls against vendor documents via the
-    MCP evaluate tool.  Controls are evaluated concurrently, bounded by
-    settings.llm_concurrency."""
+    """Score the framework's controls against vendor documents in-process.
+    Controls are evaluated concurrently, bounded by settings.llm_concurrency."""
     assessment_id = state["assessment_id"]
-    client = await _ensure_mcp_client()
-    results_data = await client.evaluate_controls(
-        assessment_id=assessment_id,
+    results = await evaluate_all_controls(
+        assessment_id,
         framework_id=state["framework_id"],
     )
-    results = [ControlResult(**r) for r in results_data]
     evaluations = {r.control_id: {"score": r.score.value} for r in results}
 
     logger.info(
@@ -294,7 +279,6 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
     """
     assessment_id = state["assessment_id"]
     settings = get_settings()
-    client = await _ensure_mcp_client()
     retry_count = state.get("retry_count", 0) + 1
 
     evaluations = state.get("evaluations", {})
@@ -326,9 +310,10 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
             + control.get("description", "")[:100]
         )
         try:
-            chunks = await client.query_documents(
-                assessment_id=assessment_id,
+            chunks = await asyncio.to_thread(
+                search_documents,
                 query=broader_query,
+                assessment_id=assessment_id,
                 top_k=settings.retrieval_top_k,
             )
             return control_id, chunks
@@ -354,14 +339,12 @@ async def aggregate_node(state: AssessmentState) -> dict:
 
     control_results = state["control_results"]
 
-    client = await _ensure_mcp_client()
-    response_data = await client.aggregate_scores(
+    response = aggregate_results(
         assessment_id=state["assessment_id"],
         vendor_name=state["vendor_name"],
-        control_results=[r.model_dump(mode="json") for r in control_results],
+        control_results=control_results,
         framework_id=state["framework_id"],
     )
-    response = AssessmentResponse(**response_data)
 
     logger.info(
         f"Aggregated: score={response.overall_score}/100, "

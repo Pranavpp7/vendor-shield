@@ -94,6 +94,14 @@ class ControlResult(BaseModel):
     overridden_by: Optional[str] = None     # user_id of the analyst ("" in dev mode)
     overridden_at: Optional[str] = None     # ISO-8601 UTC timestamp
 
+    @property
+    def effective(self) -> ControlScore:
+        """THE canonical effective-score rule for ControlResult objects:
+        the analyst's override when present, else the AI's verdict.
+        (For raw dicts, use models.controls.effective_score — same rule.)
+        Every consumer must use one of these two; never re-derive inline."""
+        return self.analyst_score or self.score
+
 
 # --- Request Models ---
 

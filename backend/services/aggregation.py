@@ -28,11 +28,6 @@ from models.schemas import (
 logger = logging.getLogger(__name__)
 
 
-def _effective(r: ControlResult) -> ControlScore:
-    """The score that counts: the analyst override when present, else the AI's."""
-    return r.analyst_score or r.score
-
-
 def build_gaps_summary(control_results: list[ControlResult]) -> str:
     """Build a markdown summary of all controls that scored FAIL or NO_EVIDENCE.
 
@@ -43,7 +38,7 @@ def build_gaps_summary(control_results: list[ControlResult]) -> str:
     # Collect controls with gaps
     gaps = [
         r for r in control_results
-        if _effective(r) in (ControlScore.FAIL, ControlScore.NO_EVIDENCE)
+        if r.effective in (ControlScore.FAIL, ControlScore.NO_EVIDENCE)
     ]
 
     if not gaps:
@@ -58,7 +53,7 @@ def build_gaps_summary(control_results: list[ControlResult]) -> str:
     for domain, results in domains.items():
         lines.append(f"### {domain}\n")
         for r in results:
-            score_label = _effective(r).value
+            score_label = r.effective.value
             gap_text = r.gap or "No specific gap described"
             lines.append(
                 f"- **{r.control_id} — {r.title}** [{score_label}]\n"
@@ -98,7 +93,7 @@ def aggregate_results(
     # 1. Convert to dict format that calculate_scores() expects.
     #    The effective (override-aware) score is what gets aggregated.
     results_dicts = [
-        {"control_id": r.control_id, "score": _effective(r).value}
+        {"control_id": r.control_id, "score": r.effective.value}
         for r in control_results
     ]
 

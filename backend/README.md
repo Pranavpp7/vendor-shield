@@ -9,7 +9,7 @@ against 21 security controls grounded in NIST SP 800-53 Rev.5.
 Layer 1: config.py           → All settings via pydantic BaseSettings
 Layer 2: storage/            → Qdrant (vectors) + SQLite (structured data)
 Layer 3: services/           → One file per responsibility (extract, chunk, embed, etc.)
-Layer 4: mcp/                → MCP server (tools) + MCP client (agent interface)
+Layer 4: mcp/                → MCP server (external-agent tool surface) + client
 Layer 5: chains/             → LangGraph agent workflow
 Layer 6: routers/            → Thin FastAPI HTTP endpoints
 Layer 7: main.py             → FastAPI app entry point
@@ -68,7 +68,8 @@ User uploads PDF
   → local_store.py saves document metadata to SQLite (vendorshield.db)
 
 User runs assessment (choosing a framework: NIST 800-53 or SOC 2 TSC)
-  → agent iterates the framework's controls from models/frameworks/*.json
+  → agent (in-process service calls; MCP is the external surface only)
+  → iterates the framework's controls from models/frameworks/*.json
   → for each control: retrieval.py searches Qdrant using control["search_query"]
   → evaluation.py calls get_scoring_prompt() + sends to OpenRouter LLM
   → LLM returns: score, evidence_quote, reasoning, gap

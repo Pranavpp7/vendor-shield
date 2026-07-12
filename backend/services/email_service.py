@@ -35,6 +35,7 @@ from reportlab.platypus import (
 )
 
 from config import get_settings
+from models.controls import effective_score as _effective
 
 logger = logging.getLogger(__name__)
 
@@ -86,11 +87,6 @@ _ERROR_MARKERS = (
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-def _effective(ctrl: dict) -> str:
-    """The score that counts: analyst override when present, else the AI's."""
-    return ctrl.get("analyst_score") or ctrl.get("score", "NO_EVIDENCE")
 
 
 def _risk_label(score: float) -> str:
