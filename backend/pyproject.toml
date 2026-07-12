@@ -29,6 +29,17 @@ dependencies = [
     "PyJWT[crypto]>=2.8.0",
 ]
 
+# torch: CPU-only wheels.  On Linux (Docker), PyPI's default torch drags in
+# ~5 GB of NVIDIA CUDA libraries that a CPU-only container never executes.
+# The dedicated CPU index keeps the image and venv to what's actually used.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
