@@ -15,8 +15,8 @@ IMPORTED BY:  routers/chat.py, mcp/server.py
 
 import asyncio
 import logging
-from openai import OpenAI
 from config import get_settings
+from services.llm import acomplete
 from services.retrieval import search_documents
 from models.schemas import Citation
 
@@ -87,17 +87,9 @@ async def chat_with_docs(
         {"role": "user", "content": f"Assessment context:\n{context or 'No additional context provided.'}\n\nQuestion: {question}"},
     ]
 
-    # 5. Call LLM
-    client = OpenAI(api_key=settings.openrouter_api_key, base_url=settings.openrouter_base_url)
-    response = await asyncio.to_thread(
-        client.chat.completions.create,
-        model=settings.openrouter_model,
-        messages=messages,
-        temperature=0.1,
-        max_tokens=800,
-    )
-
-    return response.choices[0].message.content, citations
+    # 5. Call LLM (shared module: retries + provider failover)
+    reply = await acomplete(messages, temperature=0.1, max_tokens=800)
+    return reply, citations
 
 
 async def generate_summary(
@@ -166,13 +158,8 @@ async def generate_summary(
         },
     ]
 
-    client = OpenAI(api_key=settings.openrouter_api_key, base_url=settings.openrouter_base_url)
-    response = await asyncio.to_thread(
-        client.chat.completions.create,
-        model=settings.openrouter_model,
-        messages=messages,
+    return await acomplete(
+        messages,
         temperature=0.2,  # report writing wants consistency, not creativity
         max_tokens=1200,
     )
-
-    return response.choices[0].message.content

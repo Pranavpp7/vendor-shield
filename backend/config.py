@@ -53,6 +53,17 @@ class Settings(BaseSettings):
     llm_price_in_per_m: float = 0.12
     llm_price_out_per_m: float = 0.30
 
+    # ── Fallback LLM provider (automatic failover) ───────────────────────────
+    # Used only when the PRIMARY provider is dead for account/model reasons
+    # (402 insufficient credits, 401, 404/410 model gone) — never for
+    # transient 429/5xx.  Defaults target Groq's OpenAI-compatible API,
+    # whose FREE tier hosts llama-3.3-70b-versatile and openai/gpt-oss-120b
+    # (get a key at https://console.groq.com/keys).  Empty key = disabled.
+    # Any fallback model must pass the eval gate before you rely on it.
+    fallback_base_url: str = "https://api.groq.com/openai/v1"
+    fallback_api_key: str = ""
+    fallback_model: str = "llama-3.3-70b-versatile"
+
     # ── Qdrant Vector Database ───────────────────────────────────────────────
     # Qdrant runs locally via Docker — no cloud, no API key needed.
     # Start it with:  docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant

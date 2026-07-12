@@ -31,33 +31,14 @@ import json
 import logging
 import re
 
-from openai import AsyncOpenAI
-
 from config import get_settings
 from models.controls import get_all_controls, get_scoring_prompt
 from models.schemas import ControlResult, Citation, ControlScore
+from services.llm import acomplete
 from services.progress import set_progress
 from services.retrieval import search_documents
-from services.usage import record_usage
 
 logger = logging.getLogger(__name__)
-
-_client: AsyncOpenAI | None = None
-
-
-def _get_client() -> AsyncOpenAI:
-    """Return a module-level singleton AsyncOpenAI client (reuses HTTP connections)."""
-    global _client
-    if _client is None:
-        settings = get_settings()
-        _client = AsyncOpenAI(
-            api_key=settings.openrouter_api_key,
-            base_url=settings.openrouter_base_url,
-            # Free-tier endpoints 429 under burst load; the SDK retries
-            # rate limits and transient 5xx with exponential backoff.
-            max_retries=5,
-        )
-    return _client
 
 
 def _parse_confidence(raw) -> float:
@@ -113,36 +94,15 @@ def _parse_llm_json(raw: str, control_id: str) -> dict:
 
 
 async def _call_llm_json(prompt: str, assessment_id: str) -> str:
-    """One LLM call in JSON mode, falling back to plain mode if the
-    provider rejects response_format (support varies across OpenRouter
-    providers for the same model).  Token usage is metered per run."""
-    settings = get_settings()
-    client = _get_client()
-    try:
-        response = await client.chat.completions.create(
-            model=settings.openrouter_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=2048,  # reasoning models spend completion tokens thinking
-            response_format={"type": "json_object"},
-        )
-    except Exception as e:
-        if "response_format" not in str(e).lower() and "json" not in str(e).lower():
-            raise
-        logger.warning(f"JSON mode rejected by provider, retrying without: {e}")
-        response = await client.chat.completions.create(
-            model=settings.openrouter_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=2048,  # reasoning models spend completion tokens thinking
-        )
-    if response.usage is not None:
-        record_usage(
-            assessment_id,
-            response.usage.prompt_tokens or 0,
-            response.usage.completion_tokens or 0,
-        )
-    return response.choices[0].message.content or ""
+    """One scoring call via the shared LLM module (JSON mode, provider
+    failover, retries, and usage metering all live in services/llm)."""
+    return await acomplete(
+        [{"role": "user", "content": prompt}],
+        temperature=0.0,
+        max_tokens=2048,  # reasoning models spend completion tokens thinking
+        json_mode=True,
+        assessment_id=assessment_id,
+    )
 
 
 async def evaluate_control(control: dict, assessment_id: str) -> ControlResult:

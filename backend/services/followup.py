@@ -19,28 +19,11 @@ import json
 import logging
 import re
 
-from openai import OpenAI
-
-from config import get_settings
 from models.controls import effective_score
+from services.llm import complete
 
 logger = logging.getLogger(__name__)
 
-_client: OpenAI | None = None
-
-
-def _get_client() -> OpenAI:
-    """Return a module-level singleton OpenAI client (reuses HTTP connections)."""
-    global _client
-    if _client is None:
-        settings = get_settings()
-        _client = OpenAI(
-            api_key=settings.openrouter_api_key,
-            base_url=settings.openrouter_base_url,
-            # Free-tier endpoints 429 under burst load; SDK retries with backoff.
-            max_retries=5,
-        )
-    return _client
 
 
 def _build_prompt(vendor_name: str, gapped_controls: list[dict]) -> str:
@@ -127,31 +110,17 @@ def generate_follow_up_questions(assessment: dict) -> list[dict]:
         return []
 
     prompt = _build_prompt(vendor_name, gapped)
-    settings = get_settings()
-    client = _get_client()
 
     logger.info(
         f"Generating follow-up questions for {len(gapped)} gapped control(s) "
         f"({vendor_name})"
     )
     try:
-        try:
-            response = client.chat.completions.create(
-                model=settings.openrouter_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                response_format={"type": "json_object"},
-            )
-        except Exception as e:
-            # JSON-mode support varies by OpenRouter provider — retry plain
-            if "response_format" not in str(e).lower() and "json" not in str(e).lower():
-                raise
-            response = client.chat.completions.create(
-                model=settings.openrouter_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-            )
-        raw = response.choices[0].message.content or ""
+        raw = complete(
+            [{"role": "user", "content": prompt}],
+            temperature=0.2,
+            json_mode=True,
+        )
         questions = _parse_questions(raw)
     except Exception as e:
         logger.error(f"Follow-up question generation failed: {e}")

@@ -22,9 +22,7 @@ import json
 import logging
 import re
 
-from openai import OpenAI
-
-from config import get_settings
+from services.llm import complete
 
 logger = logging.getLogger(__name__)
 
@@ -34,21 +32,6 @@ logger = logging.getLogger(__name__)
 MAX_SOURCE_CHARS = 24_000
 MAX_CONTROLS = 40
 
-_client: OpenAI | None = None
-
-
-def _get_client() -> OpenAI:
-    """Return a module-level singleton OpenAI client (reuses HTTP connections)."""
-    global _client
-    if _client is None:
-        settings = get_settings()
-        _client = OpenAI(
-            api_key=settings.openrouter_api_key,
-            base_url=settings.openrouter_base_url,
-            # Free-tier endpoints 429 under burst load; SDK retries with backoff.
-            max_retries=5,
-        )
-    return _client
 
 
 def slugify(name: str) -> str:
@@ -141,29 +124,17 @@ def extract_framework_from_text(source_name: str, text: str) -> dict:
     truncated = len(text) > MAX_SOURCE_CHARS
     prompt = _build_prompt(source_name, text[:MAX_SOURCE_CHARS])
 
-    settings = get_settings()
     logger.info(
         f"Extracting framework from '{source_name}' "
         f"({len(text)} chars{', truncated' if truncated else ''})"
     )
     try:
-        try:
-            response = _get_client().chat.completions.create(
-                model=settings.openrouter_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                response_format={"type": "json_object"},
-            )
-        except Exception as e:
-            # JSON-mode support varies by OpenRouter provider — retry plain
-            if "response_format" not in str(e).lower() and "json" not in str(e).lower():
-                raise
-            response = _get_client().chat.completions.create(
-                model=settings.openrouter_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-            )
-        draft = _parse_draft(response.choices[0].message.content or "")
+        raw = complete(
+            [{"role": "user", "content": prompt}],
+            temperature=0.1,
+            json_mode=True,
+        )
+        draft = _parse_draft(raw)
     except Exception as e:
         logger.error(f"Framework extraction failed: {e}")
         raise RuntimeError(f"Framework extraction failed: {e}") from e
