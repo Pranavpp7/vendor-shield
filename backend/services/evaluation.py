@@ -37,6 +37,7 @@ from models.schemas import ControlResult, Citation, ControlScore
 from services.llm import acomplete
 from services.progress import set_progress
 from services.retrieval import search_documents
+from services.tracing import observe
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,7 @@ async def _call_llm_json(prompt: str, assessment_id: str) -> str:
     )
 
 
+@observe(name="evaluate_control")
 async def evaluate_control(control: dict, assessment_id: str) -> ControlResult:
     """Evaluate a single security control against an assessment's documents.
 

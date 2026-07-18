@@ -3,6 +3,7 @@
 VendorShield automates the evaluation of vendor security documentation against 21 controls grounded in NIST SP 800-53 Revision 5. Upload a vendor's security policies, SOC 2 reports, or ISO 27001 certificates and get back a structured risk score, control-by-control evidence citations, RAG-powered Q&A, and an emailable PDF report - all in minutes instead of days.
 
 ![CI](https://github.com/Pranavpp7/vendor-shield-1/actions/workflows/ci.yml/badge.svg)
+![Nightly Evals](https://github.com/Pranavpp7/vendor-shield-1/actions/workflows/evals.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/react-18-61DAFB.svg?logo=react&logoColor=black)
@@ -211,10 +212,10 @@ vendor-shield-1/
 └── dist/                # built frontend, served by FastAPI
 ```
 
-## Testing & evals
+## Testing, evals & observability
 
 ```bash
-# Backend — 115 tests: framework loader, scoring math, risk matrix,
+# Backend unit tests: framework loader, scoring math, risk matrix,
 # LangGraph routing, LLM-output parsers, SSRF guard, PDF rendering,
 # and API endpoints (no LLM key or Qdrant needed; storage is
 # isolated per test)
@@ -223,16 +224,37 @@ cd backend && uv run pytest
 # Frontend — mapper unit tests
 npm run test
 
-# LLM scoring evals — golden vendor documents with expected score
-# bands, run against the REAL pipeline (needs Qdrant + an API key,
-# ~20 LLM calls ≈ $0.01). Run before/after changing prompts or models.
+# Golden gate — fictional vendor docs (incl. two prompt-injection
+# attacks) run through the REAL pipeline (needs Qdrant + an API key,
+# ~50 LLM calls ≈ $0.02).  Run before/after changing prompts or models.
 cd backend && uv run python evals/run_evals.py
+
+# Judge tier — DeepEval G-Eval rubric-grades the reasoning quality of
+# the golden run's outputs (grounding, no fabrication, honest
+# NO_EVIDENCE explanations)
+cd backend && uv sync --group eval && uv run pytest evals/test_judge.py
 ```
 
-Both unit suites plus a production build run in CI on every push. The
-eval harness is separate by design (it costs money) — on its first run
-it caught a real bug: a provider returning bare \`\`\` fences that silently
-turned PASS verdicts into NO_EVIDENCE. Current agreement: **20/20**.
+The golden gate enforces **three gates**: score-band agreement ≥ 80%,
+**zero false-PASS** verdicts (scoring PASS when the expected band says
+otherwise is the greenlight-a-risky-vendor error — it fails the gate no
+matter how good overall agreement looks), and **citation faithfulness ≥
+90%** (every evidence quote must appear verbatim in the source document —
+a deterministic hallucination check, no judge needed).  Every run is
+stamped with the model id + scoring-prompt hash and persisted to SQLite,
+so a regression is attributable to the exact change that caused it.
+
+Unit suites run in CI on every push; the LLM gates run nightly via
+[`evals.yml`](.github/workflows/evals.yml) (they cost money by design).
+On its first run the harness caught a real bug: a provider returning
+bare \`\`\` fences that silently turned PASS verdicts into NO_EVIDENCE.
+
+**LLM observability** is via [Langfuse](https://langfuse.com) (free
+tier / self-hostable): set `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY`
+and every LLM call is traced with latency, tokens, and cost — each
+assessment renders as one nested trace (ingest → retrieve → 21 parallel
+control evaluations → aggregate).  With no keys set, tracing is fully
+inert: no import, no network, works offline and in demo mode.
 
 ## Security posture
 

@@ -143,6 +143,18 @@ class Settings(BaseSettings):
     # must send X-API-Key: <this value>.  Empty string = dev mode (open).
     api_key: str = ""
 
+    # ── Langfuse (optional LLM observability) ────────────────────────────────
+    # Free cloud tier at https://cloud.langfuse.com — create a project and
+    # paste its API keys here.  When both keys are set (and the langfuse
+    # package is installed), every LLM call is traced with latency, tokens,
+    # and cost, and each assessment run renders as one nested trace.
+    # Both keys empty = tracing fully disabled: no import, no network.
+    # NOTE: these are LANGFUSE_* vars — NOT the api_key field above, which
+    # is VendorShield's own auth tier.
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = "https://cloud.langfuse.com"
+
     # ── Demo mode (free read-only hosting) ───────────────────────────────────
     # When true, all mutating requests (POST/PUT/PATCH/DELETE) to /api and
     # /mcp return 403 — the app serves seeded data read-only with zero LLM

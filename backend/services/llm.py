@@ -20,10 +20,14 @@ RESPONSIBILITY:
     (max_retries=5) and are NOT failover triggers: a throttled primary
     is alive, just busy.
 
+    Client classes come from services/tracing: when Langfuse keys are
+    configured they are Langfuse's drop-in OpenAI wrappers (tracing every
+    call automatically), otherwise the plain openai SDK classes.
+
     Model changes on EITHER provider must pass the eval gate:
         uv run python evals/run_evals.py
 
-IMPORTS FROM: config, services/usage
+IMPORTS FROM: config, services/usage, services/tracing
 IMPORTED BY:  services/evaluation, services/chat, services/followup,
               services/framework_extraction
 """
@@ -33,6 +37,7 @@ import logging
 from openai import AsyncOpenAI, OpenAI
 
 from config import get_settings
+from services.tracing import openai_client_classes
 from services.usage import record_usage
 
 logger = logging.getLogger(__name__)
@@ -75,13 +80,14 @@ def fallback_configured() -> bool:
 def _clients_async() -> tuple[AsyncOpenAI, AsyncOpenAI | None]:
     global _primary_async, _fallback_async
     s = get_settings()
+    async_cls, _ = openai_client_classes()
     if _primary_async is None:
-        _primary_async = AsyncOpenAI(
+        _primary_async = async_cls(
             api_key=s.openrouter_api_key, base_url=s.openrouter_base_url,
             max_retries=5,
         )
     if _fallback_async is None and s.fallback_api_key:
-        _fallback_async = AsyncOpenAI(
+        _fallback_async = async_cls(
             api_key=s.fallback_api_key, base_url=s.fallback_base_url,
             max_retries=5,
         )
@@ -91,13 +97,14 @@ def _clients_async() -> tuple[AsyncOpenAI, AsyncOpenAI | None]:
 def _clients_sync() -> tuple[OpenAI, OpenAI | None]:
     global _primary_sync, _fallback_sync
     s = get_settings()
+    _, sync_cls = openai_client_classes()
     if _primary_sync is None:
-        _primary_sync = OpenAI(
+        _primary_sync = sync_cls(
             api_key=s.openrouter_api_key, base_url=s.openrouter_base_url,
             max_retries=5,
         )
     if _fallback_sync is None and s.fallback_api_key:
-        _fallback_sync = OpenAI(
+        _fallback_sync = sync_cls(
             api_key=s.fallback_api_key, base_url=s.fallback_base_url,
             max_retries=5,
         )

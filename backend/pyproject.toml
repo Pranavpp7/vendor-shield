@@ -27,6 +27,9 @@ dependencies = [
     "resend>=2.29.0",
     "reportlab>=4.4.10",
     "PyJWT[crypto]>=2.8.0",
+    # Optional-at-runtime LLM observability: tracing activates only when
+    # LANGFUSE_* keys are set (see services/tracing.py); otherwise inert.
+    "langfuse>=2.0",
 ]
 
 # torch: CPU-only wheels.  On Linux (Docker), PyPI's default torch drags in
@@ -45,6 +48,12 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "httpx>=0.27",
+]
+# Judge-tier evals only (evals/test_judge.py) — heavy dependency tree,
+# deliberately NOT in dev so per-PR CI and the Docker image skip it.
+# Install with: uv sync --group eval
+eval = [
+    "deepeval>=1.0",
 ]
 
 [tool.pytest.ini_options]

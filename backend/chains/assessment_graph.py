@@ -39,6 +39,7 @@ from services.aggregation import aggregate_results
 from services.evaluation import evaluate_all_controls
 from services.progress import set_progress
 from services.retrieval import search_documents
+from services.tracing import observe
 from services.usage import pop_usage
 from storage.local_store import save_assessment, update_assessment, get_assessment, list_documents
 
@@ -125,6 +126,7 @@ def route_after_evaluate(state: AssessmentState) -> str:
 # ── Node Functions ───────────────────────────────────────────────────────────
 
 
+@observe(name="ingest")
 async def ingest_node(state: AssessmentState) -> dict:
     """Check whether the assessment has indexed documents (SQLite lookup)."""
     assessment_id = state["assessment_id"]
@@ -142,6 +144,7 @@ async def ingest_node(state: AssessmentState) -> dict:
     return {"has_documents": has_docs}
 
 
+@observe(name="retrieve")
 async def retrieve_node(state: AssessmentState) -> dict:
     """Pre-fetch document chunks for all controls to enable routing decisions.
 
@@ -177,6 +180,7 @@ async def retrieve_node(state: AssessmentState) -> dict:
     return {"retrieved_chunks": retrieved_chunks}
 
 
+@observe(name="no_documents")
 async def no_documents_node(state: AssessmentState) -> dict:
     """Handle the case where no relevant chunks exist for any control.
 
@@ -228,6 +232,7 @@ async def no_documents_node(state: AssessmentState) -> dict:
     }
 
 
+@observe(name="sparse_evidence")
 async def sparse_evidence_node(state: AssessmentState) -> dict:
     """Warn that fewer than 50% of controls have evidence, then continue."""
     assessment_id = state["assessment_id"]
@@ -252,6 +257,7 @@ async def sparse_evidence_node(state: AssessmentState) -> dict:
     }
 
 
+@observe(name="evaluate")
 async def evaluate_node(state: AssessmentState) -> dict:
     """Score the framework's controls against vendor documents in-process.
     Controls are evaluated concurrently, bounded by settings.llm_concurrency."""
@@ -271,6 +277,7 @@ async def evaluate_node(state: AssessmentState) -> dict:
     }
 
 
+@observe(name="re_retrieve")
 async def re_retrieve_node(state: AssessmentState) -> dict:
     """Broaden retrieval queries for NO_EVIDENCE controls and retry evaluation.
 
@@ -331,6 +338,7 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
     }
 
 
+@observe(name="aggregate")
 async def aggregate_node(state: AssessmentState) -> dict:
     """Compute domain scores, overall score, risk level, and gaps summary."""
     assessment_id = state["assessment_id"]
@@ -356,6 +364,7 @@ async def aggregate_node(state: AssessmentState) -> dict:
     }
 
 
+@observe(name="save_results")
 async def save_results(state: AssessmentState) -> dict:
     """Persist the assessment results to local JSON storage.
 
@@ -465,6 +474,7 @@ def build_assessment_graph():
 # ── Public API ───────────────────────────────────────────────────────────────
 
 
+@observe(name="assessment_run")
 async def run_assessment(
     vendor_name: str,
     assessment_id: str,
