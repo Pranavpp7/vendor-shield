@@ -39,7 +39,12 @@ deepeval = pytest.importorskip(
 from deepeval import assert_test  # noqa: E402
 from deepeval.metrics import GEval  # noqa: E402
 from deepeval.models import DeepEvalBaseLLM  # noqa: E402
-from deepeval.test_case import LLMTestCase, LLMTestCaseParams  # noqa: E402
+from deepeval.test_case import LLMTestCase  # noqa: E402
+
+try:  # deepeval ≥4 renamed the params enum; keep the old name as fallback
+    from deepeval.test_case import SingleTurnParams as CaseParams  # noqa: E402
+except ImportError:  # pragma: no cover — older deepeval
+    from deepeval.test_case import LLMTestCaseParams as CaseParams  # noqa: E402
 
 ARTIFACT = Path(__file__).resolve().parent / "last_run_results.json"
 
@@ -185,8 +190,8 @@ def test_scored_reasoning_is_grounded(record: dict, judge: VendorShieldJudge):
             "context does not contain."
         ),
         evaluation_params=[
-            LLMTestCaseParams.ACTUAL_OUTPUT,
-            LLMTestCaseParams.CONTEXT,
+            CaseParams.ACTUAL_OUTPUT,
+            CaseParams.CONTEXT,
         ],
         threshold=0.6,
         model=judge,
@@ -220,8 +225,8 @@ def test_no_evidence_reasoning_is_honest(record: dict, judge: VendorShieldJudge)
             "was supposedly found."
         ),
         evaluation_params=[
-            LLMTestCaseParams.INPUT,
-            LLMTestCaseParams.ACTUAL_OUTPUT,
+            CaseParams.INPUT,
+            CaseParams.ACTUAL_OUTPUT,
         ],
         threshold=0.6,
         model=judge,

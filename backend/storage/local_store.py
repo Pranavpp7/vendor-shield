@@ -15,8 +15,11 @@ DATABASE LAYOUT:
         │                       gaps_summary, created_at, updated_at, extra (JSON)
         ├── documents        — id, assessment_id, filename, file_type,
         │                       chunk_count, uploaded_at, extra (JSON)
-        └── chat_messages    — id, assessment_id, role, content,
-                                citations (JSON), created_at
+        ├── chat_messages    — id, assessment_id, role, content,
+        │                       citations (JSON), created_at
+        └── eval_runs        — golden-gate history: agreement, threshold,
+                                passed, duration, detail (JSON w/ model +
+                                prompt hash)
 
     The `extra` columns hold any additional fields from the input dict
     (e.g. run_history, notes, chat_history, upload_path) so callers
@@ -112,21 +115,6 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     created_at    TEXT
 );
 
-CREATE TABLE IF NOT EXISTS llm_calls (
-    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts                 TEXT,
-    provider           TEXT,
-    model              TEXT,
-    purpose            TEXT,
-    assessment_id      TEXT,
-    latency_ms         INTEGER,
-    prompt_tokens      INTEGER,
-    completion_tokens  INTEGER,
-    est_cost           REAL,
-    status             TEXT,
-    error              TEXT
-);
-
 CREATE TABLE IF NOT EXISTS eval_runs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     ts          TEXT,
@@ -144,9 +132,6 @@ CREATE INDEX IF NOT EXISTS idx_documents_assessment
 
 CREATE INDEX IF NOT EXISTS idx_chat_assessment
     ON chat_messages(assessment_id);
-
-CREATE INDEX IF NOT EXISTS idx_llm_calls_ts
-    ON llm_calls(ts);
 """
 
 
@@ -167,6 +152,9 @@ def init_db() -> None:
             logger.info("Migrated: added user_id column to assessments table")
         except Exception:
             pass  # column already exists — nothing to do
+        # Drop the never-populated llm_calls table from databases created
+        # while it existed (per-call telemetry went to Langfuse instead).
+        conn.execute("DROP TABLE IF EXISTS llm_calls")
     logger.info(f"SQLite database ready at {_db_path()}")
 
 
@@ -579,128 +567,9 @@ def migrate_legacy_json() -> None:
 
 
 # ---------------------------------------------------------------------------
-# LLM call telemetry + eval-run history (monitoring)
+# Eval-run history (populated by evals/run_evals.py; per-call LLM telemetry
+# lives in Langfuse — see services/tracing.py)
 # ---------------------------------------------------------------------------
-
-
-def record_llm_call(
-    *,
-    provider: str,
-    model: str,
-    purpose: str,
-    assessment_id: str | None,
-    latency_ms: int,
-    prompt_tokens: int,
-    completion_tokens: int,
-    est_cost: float,
-    status: str,
-    error: str | None,
-) -> None:
-    """Append one LLM call attempt to the telemetry log.
-
-    provider is "primary" or "fallback"; status is "ok", "rate_limited",
-    "dead_provider", or "error".  Errors are stored truncated — enough to
-    diagnose, never enough to leak a prompt or a key.
-    """
-    with _connect() as conn:
-        conn.execute(
-            """
-            INSERT INTO llm_calls
-                (ts, provider, model, purpose, assessment_id, latency_ms,
-                 prompt_tokens, completion_tokens, est_cost, status, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                _now_iso(), provider, model, purpose, assessment_id or "",
-                latency_ms, prompt_tokens, completion_tokens, est_cost,
-                status, (error or "")[:500] or None,
-            ),
-        )
-
-
-def _llm_cutoff(hours: int) -> str:
-    from datetime import timedelta
-
-    return (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
-
-
-def get_llm_summary(hours: int = 24) -> dict:
-    """Aggregate telemetry for the monitoring dashboard.
-
-    Returns totals, a per-provider health snapshot (latest call outcome,
-    last success, last error), and a per-purpose breakdown — all within
-    the trailing window.
-    """
-    cutoff = _llm_cutoff(hours)
-    with _connect() as conn:
-        totals = dict(conn.execute(
-            """
-            SELECT COUNT(*) AS calls,
-                   COALESCE(SUM(status = 'ok'), 0) AS ok,
-                   COALESCE(SUM(status != 'ok'), 0) AS errors,
-                   COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
-                   COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
-                   COALESCE(SUM(est_cost), 0.0) AS est_cost,
-                   COALESCE(AVG(CASE WHEN status = 'ok' THEN latency_ms END), 0)
-                       AS avg_latency_ms
-            FROM llm_calls WHERE ts >= ?
-            """,
-            (cutoff,),
-        ).fetchone())
-
-        providers: dict[str, dict] = {}
-        for name in ("primary", "fallback"):
-            last = conn.execute(
-                "SELECT ts, model, status, error FROM llm_calls "
-                "WHERE provider = ? ORDER BY id DESC LIMIT 1",
-                (name,),
-            ).fetchone()
-            last_ok = conn.execute(
-                "SELECT ts FROM llm_calls "
-                "WHERE provider = ? AND status = 'ok' ORDER BY id DESC LIMIT 1",
-                (name,),
-            ).fetchone()
-            window = dict(conn.execute(
-                "SELECT COUNT(*) AS calls, COALESCE(SUM(status != 'ok'), 0) AS errors "
-                "FROM llm_calls WHERE provider = ? AND ts >= ?",
-                (name, cutoff),
-            ).fetchone())
-            providers[name] = {
-                **window,
-                "last_status": last["status"] if last else None,
-                "last_error": last["error"] if last else None,
-                "last_call_at": last["ts"] if last else None,
-                "last_model": last["model"] if last else None,
-                "last_ok_at": last_ok["ts"] if last_ok else None,
-            }
-
-        by_purpose = [
-            dict(r) for r in conn.execute(
-                """
-                SELECT purpose, COUNT(*) AS calls,
-                       COALESCE(SUM(status != 'ok'), 0) AS errors,
-                       COALESCE(SUM(prompt_tokens + completion_tokens), 0) AS tokens,
-                       COALESCE(SUM(est_cost), 0.0) AS est_cost
-                FROM llm_calls WHERE ts >= ?
-                GROUP BY purpose ORDER BY calls DESC
-                """,
-                (cutoff,),
-            ).fetchall()
-        ]
-
-    return {"hours": hours, "totals": totals, "providers": providers,
-            "by_purpose": by_purpose}
-
-
-def list_llm_calls(limit: int = 50, errors_only: bool = False) -> list[dict]:
-    """Most recent telemetry rows, newest first."""
-    where = "WHERE status != 'ok'" if errors_only else ""
-    with _connect() as conn:
-        rows = conn.execute(
-            f"SELECT * FROM llm_calls {where} ORDER BY id DESC LIMIT ?",
-            (max(1, min(limit, 500)),),
-        ).fetchall()
-    return [dict(r) for r in rows]
 
 
 def record_eval_run(run: dict) -> dict:
@@ -721,22 +590,3 @@ def record_eval_run(run: dict) -> dict:
             ),
         )
     return run
-
-
-def list_eval_runs(limit: int = 20) -> list[dict]:
-    """Eval-run history, newest first, with per-case detail inflated."""
-    with _connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM eval_runs ORDER BY id DESC LIMIT ?",
-            (max(1, min(limit, 100)),),
-        ).fetchall()
-    out = []
-    for r in rows:
-        rec = dict(r)
-        rec["passed"] = bool(rec["passed"])
-        try:
-            rec["detail"] = json.loads(rec["detail"] or "{}")
-        except json.JSONDecodeError:
-            rec["detail"] = {}
-        out.append(rec)
-    return out

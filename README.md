@@ -248,6 +248,8 @@ Unit suites run in CI on every push; the LLM gates run nightly via
 [`evals.yml`](.github/workflows/evals.yml) (they cost money by design).
 On its first run the harness caught a real bug: a provider returning
 bare \`\`\` fences that silently turned PASS verdicts into NO_EVIDENCE.
+Latest live run: **96% agreement, zero false-PASS, 100% citation
+faithfulness, both injection cases defeated 20/20**.
 
 **LLM observability** is via [Langfuse](https://langfuse.com) (free
 tier / self-hostable): set `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY`
