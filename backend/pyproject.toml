@@ -30,6 +30,9 @@ dependencies = [
     # Optional-at-runtime LLM observability: tracing activates only when
     # LANGFUSE_* keys are set (see services/tracing.py); otherwise inert.
     "langfuse>=2.0",
+    # Long-term chat memory (services/memory.py) — reuses the existing
+    # Qdrant + local BGE embedder + primary LLM; MEMORY_ENABLED=0 to disable.
+    "mem0ai>=0.1.100",
 ]
 
 # torch: CPU-only wheels.  On Linux (Docker), PyPI's default torch drags in

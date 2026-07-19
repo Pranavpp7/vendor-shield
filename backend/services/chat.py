@@ -22,13 +22,45 @@ from models.schemas import Citation
 
 logger = logging.getLogger(__name__)
 
+# Cap on any single replayed history message — keeps a pasted wall of text
+# from one earlier turn from crowding out retrieval context.
+_HISTORY_MSG_CHAR_CAP = 2000
+
+
+def build_history_messages(history: list[dict], window: int) -> list[dict]:
+    """SHORT-TERM MEMORY: the last `window` chat messages as LLM messages.
+
+    Takes the persisted history (role/content dicts, oldest first), keeps
+    the most recent `window` entries, and truncates oversized messages —
+    so follow-up questions resolve against the actual conversation.
+    """
+    if window <= 0:
+        return []
+    recent = history[-window:]
+    return [
+        {
+            "role": m["role"] if m.get("role") in ("user", "assistant") else "user",
+            "content": (m.get("content") or "")[:_HISTORY_MSG_CHAR_CAP],
+        }
+        for m in recent
+        if m.get("content")
+    ]
+
 
 async def chat_with_docs(
     question: str,
     assessment_id: str,
     context: str | None = None,
+    history: list[dict] | None = None,
+    memories: list[str] | None = None,
 ) -> tuple[str, list[Citation]]:
-    """RAG chat: retrieve relevant chunks from Qdrant, then ask OpenRouter Llama."""
+    """RAG chat: retrieve relevant chunks from Qdrant, then ask the LLM.
+
+    history:  short-term memory — prior turns of THIS conversation,
+              already windowed by build_history_messages().
+    memories: long-term memory — the analyst's organizational context
+              recalled by services/memory (mem0), never vendor evidence.
+    """
     settings = get_settings()
 
     # 1. Retrieve relevant document chunks (search_documents is sync — run in thread)
@@ -82,8 +114,19 @@ async def chat_with_docs(
             "You must respond: 'I could not find this information in the vendor documents.'"
         )
 
+    if memories:
+        system_message += (
+            "\n\nANALYST MEMORY — organizational context this analyst "
+            "established in earlier sessions. Use it to frame and prioritize "
+            "your answer (what this organization requires or cares about), "
+            "but it is NOT evidence about this vendor: vendor facts must "
+            "still come only from the document context above.\n"
+            + "\n".join(f"- {m}" for m in memories)
+        )
+
     messages = [
         {"role": "system", "content": system_message},
+        *(history or []),
         {"role": "user", "content": f"Assessment context:\n{context or 'No additional context provided.'}\n\nQuestion: {question}"},
     ]
 

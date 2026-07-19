@@ -13,6 +13,10 @@ import os
 # shim into its no-op path for the whole suite.
 os.environ["LANGFUSE_PUBLIC_KEY"] = ""
 os.environ["LANGFUSE_SECRET_KEY"] = ""
+# Same idea for long-term chat memory: unit tests must never spin up mem0
+# (LLM extraction calls + Qdrant writes).  Tests that need it enable a
+# fake client explicitly via services.memory.reset_memory().
+os.environ["MEMORY_ENABLED"] = "0"
 
 import pytest
 

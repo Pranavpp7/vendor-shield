@@ -8,12 +8,15 @@ IMPORTS FROM: services/chat, storage/local_store, models/schemas
 IMPORTED BY:  main.py
 """
 
+import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 
 from auth import get_current_user
+from config import get_settings
 from models.schemas import ChatRequest, ChatResponse, SummaryRequest, SummaryResponse
-from services.chat import chat_with_docs, generate_summary
+from services.chat import build_history_messages, chat_with_docs, generate_summary
+from services.memory import recall, remember
 from storage.local_store import save_chat_message, get_chat_history
 
 logger = logging.getLogger(__name__)
@@ -24,20 +27,34 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
+# Fire-and-forget memory-extraction tasks: hold references so the event
+# loop can't garbage-collect them mid-flight.
+_bg_tasks: set[asyncio.Task] = set()
+
 
 @router.post("", response_model=ChatResponse)
-async def chat_endpoint(req: ChatRequest):
-    """Chat over vendor documents with RAG context.
+async def chat_endpoint(req: ChatRequest, user_id: str = Depends(get_current_user)):
+    """Chat over vendor documents with RAG context and two memory layers.
 
-    Retrieves relevant chunks from Qdrant, enriches the prompt,
-    and responds using OpenRouter Llama 3.3 70B.  Saves the Q&A pair
-    to local chat history.
+    SHORT-TERM: the last chat_history_window persisted messages are
+    replayed into the prompt so follow-ups resolve.  LONG-TERM: mem0
+    memories for this analyst are recalled semantically before the call,
+    and the finished exchange is handed to mem0 for fact extraction in
+    the background (never delays the response).
     """
     try:
+        settings = get_settings()
+        history = build_history_messages(
+            get_chat_history(req.assessment_id), settings.chat_history_window
+        )
+        memories = await asyncio.to_thread(recall, user_id, req.question)
+
         reply, sources = await chat_with_docs(
             question=req.question,
             assessment_id=req.assessment_id,
             context=req.context,
+            history=history,
+            memories=memories,
         )
 
         # Persist chat history (citations saved with assistant message)
@@ -46,6 +63,13 @@ async def chat_endpoint(req: ChatRequest):
             req.assessment_id, "assistant", reply,
             [s.model_dump() for s in sources],
         )
+
+        # Long-term extraction in the background — remember() never raises.
+        task = asyncio.create_task(
+            asyncio.to_thread(remember, user_id, req.question, reply)
+        )
+        _bg_tasks.add(task)
+        task.add_done_callback(_bg_tasks.discard)
 
         return ChatResponse(reply=reply, sources=sources)
     except Exception as e:

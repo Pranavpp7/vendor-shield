@@ -191,6 +191,7 @@ aggregate, and see the run's cost and latency stamped on the result.
 | Agent orchestration | LangChain + LangGraph, MCP for tool calls |
 | Embeddings | BGE-large-en-v1.5 (local, 1024-dim) |
 | Vector DB | Qdrant (Docker, pinned v1.17.1) |
+| Chat memory | Windowed conversation history (short-term) + [mem0](https://mem0.ai) analyst memory (long-term, cross-assessment — reuses local BGE + Qdrant + primary LLM) |
 | Structured data | SQLite |
 | Backend | FastAPI + pydantic-settings, Clerk JWT auth |
 | Frontend | React 18 + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query |

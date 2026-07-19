@@ -143,6 +143,19 @@ class Settings(BaseSettings):
     # must send X-API-Key: <this value>.  Empty string = dev mode (open).
     api_key: str = ""
 
+    # ── Chat memory ──────────────────────────────────────────────────────────
+    # SHORT-TERM: how many recent chat messages (user + assistant combined)
+    # are replayed into the model's context each turn, so follow-up
+    # questions ("what about the second one?") resolve correctly.
+    chat_history_window: int = 10
+    # LONG-TERM: mem0-backed analyst memory.  Durable facts an analyst
+    # establishes in chat ("we require SOC 2 Type II from payment vendors")
+    # are extracted by the LLM, embedded with the local BGE model, stored
+    # in Qdrant (collection "vendorshield_memories"), and recalled
+    # semantically in later chats across ALL assessments.  Requires the
+    # mem0ai package; degrades silently to off when unavailable.
+    memory_enabled: bool = True
+
     # ── Langfuse (optional LLM observability) ────────────────────────────────
     # Free cloud tier at https://cloud.langfuse.com — create a project and
     # paste its API keys here.  When both keys are set (and the langfuse
