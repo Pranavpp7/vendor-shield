@@ -44,8 +44,12 @@ from deepeval.test_case import LLMTestCase, LLMTestCaseParams  # noqa: E402
 ARTIFACT = Path(__file__).resolve().parent / "last_run_results.json"
 
 # Cap judge spend: at most this many sampled results per test class.
-MAX_SCORED_SAMPLES = 8
-MAX_NO_EVIDENCE_SAMPLES = 6
+# Budget math (Groq free tier = 100k tokens/DAY, shared with the golden
+# gate): the gate burns ~70-100k, each G-Eval test ~2 calls × ~1-2k
+# tokens.  10 samples ≈ 20-30k keeps gate+judge inside one day's quota.
+# Verified live: 14 samples after a full gate run hit the TPD limit.
+MAX_SCORED_SAMPLES = 6
+MAX_NO_EVIDENCE_SAMPLES = 4
 
 # The honest system-failure fallback texts are not LLM reasoning — never
 # judge them for quality (they already mean "this call failed").

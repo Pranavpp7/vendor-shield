@@ -70,10 +70,20 @@ def tracing_enabled() -> bool:
 
 
 def openai_client_classes() -> tuple[type, type]:
-    """(AsyncOpenAI, OpenAI) — Langfuse drop-in wrappers when tracing."""
+    """(AsyncOpenAI, OpenAI) — Langfuse drop-in wrappers when tracing.
+
+    A tracing problem must never take down LLM calls: if the wrapper
+    import fails (SDK API change), degrade to the plain classes untraced.
+    """
     if tracing_enabled():
-        from langfuse.openai import AsyncOpenAI, OpenAI
-        return AsyncOpenAI, OpenAI
+        try:
+            from langfuse.openai import AsyncOpenAI, OpenAI
+            return AsyncOpenAI, OpenAI
+        except ImportError as e:
+            logger.warning(
+                f"langfuse OpenAI drop-in unavailable ({e}) — "
+                "LLM calls proceed untraced"
+            )
     from openai import AsyncOpenAI, OpenAI
     return AsyncOpenAI, OpenAI
 

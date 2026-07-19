@@ -5,6 +5,15 @@ custom-frameworks directory, so the suite never touches dev data and
 needs no Qdrant, no LLM key, and no network.
 """
 
+import os
+
+# Unit tests must never emit Langfuse traces, even when the developer's
+# .env has real keys: real env vars beat .env in pydantic-settings, so
+# blanking them here (before any get_settings() call) forces the tracing
+# shim into its no-op path for the whole suite.
+os.environ["LANGFUSE_PUBLIC_KEY"] = ""
+os.environ["LANGFUSE_SECRET_KEY"] = ""
+
 import pytest
 
 import models.controls as controls_mod

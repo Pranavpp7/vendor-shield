@@ -237,7 +237,12 @@ async def main() -> int:
     # ── Gate 3: citation faithfulness ────────────────────────────────────────
     quoted = [r for r in all_records if r["evidence_quote"]]
     unfaithful = [r for r in quoted if r["faithful"] is False]
-    faith_rate = 100 * (len(quoted) - len(unfaithful)) // max(len(quoted), 1)
+    # No quotes at all = vacuously faithful (the gate has nothing to judge;
+    # the printout below flags it as suspicious instead of failing the run).
+    faith_rate = (
+        100 if not quoted
+        else 100 * (len(quoted) - len(unfaithful)) // len(quoted)
+    )
     faithfulness_ok = faith_rate >= args.min_faithfulness
 
     passed = agreement_ok and false_pass_ok and faithfulness_ok
@@ -302,8 +307,7 @@ async def main() -> int:
     ARTIFACT.write_text(
         json.dumps(
             {
-                **{k: v for k, v in run_summary.items() if k != "detail"},
-                "detail": run_summary["detail"],
+                **run_summary,
                 "documents": {c["id"]: c["document"] for c in golden["cases"]},
                 "results": all_records,
             },
