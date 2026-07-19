@@ -171,6 +171,23 @@ def _rid(r: dict) -> str:
     return f"{r['case_id']}/{r['control_id']}"
 
 
+def _judge_or_skip(test_case: LLMTestCase, metric: GEval) -> None:
+    """assert_test, but exhausted LLM quota is a SKIP, not a failure.
+
+    The golden gate runs first and can consume most of a free tier's
+    daily token budget (Groq: 100k/day, shared account-wide — local runs
+    count too).  Hitting that wall says nothing about reasoning quality,
+    so it must not turn the nightly red; genuine judge verdicts below
+    threshold still fail normally.
+    """
+    import openai
+
+    try:
+        assert_test(test_case, [metric])
+    except openai.RateLimitError as e:
+        pytest.skip(f"LLM quota exhausted — no quality signal: {e}")
+
+
 # ── Judge tests ──────────────────────────────────────────────────────────────
 
 
@@ -197,7 +214,7 @@ def test_scored_reasoning_is_grounded(record: dict, judge: VendorShieldJudge):
         model=judge,
         async_mode=False,
     )
-    assert_test(
+    _judge_or_skip(
         LLMTestCase(
             input=(
                 f"{record['control_id']} {record['control_title']} — "
@@ -206,7 +223,7 @@ def test_scored_reasoning_is_grounded(record: dict, judge: VendorShieldJudge):
             actual_output=record["reasoning"],
             context=[_documents[record["case_id"]]],
         ),
-        [metric],
+        metric,
     )
 
 
@@ -232,7 +249,7 @@ def test_no_evidence_reasoning_is_honest(record: dict, judge: VendorShieldJudge)
         model=judge,
         async_mode=False,
     )
-    assert_test(
+    _judge_or_skip(
         LLMTestCase(
             input=(
                 f"{record['control_id']} {record['control_title']} — "
@@ -240,5 +257,5 @@ def test_no_evidence_reasoning_is_honest(record: dict, judge: VendorShieldJudge)
             ),
             actual_output=record["reasoning"],
         ),
-        [metric],
+        metric,
     )
