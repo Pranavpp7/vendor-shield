@@ -143,6 +143,18 @@ class Settings(BaseSettings):
     # must send X-API-Key: <this value>.  Empty string = dev mode (open).
     api_key: str = ""
 
+    # ── Agentic chat ─────────────────────────────────────────────────────────
+    # When true, the chat endpoint runs a bounded tool loop: the model
+    # decides which tools to call (semantic search over this assessment's
+    # documents, the assessment overview, per-control results) and how
+    # many searches a question needs before answering.  On any failure —
+    # or when a provider/model doesn't support tool calling (some Ollama
+    # models) — chat falls back to the classic single-shot RAG path.
+    chat_agent_enabled: bool = True
+    # Max tool-call rounds per question before the model is forced to
+    # answer with what it has.  Bounds worst-case cost and latency.
+    chat_agent_max_tool_turns: int = 5
+
     # ── Chat memory ──────────────────────────────────────────────────────────
     # SHORT-TERM: how many recent chat messages (user + assistant combined)
     # are replayed into the model's context each turn, so follow-up

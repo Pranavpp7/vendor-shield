@@ -2,7 +2,9 @@
 Layer 3: LLM access — the ONE place the app talks to a language model.
 
 RESPONSIBILITY:
-    Every LLM call in the codebase goes through complete()/acomplete().
+    Every LLM call in the codebase goes through complete()/acomplete()
+    (text) or acomplete_tools() (tool-calling, returns the message
+    object so callers can run a bounded tool loop).
     This module owns:
       - client singletons (async + sync) for the PRIMARY provider
         (OpenRouter by default) and an optional FALLBACK provider
@@ -161,6 +163,53 @@ async def acomplete(
                 **_kwargs(model, messages, temperature, max_tokens, False)
             )
         return _meter(resp, assessment_id)
+
+    try:
+        return await _call(primary, settings.openrouter_model)
+    except Exception as e:
+        if fallback is None or not _is_provider_dead(e):
+            raise
+        logger.warning(
+            f"PRIMARY LLM provider dead ({e}) — failing over to "
+            f"{settings.fallback_base_url} / {settings.fallback_model}"
+        )
+        return await _call(fallback, settings.fallback_model)
+
+
+async def acomplete_tools(
+    messages: list[dict],
+    *,
+    tools: list[dict] | None = None,
+    temperature: float = 0.0,
+    max_tokens: int | None = None,
+    assessment_id: str | None = None,
+):
+    """Async completion that returns the full assistant MESSAGE object
+    (not just text), so callers can inspect .tool_calls and run a tool
+    loop.  Same provider failover and usage metering as acomplete().
+
+    tools: OpenAI function-tool definitions.  None/[] = plain call that
+    still returns the message object (used to force a final answer when
+    a tool loop hits its turn budget).
+
+    Providers that don't support tool calling raise — the caller
+    (services/chat) is responsible for falling back to single-shot RAG.
+    """
+    settings = get_settings()
+    primary, fallback = _clients_async()
+
+    async def _call(client: AsyncOpenAI, model: str):
+        kw = _kwargs(model, messages, temperature, max_tokens, False)
+        if tools:
+            kw["tools"] = tools
+        resp = await client.chat.completions.create(**kw)
+        if assessment_id and resp.usage is not None:
+            record_usage(
+                assessment_id,
+                resp.usage.prompt_tokens or 0,
+                resp.usage.completion_tokens or 0,
+            )
+        return resp.choices[0].message
 
     try:
         return await _call(primary, settings.openrouter_model)

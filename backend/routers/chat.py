@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from auth import get_current_user
 from config import get_settings
 from models.schemas import ChatRequest, ChatResponse, SummaryRequest, SummaryResponse
-from services.chat import build_history_messages, chat_with_docs, generate_summary
+from services.chat import build_history_messages, chat_agentic, generate_summary
 from services.memory import recall, remember
 from storage.local_store import save_chat_message, get_chat_history
 
@@ -34,13 +34,17 @@ _bg_tasks: set[asyncio.Task] = set()
 
 @router.post("", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest, user_id: str = Depends(get_current_user)):
-    """Chat over vendor documents with RAG context and two memory layers.
+    """Chat over vendor documents — agentic tool loop with two memory layers.
 
-    SHORT-TERM: the last chat_history_window persisted messages are
-    replayed into the prompt so follow-ups resolve.  LONG-TERM: mem0
-    memories for this analyst are recalled semantically before the call,
-    and the finished exchange is handed to mem0 for fact extraction in
-    the background (never delays the response).
+    The model drives a bounded tool loop (document search, assessment
+    overview, per-control results) and decides how many lookups the
+    question needs; it degrades to single-shot RAG on providers without
+    tool support.  SHORT-TERM memory: the last chat_history_window
+    persisted messages are replayed into the prompt so follow-ups
+    resolve.  LONG-TERM: mem0 memories for this analyst are recalled
+    semantically before the call, and the finished exchange is handed to
+    mem0 for fact extraction in the background (never delays the
+    response).
     """
     try:
         settings = get_settings()
@@ -49,7 +53,7 @@ async def chat_endpoint(req: ChatRequest, user_id: str = Depends(get_current_use
         )
         memories = await asyncio.to_thread(recall, user_id, req.question)
 
-        reply, sources = await chat_with_docs(
+        reply, sources = await chat_agentic(
             question=req.question,
             assessment_id=req.assessment_id,
             context=req.context,
