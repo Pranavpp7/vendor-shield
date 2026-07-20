@@ -9,15 +9,9 @@ VendorShield automates the evaluation of vendor security documentation against 2
 ![React](https://img.shields.io/badge/react-18-61DAFB.svg?logo=react&logoColor=black)
 ![FastAPI](https://img.shields.io/badge/FastAPI-async-009688.svg?logo=fastapi&logoColor=white)
 
-<!--
-  TODO: Add a screenshot or demo GIF here. Suggested:
-    1. Run the app, open the Assessment Detail page for a completed assessment
-    2. Save the capture to docs/screenshot.png
-    3. Uncomment:
-  ![VendorShield dashboard](docs/screenshot.png)
+![VendorShield — assessment detail with per-domain scores, coverage, and the run's cost/latency stamp](docs/screenshot.png)
 
-  TODO: Once deployed, add: **[Live demo →](https://your-deployment-url)**
--->
+<!-- TODO: Once deployed, add: **[Live demo →](https://your-deployment-url)** -->
 
 > **📖 [Read the case study](docs/CASE_STUDY.md)** — how the eval harness
 > caught the model lying, why the scoring semantics took three iterations,
@@ -90,7 +84,11 @@ The assessment workflow is a **LangGraph state machine with conditional
 routing**: it short-circuits when no documents exist, warns when evidence is
 sparse (fewer than half the controls found relevant chunks), and — if more
 than 60% of controls score NO_EVIDENCE — broadens the search queries and
-retries evaluation once before aggregating.
+re-scores **only the controls whose broadened search surfaced new
+evidence**, against those new chunks, before aggregating.  The scoring
+pipeline is deliberately deterministic (same input → same path) so results
+are auditable and regressions attributable; model-directed control flow is
+reserved for the one open-ended surface, chat (below).
 
 ## Design decisions
 
@@ -191,6 +189,7 @@ aggregate, and see the run's cost and latency stamped on the result.
 | Agent orchestration | LangChain + LangGraph, MCP for tool calls |
 | Embeddings | BGE-large-en-v1.5 (local, 1024-dim) |
 | Vector DB | Qdrant (Docker, pinned v1.17.1) |
+| Chat | Agentic tool loop — the model decides which tools to call (document search, assessment overview, per-control results) and how many searches a question needs; bounded turns, falls back to single-shot RAG on providers without tool calling |
 | Chat memory | Windowed conversation history (short-term) + [mem0](https://mem0.ai) analyst memory (long-term, cross-assessment — reuses local BGE + Qdrant + primary LLM) |
 | Structured data | SQLite |
 | Backend | FastAPI + pydantic-settings, Clerk JWT auth |
