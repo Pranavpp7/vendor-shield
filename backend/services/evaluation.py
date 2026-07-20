@@ -107,7 +107,11 @@ async def _call_llm_json(prompt: str, assessment_id: str) -> str:
 
 
 @observe(name="evaluate_control")
-async def evaluate_control(control: dict, assessment_id: str) -> ControlResult:
+async def evaluate_control(
+    control: dict,
+    assessment_id: str,
+    chunks: list[dict] | None = None,
+) -> ControlResult:
     """Evaluate a single security control against an assessment's documents.
 
     Steps:
@@ -120,6 +124,9 @@ async def evaluate_control(control: dict, assessment_id: str) -> ControlResult:
     Args:
         control: A control dict from controls.py (has id, search_query, etc.)
         assessment_id: Which assessment's documents to search.
+        chunks: Pre-retrieved chunk dicts (search_documents result shape).
+            When given, step 1 is skipped entirely — the graph's retry pass
+            uses this to score against its broadened retrieval results.
 
     Returns:
         A ControlResult with the LLM's score, evidence, reasoning, and gap.
@@ -128,22 +135,26 @@ async def evaluate_control(control: dict, assessment_id: str) -> ControlResult:
     logger.info(f"Evaluating control {control_id}: {control['title']}")
 
     # 1. Retrieve relevant document chunks (sync embedding + Qdrant → thread)
+    #    — unless the caller already retrieved them.
     settings = get_settings()
-    results = await asyncio.to_thread(
-        search_documents,
-        query=control["search_query"],
-        assessment_id=assessment_id,
-        top_k=settings.retrieval_top_k,
-    )
-
-    if len(results) == 0:
+    if chunks is not None:
+        results = chunks
+    else:
         results = await asyncio.to_thread(
             search_documents,
-            query=control["title"],
+            query=control["search_query"],
             assessment_id=assessment_id,
             top_k=settings.retrieval_top_k,
         )
-        logger.info("Control %s: zero chunks on first query, retried with title", control_id)
+
+        if len(results) == 0:
+            results = await asyncio.to_thread(
+                search_documents,
+                query=control["title"],
+                assessment_id=assessment_id,
+                top_k=settings.retrieval_top_k,
+            )
+            logger.info("Control %s: zero chunks on first query, retried with title", control_id)
 
     logger.debug(
         "Control %s retrieved %d chunks, scores: %s",
@@ -224,8 +235,10 @@ async def evaluate_control(control: dict, assessment_id: str) -> ControlResult:
 async def evaluate_all_controls(
     assessment_id: str,
     framework_id: str | None = None,
+    controls: list[dict] | None = None,
+    chunks_by_control: dict[str, list[dict]] | None = None,
 ) -> list[ControlResult]:
-    """Evaluate every control of a framework concurrently.
+    """Evaluate a framework's controls concurrently.
 
     In-flight LLM calls are bounded by an asyncio.Semaphore
     (settings.llm_concurrency) to keep the request rate predictable for
@@ -235,11 +248,18 @@ async def evaluate_all_controls(
     Args:
         assessment_id: Which assessment's documents to evaluate against.
         framework_id: Which control framework to use (default NIST SP 800-53).
+        controls: Subset of control dicts to evaluate.  Default: every
+            control in the framework.  The graph's retry pass uses this to
+            re-score only the NO_EVIDENCE controls.
+        chunks_by_control: {control_id: chunk dicts} overrides — controls
+            present here skip retrieval and score against these chunks.
 
     Returns:
-        List of ControlResult objects (one per control), sorted by control_id.
+        List of ControlResult objects (one per evaluated control),
+        sorted by control_id.
     """
-    controls = get_all_controls(framework_id)
+    if controls is None:
+        controls = get_all_controls(framework_id)
     settings = get_settings()
     total = len(controls)
     logger.info(
@@ -255,7 +275,11 @@ async def evaluate_all_controls(
     async def _bounded(control: dict) -> ControlResult:
         nonlocal done
         async with semaphore:
-            result = await evaluate_control(control, assessment_id)
+            result = await evaluate_control(
+                control,
+                assessment_id,
+                chunks=(chunks_by_control or {}).get(control["id"]),
+            )
         # Per-control progress for the SSE pipeline view (30% → 85%)
         done += 1
         set_progress(

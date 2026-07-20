@@ -60,6 +60,9 @@ class AssessmentState(TypedDict):
     control_results: list       # list[ControlResult] — for aggregation
     response: dict              # serialized AssessmentResponse
     retry_count: int            # incremented by re_retrieve_node; capped at 1
+    retry_control_ids: list     # set by re_retrieve_node: NO_EVIDENCE controls
+                                # whose broadened retrieval found NEW chunks —
+                                # the only ones the retry pass re-scores
     warning: str                # set on sparse_evidence path
     error: str                  # set on no_documents path
 
@@ -68,7 +71,7 @@ class AssessmentState(TypedDict):
 
 
 def route_after_ingest(state: AssessmentState) -> str:
-    """Skip the 20 retrieval calls entirely when Qdrant has no vectors at all."""
+    """Skip the per-control retrieval calls entirely when the assessment has no documents."""
     if not state["has_documents"]:
         logger.info("Ingest shortcut: no documents → going directly to no_documents_node")
         return "no_documents"
@@ -148,9 +151,10 @@ async def ingest_node(state: AssessmentState) -> dict:
 async def retrieve_node(state: AssessmentState) -> dict:
     """Pre-fetch document chunks for all controls to enable routing decisions.
 
-    Runs all 20 retrieval queries concurrently.  The result is stored in
-    state["retrieved_chunks"] and used ONLY for routing — evaluate_node
-    does its own internal retrieval for the actual LLM scoring.
+    Runs one retrieval query per control concurrently.  The result is
+    stored in state["retrieved_chunks"] and used for routing; on the
+    retry pass, re_retrieve_node overwrites entries with broadened
+    results that evaluate_node then scores against directly.
     """
     assessment_id = state["assessment_id"]
     logger.info(f"[{assessment_id}] retrieving: Retrieving relevant chunks... (30%)")
@@ -184,8 +188,8 @@ async def retrieve_node(state: AssessmentState) -> dict:
 async def no_documents_node(state: AssessmentState) -> dict:
     """Handle the case where no relevant chunks exist for any control.
 
-    Builds NO_EVIDENCE stubs for all 20 controls and aggregates them
-    into a zero-score response without making any LLM calls.
+    Builds NO_EVIDENCE stubs for every control in the framework and
+    aggregates them into a zero-score response without any LLM calls.
     """
     assessment_id = state["assessment_id"]
     vendor_name = state["vendor_name"]
@@ -260,12 +264,48 @@ async def sparse_evidence_node(state: AssessmentState) -> dict:
 @observe(name="evaluate")
 async def evaluate_node(state: AssessmentState) -> dict:
     """Score the framework's controls against vendor documents in-process.
-    Controls are evaluated concurrently, bounded by settings.llm_concurrency."""
+    Controls are evaluated concurrently, bounded by settings.llm_concurrency.
+
+    First pass: every control, each doing its own retrieval.
+    Retry pass (after re_retrieve_node): only the controls whose broadened
+    retrieval surfaced NEW chunks are re-scored — against those chunks —
+    and merged over the first-pass results.  Everything else keeps its
+    first-pass score, so the retry costs a handful of LLM calls, not 21.
+    """
     assessment_id = state["assessment_id"]
-    results = await evaluate_all_controls(
-        assessment_id,
-        framework_id=state["framework_id"],
-    )
+
+    if state.get("retry_count", 0) > 0 and state.get("control_results"):
+        prior = {r.control_id: r for r in state["control_results"]}
+        retry_ids = set(state.get("retry_control_ids") or [])
+        controls = [
+            c for c in get_all_controls(state["framework_id"])
+            if c["id"] in retry_ids
+        ]
+        if controls:
+            logger.info(
+                f"[{assessment_id}] retry pass: re-scoring {len(controls)} "
+                "NO_EVIDENCE controls against broadened retrieval"
+            )
+            new_results = await evaluate_all_controls(
+                assessment_id,
+                framework_id=state["framework_id"],
+                controls=controls,
+                chunks_by_control=state.get("retrieved_chunks", {}),
+            )
+            for r in new_results:
+                prior[r.control_id] = r
+        else:
+            logger.info(
+                f"[{assessment_id}] retry pass: broadened retrieval found "
+                "nothing new — keeping first-pass results"
+            )
+        results = sorted(prior.values(), key=lambda r: r.control_id)
+    else:
+        results = await evaluate_all_controls(
+            assessment_id,
+            framework_id=state["framework_id"],
+        )
+
     evaluations = {r.control_id: {"score": r.score.value} for r in results}
 
     logger.info(
@@ -283,6 +323,11 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
 
     For each control that scored NO_EVIDENCE, concatenates search_query +
     title + description[:100] to widen the semantic search surface.
+
+    Only controls whose broadened search returns a DIFFERENT, non-empty
+    chunk set are queued for re-scoring (retry_control_ids): re-scoring
+    the same evidence at temperature 0 would burn LLM calls to reach the
+    same verdict.
     """
     assessment_id = state["assessment_id"]
     settings = get_settings()
@@ -329,12 +374,22 @@ async def re_retrieve_node(state: AssessmentState) -> dict:
             return control_id, retrieved_chunks.get(control_id, [])
 
     pairs = await asyncio.gather(*[_fetch_broader(cid) for cid in no_evidence_ids])
+    retry_control_ids = []
     for control_id, chunks in pairs:
+        old_contents = [c.get("content") for c in retrieved_chunks.get(control_id, [])]
+        new_contents = [c.get("content") for c in chunks]
+        if chunks and new_contents != old_contents:
+            retry_control_ids.append(control_id)
         retrieved_chunks[control_id] = chunks
 
+    logger.info(
+        f"Re-retrieve: {len(retry_control_ids)}/{len(no_evidence_ids)} "
+        "controls got new chunks and will be re-scored"
+    )
     return {
         "retry_count": retry_count,
         "retrieved_chunks": retrieved_chunks,
+        "retry_control_ids": retry_control_ids,
     }
 
 
@@ -430,7 +485,7 @@ def build_assessment_graph():
 
     workflow.set_entry_point("ingest_node")
 
-    # Shortcut: skip all 20 retrieval calls if Qdrant has no vectors at all
+    # Shortcut: skip all per-control retrieval if the assessment has no documents
     workflow.add_conditional_edges(
         "ingest_node",
         route_after_ingest,
@@ -511,6 +566,7 @@ async def run_assessment(
         "control_results": [],
         "response": {},
         "retry_count": 0,
+        "retry_control_ids": [],
         "warning": "",
         "error": "",
     }

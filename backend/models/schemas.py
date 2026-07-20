@@ -212,7 +212,7 @@ class DocumentUploadResponse(BaseModel):
 
 
 class AssessmentResponse(BaseModel):
-    """Full assessment result returned after running all 20 controls.
+    """Full assessment result returned after scoring the framework's controls.
 
     domain_scores is a dict mapping domain name to percentage (0-100),
     matching the output format of calculate_scores() in controls.py.
