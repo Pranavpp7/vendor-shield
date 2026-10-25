@@ -1,5 +1,12 @@
 # VendorShield
 
+**For recruiters.** Analysts spend hours turning SOC 2 and policy PDFs into a
+checklist. VendorShield is a self-hosted copilot that returns a cited
+PASS / PARTIAL / FAIL score against 21 NIST controls in minutes
+(~$0.006/run); a human reviews the uncertain verdicts.
+**[Read the case study](docs/CASE_STUDY.md)** — 96% eval agreement, zero
+false-PASS, every evidence quote checked verbatim in the source.
+
 VendorShield automates the evaluation of vendor security documentation against 21 controls grounded in NIST SP 800-53 Revision 5. Upload a vendor's security policies, SOC 2 reports, or ISO 27001 certificates and get back a structured risk score, control-by-control evidence citations, RAG-powered Q&A, and an emailable PDF report - all in minutes instead of days.
 
 ![CI](https://github.com/Pranavpp7/vendor-shield-1/actions/workflows/ci.yml/badge.svg)

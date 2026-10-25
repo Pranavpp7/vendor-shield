@@ -24,6 +24,8 @@ dist-ssr
 *.sw?
 
 # Python / uv
+.venv/
+venv/
 backend/venv/
 backend/.venv/
 backend/__pycache__/
@@ -42,6 +44,7 @@ backend/vendorshield_backend.egg-info/
 
 # Claude Code memory & permissions
 .claude/
+CLAUDE.md
 
 # Old Supabase scaffold leftover (frontend integrations dir is now empty)
 src/integrations/
