@@ -104,7 +104,18 @@ export async function chatWithAI(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Chat API error ${response.status}:`, errorText);
-      throw new Error(`API error: ${response.status}`);
+      // The server answered — surface its explanation (e.g. "LLM quota
+      // exhausted, try again in 47m") instead of a fake connection error.
+      let detail = "";
+      try {
+        detail = JSON.parse(errorText)?.detail ?? "";
+      } catch {
+        /* non-JSON body — fall through to generic message */
+      }
+      return {
+        reply: detail || `The backend returned an error (HTTP ${response.status}). Check the server logs.`,
+        sources: [],
+      };
     }
     const data = await response.json();
     return { reply: data.reply, sources: data.sources ?? [] };

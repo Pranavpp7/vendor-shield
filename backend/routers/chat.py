@@ -16,6 +16,7 @@ from auth import get_current_user
 from config import get_settings
 from models.schemas import ChatRequest, ChatResponse, SummaryRequest, SummaryResponse
 from services.chat import build_history_messages, chat_agentic, generate_summary
+from services.llm import quota_error_detail
 from services.memory import recall, remember
 from storage.local_store import save_chat_message, get_chat_history
 
@@ -77,6 +78,10 @@ async def chat_endpoint(req: ChatRequest, user_id: str = Depends(get_current_use
 
         return ChatResponse(reply=reply, sources=sources)
     except Exception as e:
+        quota = quota_error_detail(e)
+        if quota:
+            logger.warning(f"Chat blocked by LLM quota: {e}")
+            raise HTTPException(status_code=429, detail=quota)
         logger.error(f"Chat failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -94,6 +99,10 @@ async def summary_endpoint(req: SummaryRequest):
         )
         return SummaryResponse(summary=summary)
     except Exception as e:
+        quota = quota_error_detail(e)
+        if quota:
+            logger.warning(f"Summary blocked by LLM quota: {e}")
+            raise HTTPException(status_code=429, detail=quota)
         logger.error(f"Summary generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 

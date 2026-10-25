@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AssessmentProvider } from "@/context/AssessmentContext";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
@@ -38,28 +39,30 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AssessmentProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/login/*" element={<Login />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/assessments" element={<ProtectedRoute><Assessments /></ProtectedRoute>} />
-            <Route path="/assessment/new" element={<ProtectedRoute><NewAssessment /></ProtectedRoute>} />
-            <Route path="/assessments/:vendorSlug" element={<ProtectedRoute><AssessmentDetail /></ProtectedRoute>} />
-            <Route path="/compare" element={<ProtectedRoute><Compare /></ProtectedRoute>} />
-            <Route path="/frameworks" element={<ProtectedRoute><Frameworks /></ProtectedRoute>} />
-            <Route path="/architecture" element={<ProtectedRoute><Architecture /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </AssessmentProvider>
-    </TooltipProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="vendorshield-theme">
+      <TooltipProvider>
+        <AssessmentProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/login/*" element={<Login />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/assessments" element={<ProtectedRoute><Assessments /></ProtectedRoute>} />
+              <Route path="/assessment/new" element={<ProtectedRoute><NewAssessment /></ProtectedRoute>} />
+              <Route path="/assessments/:vendorSlug" element={<ProtectedRoute><AssessmentDetail /></ProtectedRoute>} />
+              <Route path="/compare" element={<ProtectedRoute><Compare /></ProtectedRoute>} />
+              <Route path="/frameworks" element={<ProtectedRoute><Frameworks /></ProtectedRoute>} />
+              <Route path="/architecture" element={<ProtectedRoute><Architecture /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AssessmentProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

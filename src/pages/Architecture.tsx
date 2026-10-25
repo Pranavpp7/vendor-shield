@@ -26,22 +26,22 @@ const layers = [
       "Assessment CRUD — create, evaluate, compare runs, generate summaries",
       "Document & URL ingestion with live indexing pipeline indicator",
       "AI Chat panel with RAG-grounded Q&A per assessment",
-      "Customizable checklist schema editor (Settings page)",
+      "Custom control frameworks — upload a standard, review the AI draft, save",
       "Architecture & API Playground (this page)",
-      "Responsive sidebar, dark-mode-ready design system",
+      "Responsive sidebar with in-app light/dark theme toggle",
     ],
   },
   {
-    title: "Backend Functions (Edge Functions)",
+    title: "Backend — FastAPI",
     icon: Cloud,
     color: "bg-accent/10 text-accent",
     items: [
       "FastAPI backend with Swagger UI — /docs endpoint",
-      "Document ingestion — PDF/text extraction → chunking → BGE-large-en-v1.5 embeddings → Qdrant",
-      "URL ingestion — web scraping → HTML stripping → chunking → embeddings → Qdrant",
-      "Assessment engine — LangGraph workflow: per-control RAG retrieval → Groq Llama evaluation",
+      "Document ingestion — PDF/DOCX/TXT extraction → chunking → BGE-large-en-v1.5 embeddings → Qdrant",
+      "URL ingestion — fetch with SSRF guard → HTML stripping → chunking → embeddings → Qdrant",
+      "Assessment engine — LangGraph workflow: per-control RAG retrieval → Llama 3.3 70B (OpenRouter)",
       "MCP server — JSON-RPC over HTTP for external AI agent integration",
-      "Chat — RAG-powered Q&A using LangChain + Groq",
+      "Chat — agentic tool loop with RAG fallback (LangChain + OpenRouter)",
     ],
   },
   {
@@ -49,8 +49,8 @@ const layers = [
     icon: Database,
     color: "bg-secondary/80 text-secondary-foreground",
     items: [
-      "assessments — full assessment state incl. controls, chat history, scores (JSON files)",
-      "documents — file/URL metadata with processing status tracking (JSON files)",
+      "assessments — full assessment state incl. controls, chat history, scores (SQLite)",
+      "documents — file/URL metadata with processing status tracking (SQLite)",
       "document_chunks — text chunks stored in Qdrant (1024-dim BGE-large-en-v1.5 vectors)",
       "uploads — raw files saved to data/uploads/ on the local filesystem",
     ],
@@ -63,7 +63,7 @@ const layers = [
       "Ingestion: Upload/URL → parse → 500-word chunks (50-word overlap) → BGE-large-en-v1.5 (local)",
       "Indexing: Qdrant vector storage with cosine similarity (one collection per assessment)",
       "Retrieval: Per-control semantic search → top-24 chunks from ≤8 unique sources",
-      "Generation: Context injection → Groq Llama 3.3 70B → evidence-cited responses",
+      "Generation: Context injection → Llama 3.3 70B via OpenRouter → evidence-cited responses",
       "Public source fallback: well-known vendor features cited with live URLs",
     ],
   },
@@ -79,7 +79,8 @@ const techStack = [
   { name: "FastAPI", category: "Backend" },
   { name: "Qdrant", category: "Vector DB" },
   { name: "BGE-large-en-v1.5", category: "Embeddings" },
-  { name: "Llama 3.3 70B (Groq)", category: "LLM" },
+  { name: "Llama 3.3 70B (OpenRouter)", category: "LLM" },
+  { name: "SQLite", category: "Storage" },
   { name: "LangChain + LangGraph", category: "AI Framework" },
   { name: "MCP Protocol", category: "Integration" },
   { name: "Python + Uvicorn", category: "Runtime" },
@@ -280,7 +281,7 @@ function EndpointTester() {
               {isLoading("mcp-list") ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />} Run
             </Button>
           </div>
-          <CardDescription className="text-xs">Lists all assessments with uploaded documents via MCP Streamable HTTP</CardDescription>
+          <CardDescription className="text-xs">Lists all assessments with uploaded documents via MCP JSON-RPC over HTTP</CardDescription>
         </CardHeader>
         <CardContent>
           <ResultBlock testKey="mcp-list" />
@@ -321,8 +322,9 @@ export default function Architecture() {
             Vendor Shield — System Architecture
           </h1>
           <p className="text-muted-foreground mt-2 max-w-2xl">
-            End-to-end vendor risk assessment platform built with FastAPI + LangChain + Groq, featuring AI-powered checklist evaluation, 
-            RAG-based document intelligence, and MCP integration for external AI agents.
+            End-to-end vendor risk assessment platform built with FastAPI + LangChain + OpenRouter,
+            featuring AI-powered checklist evaluation, RAG-based document intelligence, and MCP
+            integration for external AI agents.
           </p>
         </div>
 
@@ -386,7 +388,7 @@ export default function Architecture() {
                   MCP Server — External AI Agent Interface
                 </CardTitle>
                 <CardDescription>
-                  Exposes vendor assessment data and RAG-powered Q&A to external AI agents (Claude, GPT, etc.) via the MCP Streamable HTTP protocol.
+                  Exposes vendor assessment data and RAG-powered Q&A to external AI agents (Claude, GPT, etc.) via MCP JSON-RPC over HTTP.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -425,7 +427,7 @@ export default function Architecture() {
                     { icon: Eye, label: "Executive summary generation with document citations" },
                     { icon: Globe, label: "Public source evidence with clickable URL badges" },
                     { icon: Upload, label: "Evidence badges — Uploaded Document vs Public Source" },
-                    { icon: Settings, label: "Customizable checklist schema (add/edit/delete)" },
+                    { icon: Settings, label: "Custom frameworks — extract from a standard, review, save" },
                     { icon: Bot, label: "MCP server for external AI agent integration" },
                   ].map(({ icon: Icon, label }, i) => (
                     <div key={i} className="flex items-start gap-2 text-sm">
@@ -489,7 +491,7 @@ export default function Architecture() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium">
-                  {["Run Checklist", "→", "Per-Control Embedding", "→", "Cosine Similarity (top-24)", "→", "≤8 Unique Sources", "→", "Context Injection", "→", "Groq Llama 3.3 70B", "→", "Pass / Partial / Fail / No Evidence"].map((step, i) =>
+                  {["Run Checklist", "→", "Per-Control Embedding", "→", "Cosine Similarity (top-24)", "→", "≤8 Unique Sources", "→", "Context Injection", "→", "Llama 3.3 70B (OpenRouter)", "→", "Pass / Partial / Fail / No Evidence"].map((step, i) =>
                     step === "→" ? (
                       <ArrowRight key={i} className="h-4 w-4 text-muted-foreground" />
                     ) : (
@@ -547,7 +549,7 @@ export default function Architecture() {
               <CardContent className="pt-4">
                 <p className="text-sm text-muted-foreground">
                   <strong className="text-foreground">Live API Playground</strong> — Test each backend endpoint directly. 
-                  Results show response data, status, and latency. All endpoints hit the live backend functions.
+                  Results show response data, status, and latency. All endpoints hit the live FastAPI backend.
                 </p>
               </CardContent>
             </Card>

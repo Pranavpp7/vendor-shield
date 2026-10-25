@@ -4,7 +4,7 @@ VendorShield Security Control Frameworks — loader and scoring helpers.
 Controls are DATA, not code.  Frameworks come from two places:
 
     models/frameworks/     ← built-in, shipped with the repo
-    ├── nist-800-53.json   ← 20 controls, NIST SP 800-53 Rev.5 (default)
+    ├── nist-800-53.json   ← 21 controls, NIST SP 800-53 Rev.5 (default)
     └── soc2-tsc.json      ← 10 controls, SOC 2 Trust Services Criteria
 
     data/frameworks/       ← user-created (extracted from uploaded docs

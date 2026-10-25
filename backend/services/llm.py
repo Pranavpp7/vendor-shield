@@ -14,11 +14,12 @@ RESPONSIBILITY:
         response_format
       - PROVIDER FAILOVER: when the primary is dead for account/model
         reasons (402 insufficient credits, 401 bad key, 404/410 model
-        gone/deprecated) — not transient errors — the same call is
+        gone/deprecated) OR when a 429 is a DAILY token cap ("tokens per
+        day" — dead for hours, waiting is pointless), the same call is
         retried once on the fallback provider, loudly logged
       - per-assessment token metering (services/usage)
 
-    Rate limits and 5xx are handled by the SDK's own retries
+    Per-MINUTE rate limits and 5xx are handled by the SDK's own retries
     (max_retries=5) and are NOT failover triggers: a throttled primary
     is alive, just busy.
 
@@ -35,6 +36,7 @@ IMPORTED BY:  services/evaluation, services/chat, services/followup,
 """
 
 import logging
+import re
 
 from openai import AsyncOpenAI, OpenAI
 
@@ -75,8 +77,46 @@ def _is_provider_dead(exc: Exception) -> bool:
     return any(marker in msg for marker in _DEAD_MARKERS)
 
 
+# Message fragments that mark a DAILY-quota 429 (Groq: "tokens per day
+# (TPD)... try again in 47m") as opposed to per-minute throttling.
+_DAILY_CAP_MARKERS = ("per day", "tpd", "daily limit", "daily quota")
+
+
+def _is_daily_cap(exc: Exception) -> bool:
+    """True for a 429 that will not recover for hours (daily token cap),
+    so waiting is pointless and failover is warranted.  Per-minute 429s
+    stay non-failover: backoff handles those and the provider is fine."""
+    if getattr(exc, "status_code", None) != 429:
+        return False
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _DAILY_CAP_MARKERS)
+
+
+def _should_fail_over(exc: Exception) -> bool:
+    return _is_provider_dead(exc) or _is_daily_cap(exc)
+
+
 def fallback_configured() -> bool:
     return bool(get_settings().fallback_api_key)
+
+
+def quota_error_detail(exc: Exception) -> str | None:
+    """User-facing message when exc is a rate-limit/quota error, else None.
+
+    Lets routers return an honest 429 ("provider quota exhausted, try
+    again in X") instead of a bare 500 the frontend renders as a
+    connection failure.  Includes the provider's own retry hint when the
+    message carries one (Groq: 'Please try again in 47m10s')."""
+    status = getattr(exc, "status_code", None)
+    msg = str(exc)
+    if status != 429 and "rate limit" not in msg.lower():
+        return None
+    m = re.search(r"try again in ([0-9hms.]+)", msg, re.IGNORECASE)
+    hint = f" The provider says to try again in {m.group(1)}." if m else ""
+    return (
+        "The LLM provider's rate or daily-token limit is exhausted — a "
+        "quota issue, not an app failure." + hint
+    )
 
 
 def _clients_async() -> tuple[AsyncOpenAI, AsyncOpenAI | None]:
@@ -167,7 +207,7 @@ async def acomplete(
     try:
         return await _call(primary, settings.openrouter_model)
     except Exception as e:
-        if fallback is None or not _is_provider_dead(e):
+        if fallback is None or not _should_fail_over(e):
             raise
         logger.warning(
             f"PRIMARY LLM provider dead ({e}) — failing over to "
@@ -214,7 +254,7 @@ async def acomplete_tools(
     try:
         return await _call(primary, settings.openrouter_model)
     except Exception as e:
-        if fallback is None or not _is_provider_dead(e):
+        if fallback is None or not _should_fail_over(e):
             raise
         logger.warning(
             f"PRIMARY LLM provider dead ({e}) — failing over to "
@@ -252,7 +292,7 @@ def complete(
     try:
         return _call(primary, settings.openrouter_model)
     except Exception as e:
-        if fallback is None or not _is_provider_dead(e):
+        if fallback is None or not _should_fail_over(e):
             raise
         logger.warning(
             f"PRIMARY LLM provider dead ({e}) — failing over to "

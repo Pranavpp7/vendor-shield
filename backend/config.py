@@ -54,11 +54,22 @@ class Settings(BaseSettings):
     llm_price_out_per_m: float = 0.30
 
     # ── Fallback LLM provider (automatic failover) ───────────────────────────
-    # Used only when the PRIMARY provider is dead for account/model reasons
-    # (402 insufficient credits, 401, 404/410 model gone) — never for
-    # transient 429/5xx.  Defaults target Groq's OpenAI-compatible API,
-    # whose FREE tier hosts llama-3.3-70b-versatile and openai/gpt-oss-120b
-    # (get a key at https://console.groq.com/keys).  Empty key = disabled.
+    # Used when the PRIMARY provider is dead for account/model reasons
+    # (402 insufficient credits, 401, 404/410 model gone) OR hits a DAILY
+    # token cap (a 429 mentioning "tokens per day" won't recover for
+    # hours, so the call spills over) — never for per-minute 429/5xx.
+    # Empty key = disabled.
+    #
+    # RECOMMENDED free fallback when the primary is Groq's free tier
+    # (100k tokens/day, account-wide): Cerebras hosts the SAME
+    # llama-3.3-70b with a ~1M token/day free tier — ~10x the budget,
+    # same weights, so eval-gate risk is minimal (still run it).
+    # Key at https://cloud.cerebras.ai — then set in .env:
+    #     FALLBACK_BASE_URL=https://api.cerebras.ai/v1
+    #     FALLBACK_MODEL=llama-3.3-70b
+    #     FALLBACK_API_KEY=csk-...
+    # NOTE: pointing the fallback at the same org as the primary (e.g.
+    # two Groq keys) is useless — free-tier caps are org-wide.
     # Any fallback model must pass the eval gate before you rely on it.
     fallback_base_url: str = "https://api.groq.com/openai/v1"
     fallback_api_key: str = ""

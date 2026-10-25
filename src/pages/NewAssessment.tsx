@@ -271,7 +271,7 @@ export default function NewAssessment() {
                   <SelectContent>
                     {(frameworks.length > 0
                       ? frameworks
-                      : [{ id: "nist-800-53", name: "NIST SP 800-53 Rev.5", control_count: 20 } as FrameworkSummary]
+                      : [{ id: "nist-800-53", name: "NIST SP 800-53 Rev.5", control_count: 21 } as FrameworkSummary]
                     ).map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.name} ({f.control_count} controls)
@@ -342,13 +342,14 @@ export default function NewAssessment() {
                   Drag & drop files here, or click to browse
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  PDF, DOCX, XLSX — UI only, no parsing
+                  PDF, DOCX, TXT — extracted, chunked, and indexed
                 </p>
                 <input
                   id="file-upload"
                   type="file"
                   className="hidden"
                   multiple
+                  accept=".pdf,.docx,.txt"
                   onChange={handleFileInput}
                 />
               </div>

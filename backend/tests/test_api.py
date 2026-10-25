@@ -239,3 +239,43 @@ class TestFollowUps:
     def test_get_before_generate_404(self, client):
         seed_assessment("a7", {"GR-001": "FAIL"})
         assert client.get("/api/assessments/a7/follow-up-questions").status_code == 404
+
+
+class TestChatQuotaSurfacing:
+    """Provider quota exhaustion must reach the UI as an honest 429 with a
+    human explanation — never a bare 500 the frontend renders as a
+    connection failure."""
+
+    def test_chat_returns_429_with_quota_detail(self, client, monkeypatch):
+        import routers.chat as chat_router
+
+        class FakeQuotaError(Exception):
+            status_code = 429
+
+        async def quota_blown(*a, **kw):
+            raise FakeQuotaError(
+                "Rate limit reached on tokens per day (TPD): Limit 100000. "
+                "Please try again in 47m10.4s."
+            )
+
+        monkeypatch.setattr(chat_router, "chat_agentic", quota_blown)
+        r = client.post(
+            "/api/chat",
+            json={"question": "q", "assessment_id": "aid", "context": ""},
+        )
+        assert r.status_code == 429
+        assert "quota" in r.json()["detail"]
+        assert "47m10.4s" in r.json()["detail"]
+
+    def test_chat_non_quota_errors_still_500(self, client, monkeypatch):
+        import routers.chat as chat_router
+
+        async def boom(*a, **kw):
+            raise RuntimeError("something unrelated broke")
+
+        monkeypatch.setattr(chat_router, "chat_agentic", boom)
+        r = client.post(
+            "/api/chat",
+            json={"question": "q", "assessment_id": "aid", "context": ""},
+        )
+        assert r.status_code == 500

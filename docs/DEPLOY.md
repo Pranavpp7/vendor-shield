@@ -58,7 +58,7 @@ addition.
 |---|---|
 | Neither `CLERK_JWKS_URL` nor `API_KEY` | Dev mode — fully open (localhost only!) |
 | `API_KEY` set | Single-tenant shared secret: `X-API-Key` required on `/api` + `/mcp` |
-| `CLERK_JWKS_URL` set | Multi-user Clerk JWT auth (set `VITE_CLERK_PUBLISHABLE_KEY` for the frontend); per-user data isolation |
+| `CLERK_JWKS_URL` set | Multi-user Clerk JWT auth (set `VITE_CLERK_PUBLISHABLE_KEY` for the frontend). List is scoped to the JWT `sub`; get/update/delete/override/export return 403 if the assessment belongs to another user. Dev and API-key modes skip the ownership check (`user_id` is empty). |
 
 ## Checklist before exposing an instance
 

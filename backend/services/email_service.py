@@ -316,6 +316,19 @@ def generate_pdf_report(assessment: dict) -> bytes:
         textColor=TEXT_GRAY, alignment=TA_CENTER, leading=12, spaceBefore=4,
     )
 
+    framework_id = assessment.get("framework_id") or "nist-800-53"
+    try:
+        from models.controls import get_framework
+        framework_name = get_framework(framework_id).get("name", framework_id)
+    except Exception:
+        framework_name = "NIST SP 800-53 Rev.5"
+    n_controls = len(raw_controls)
+    control_note = (
+        f"Based on {n_controls} {framework_name} controls"
+        if n_controls
+        else f"Based on {framework_name}"
+    )
+
     score_card_data = [
         [Paragraph(
             f'<font face="Helvetica-Bold" size="72" color="{risk_hex}">'
@@ -324,7 +337,7 @@ def generate_pdf_report(assessment: dict) -> bytes:
             score_slash_style,
         )],
         [Paragraph(f"{risk} RISK", risk_lbl_style)],
-        [Paragraph("Based on 20 NIST SP 800-53 Rev.5 controls", nist_note_style)],
+        [Paragraph(control_note, nist_note_style)],
     ]
     score_card = Table(score_card_data, colWidths=[PAGE_W])
     score_card.setStyle(TableStyle([
@@ -355,14 +368,6 @@ def generate_pdf_report(assessment: dict) -> bytes:
         min(domain_scores, key=lambda d: domain_scores[d])
         if domain_scores else "the identified gaps"
     )
-
-    # Framework name (falls back gracefully for legacy records)
-    framework_id = assessment.get("framework_id", "nist-800-53")
-    try:
-        from models.controls import get_framework
-        framework_name = get_framework(framework_id).get("name", framework_id)
-    except Exception:
-        framework_name = "NIST SP 800-53 Rev.5"
 
     verified_count = len(controls) - no_ev_count
     coverage_pct = round(verified_count / len(controls) * 100) if controls else 0

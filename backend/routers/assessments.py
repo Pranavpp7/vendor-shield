@@ -89,9 +89,8 @@ async def stream_progress(assessment_id: str):
 
 router = APIRouter(prefix="/api/assessments", tags=["Assessments"])
 
-# Endpoint-level guard — applied to every route except the SSE progress stream,
-# which must stay public so EventSource cannot send custom headers.
-_PROTECTED = [Depends(get_current_user)]
+# SSE progress stays unauthenticated: EventSource cannot send custom headers.
+# Every other route injects get_current_user and checks ownership.
 
 # Strong references to background tasks so the asyncio loop doesn't GC them
 # while they're still pending. asyncio.create_task() only holds a weak ref.
@@ -103,6 +102,30 @@ def _spawn_background(coro) -> None:
     task = asyncio.create_task(coro)
     _BACKGROUND_TASKS.add(task)
     task.add_done_callback(_BACKGROUND_TASKS.discard)
+
+
+def _require_owner(record: dict, user_id: str) -> None:
+    """403 when a signed-in user touches another user's assessment.
+
+    No-op in dev / API-key mode (`user_id` is "") and for unowned records
+    (legacy rows and seeded demos have an empty owner).
+    """
+    if not user_id:
+        return
+    owner = record.get("user_id") or ""
+    if owner and owner != user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to access this assessment",
+        )
+
+
+def _load_owned(assessment_id: str, user_id: str) -> dict:
+    record = get_assessment(assessment_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    _require_owner(record, user_id)
+    return record
 
 
 # ── Request models ───────────────────────────────────────────────────────────
@@ -151,6 +174,7 @@ async def compare_assessments(ids: str, user_id: str = Depends(get_current_user)
         record = get_assessment(aid)
         if not record:
             raise HTTPException(status_code=404, detail=f"Assessment {aid} not found")
+        _require_owner(record, user_id)
         assessments_out.append(record)
 
     return {"assessments": assessments_out}
@@ -176,9 +200,7 @@ async def assessment_progress(assessment_id: str):
 @router.get("/{assessment_id}/run-history")
 async def get_run_history(assessment_id: str, user_id: str = Depends(get_current_user)):
     """Return the list of previous runs for this assessment."""
-    record = get_assessment(assessment_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    record = _load_owned(assessment_id, user_id)
     return {"run_history": record.get("run_history", [])}
 
 
@@ -256,9 +278,7 @@ def _enrich_record(record: dict) -> dict:
 async def get_assessment_detail(assessment_id: str, user_id: str = Depends(get_current_user)):
     """Get a single assessment by ID, enriched with computed review,
     evidence-freshness, and inherent/residual risk fields."""
-    record = get_assessment(assessment_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    record = _load_owned(assessment_id, user_id)
     return _enrich_record(record)
 
 
@@ -267,7 +287,7 @@ async def run_assessment_endpoint(req: AssessmentRunRequest, user_id: str = Depe
     """Run a full vendor risk assessment using the LangGraph workflow.
 
     Pipeline: ingest → retrieve → evaluate → aggregate → save
-    Evaluates all 20 NIST controls concurrently against the vendor's
+    Evaluates all 21 NIST controls concurrently against the vendor's
     uploaded documents using RAG + OpenRouter Llama 3.3 70B.
 
     Connect to GET /{assessment_id}/progress before calling this endpoint
@@ -277,6 +297,10 @@ async def run_assessment_endpoint(req: AssessmentRunRequest, user_id: str = Depe
         framework_id = resolve_framework_id(req.framework_id)
     except KeyError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    existing = get_assessment(req.assessment_id)
+    if existing:
+        _require_owner(existing, user_id)
 
     try:
         result = await run_assessment(
@@ -308,6 +332,8 @@ async def rerun_assessment(assessment_id: str, req: RerunRequest, user_id: str =
     vendor_name is read from the existing record if not provided in body.
     """
     existing = get_assessment(assessment_id)
+    if existing:
+        _require_owner(existing, user_id)
 
     vendor_name = req.vendor_name
     if not vendor_name:
@@ -363,6 +389,7 @@ async def update_assessment_partial(assessment_id: str, req: AssessmentUpdateReq
     if not updates:
         raise HTTPException(status_code=400, detail="No updates provided")
 
+    _load_owned(assessment_id, user_id)
     result = update_assessment(assessment_id, updates)
     if not result:
         raise HTTPException(status_code=404, detail="Assessment not found")
@@ -371,8 +398,10 @@ async def update_assessment_partial(assessment_id: str, req: AssessmentUpdateReq
     return {"success": True}
 
 
-@router.delete("/{assessment_id}", dependencies=_PROTECTED)
-async def delete_assessment_endpoint(assessment_id: str):
+@router.delete("/{assessment_id}")
+async def delete_assessment_endpoint(
+    assessment_id: str, user_id: str = Depends(get_current_user)
+):
     """Delete an assessment and all associated data.
 
     Cascade:
@@ -380,6 +409,7 @@ async def delete_assessment_endpoint(assessment_id: str):
     2. Delete the Qdrant vector collection
     3. Delete the assessment JSON
     """
+    _load_owned(assessment_id, user_id)
     try:
         # 1. Delete document metadata and raw uploaded files
         docs = list_documents(assessment_id=assessment_id)
@@ -433,9 +463,7 @@ async def override_control_score(
     risk level, gaps summary) are recomputed from the effective scores.
     Send score = null to clear an existing override.
     """
-    record = get_assessment(assessment_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    record = _load_owned(assessment_id, user_id)
 
     control_results = record.get("control_results", [])
     target = next(
@@ -511,6 +539,8 @@ async def diff_assessments(
     if not base or not compare:
         missing = assessment_id if not base else other_id
         raise HTTPException(status_code=404, detail=f"Assessment {missing} not found")
+    _require_owner(base, user_id)
+    _require_owner(compare, user_id)
 
     base_by_id = {c["control_id"]: c for c in base.get("control_results", [])}
     comp_by_id = {c["control_id"]: c for c in compare.get("control_results", [])}
@@ -594,9 +624,7 @@ async def set_risk_profile(
     when the assessment has already been scored, the residual risk that
     combines both.
     """
-    record = get_assessment(assessment_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    record = _load_owned(assessment_id, user_id)
 
     profile = req.model_dump()
     inherent = compute_inherent_risk(profile)
@@ -624,9 +652,7 @@ async def export_assessment_csv(
     import csv
     import io
 
-    record = get_assessment(assessment_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    record = _load_owned(assessment_id, user_id)
 
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
@@ -673,9 +699,7 @@ async def download_assessment_pdf(
     (override audit trail, residual risk, coverage, follow-up questions)."""
     from services.email_service import generate_pdf_report
 
-    record = get_assessment(assessment_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    record = _load_owned(assessment_id, user_id)
 
     # ReportLab is CPU-bound — keep the event loop free
     pdf_bytes = await asyncio.to_thread(generate_pdf_report, record)
@@ -704,9 +728,7 @@ async def create_follow_up_questions(
     whose effective score is not PASS.  The result is persisted on the
     assessment so it can be re-fetched without regenerating.
     """
-    record = get_assessment(assessment_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    record = _load_owned(assessment_id, user_id)
     if record.get("status") != "completed":
         raise HTTPException(
             status_code=400,
@@ -732,9 +754,7 @@ async def get_follow_up_questions(
     user_id: str = Depends(get_current_user),
 ):
     """Return previously generated follow-up questions (404 if none yet)."""
-    record = get_assessment(assessment_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    record = _load_owned(assessment_id, user_id)
     saved = record.get("follow_up_questions")
     if not saved:
         raise HTTPException(

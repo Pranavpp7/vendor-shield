@@ -1,7 +1,7 @@
 """MCP (Model Context Protocol) server for VendorShield.
 
 Exposes vendor assessment tools to external AI agents (Claude, GPT, etc.)
-via the MCP Streamable HTTP protocol (JSON-RPC over HTTP).
+via JSON-RPC over HTTP (MCP tool surface for external agents).
 
 RESPONSIBILITY:
     Thin JSON-RPC dispatcher.  Each tool handler delegates to the services
@@ -430,7 +430,7 @@ TOOL_HANDLERS = {
 
 @router.post("/mcp")
 async def mcp_endpoint(request: Request):
-    """MCP Streamable HTTP endpoint — handles JSON-RPC requests from AI agents."""
+    """MCP JSON-RPC endpoint — handles tool calls from external AI agents."""
 
     # --- API-key guard (only when API_KEY is configured) ---
     # External agents authenticate with X-API-Key; the internal MCPClient

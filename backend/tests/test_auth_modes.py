@@ -75,3 +75,50 @@ class TestDemoMode:
         seed_assessment("demo-ro", {"GR-001": "PASS"})
         assert client.get("/api/assessments/demo-ro/export.csv").status_code == 200
         assert client.get("/api/assessments/demo-ro/report.pdf").status_code == 200
+
+
+class TestObjectLevelAuth:
+    """Clerk-mode isolation: another user's assessment is 403, not 200."""
+
+    def test_other_user_cannot_get_assessment(self, client):
+        from main import app
+        from auth import get_current_user
+        from tests.test_api import seed_assessment
+
+        seed_assessment("owned-by-a", {"GR-001": "PASS"}, user_id="user-a")
+        app.dependency_overrides[get_current_user] = lambda: "user-b"
+        try:
+            r = client.get("/api/assessments/owned-by-a")
+            assert r.status_code == 403
+            assert "Not authorized" in r.json()["detail"]
+            assert client.get("/api/assessments/owned-by-a/export.csv").status_code == 403
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    def test_owner_can_get_assessment(self, client):
+        from main import app
+        from auth import get_current_user
+        from tests.test_api import seed_assessment
+
+        seed_assessment("owned-by-a", {"GR-001": "PASS"}, user_id="user-a")
+        app.dependency_overrides[get_current_user] = lambda: "user-a"
+        try:
+            assert client.get("/api/assessments/owned-by-a").status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    def test_unowned_and_dev_mode_stay_readable(self, client):
+        from main import app
+        from auth import get_current_user
+        from tests.test_api import seed_assessment
+
+        seed_assessment("legacy-open", {"GR-001": "PASS"})
+        seed_assessment("owned-by-a", {"GR-001": "PASS"}, user_id="user-a")
+        # Dev mode: get_current_user returns "" — no ownership gate
+        assert client.get("/api/assessments/owned-by-a").status_code == 200
+        app.dependency_overrides[get_current_user] = lambda: "user-b"
+        try:
+            # Seeded / legacy rows have no owner — still readable
+            assert client.get("/api/assessments/legacy-open").status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
