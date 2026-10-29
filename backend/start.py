@@ -54,7 +54,7 @@ def start_server(reload: bool = False):
     mode = "development (hot-reload)" if reload else "production"
     print(f"Starting VendorShield [{mode}] on http://localhost:{port}")
     print(f"API docs: http://localhost:{port}/docs")
-    print("─" * 50)
+    print("-" * 50)
 
     import uvicorn
     os.chdir(str(BACKEND_DIR))

@@ -17,6 +17,10 @@ COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.jso
      tailwind.config.ts postcss.config.js components.json eslint.config.js ./
 COPY public ./public
 COPY src ./src
+# Bake X-API-Key into the SPA when API_KEY is set at image build
+# (compose passes API_KEY as this ARG). Empty = open frontend.
+ARG VITE_API_KEY=
+ENV VITE_API_KEY=$VITE_API_KEY
 RUN npm run build
 
 # ── Stage 2: Python backend + baked embedding model ─────────────────────────

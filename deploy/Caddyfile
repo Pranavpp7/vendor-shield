@@ -1,0 +1,9 @@
+# Reverse proxy in front of the FastAPI container.
+# SITE_ADDRESS is interpolated by Caddy from the process environment
+# (compose sets it). Defaults:
+#   :80                  HTTP on all interfaces (public IP, no cert)
+#   demo.example.com     automatic HTTPS via Let's Encrypt
+{$SITE_ADDRESS::80} {
+	encode gzip
+	reverse_proxy app:8000
+}

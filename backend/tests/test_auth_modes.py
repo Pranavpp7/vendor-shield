@@ -28,6 +28,19 @@ def demo_mode(monkeypatch):
     get_settings.cache_clear()
 
 
+class TestAutoSeedFlag:
+    def test_auto_seed_is_off_in_the_unit_suite(self):
+        get_settings.cache_clear()
+        assert get_settings().auto_seed is False
+        get_settings.cache_clear()
+
+    def test_auto_seed_reads_env(self, monkeypatch):
+        monkeypatch.setenv("AUTO_SEED", "1")
+        get_settings.cache_clear()
+        assert get_settings().auto_seed is True
+        get_settings.cache_clear()
+
+
 class TestApiKeyTier:
     def test_requests_rejected_without_key(self, client, api_key_mode):
         assert client.get("/api/assessments").status_code == 401

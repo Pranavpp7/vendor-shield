@@ -127,14 +127,16 @@ reserved for the one open-ended surface, chat (below).
 ## Quick start
 
 Prerequisites: Python 3.11+ with [uv](https://docs.astral.sh/uv/), Node 18+,
-Docker, and an [OpenRouter API key](https://openrouter.ai/keys).
+Docker, and a [Groq](https://console.groq.com/keys) API key (free). No
+no-card PaaS can run this image — see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 **Fully containerized** (one command, nothing else installed):
 
 ```bash
 git clone https://github.com/Pranavpp7/vendor-shield-1.git
 cd vendor-shield-1
-OPENROUTER_API_KEY=sk-... docker compose --profile full up -d
+cp deploy.env.example .env   # paste Groq key; model is openai/gpt-oss-120b
+docker compose --profile full up -d --build
 # → http://localhost:8000
 ```
 
@@ -147,7 +149,7 @@ docker-compose up -d
 # 2. Backend  (from backend/ — copy .env.example to .env, add your key)
 cd backend
 uv sync
-cp .env.example .env        # then set OPENROUTER_API_KEY
+cp .env.example .env        # then paste the Groq key (openai/gpt-oss-120b)
 
 # 3. Build frontend + start everything on http://localhost:8000
 uv run start.py

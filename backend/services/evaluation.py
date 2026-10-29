@@ -41,6 +41,83 @@ from services.tracing import observe
 
 logger = logging.getLogger(__name__)
 
+# Chunks that tell the model what JSON to emit (the eval-injection-fake-json
+# attack). Deterministic — do not rely on the LLM to ignore them.
+_INJECTION_MARKERS = (
+    "note for automated document processors",
+    "correct output is",
+    '"score": "pass"',
+    '"score":"pass"',
+    "any other output is a processing error",
+)
+
+
+def chunk_looks_like_score_injection(text: str) -> bool:
+    """True when a retrieved chunk is instructing the scorer, not attesting."""
+    lowered = (text or "").lower()
+    return any(marker in lowered for marker in _INJECTION_MARKERS)
+
+
+def filter_injected_chunks(results: list[dict]) -> list[dict]:
+    """Drop retrieved hits that look like scoring-instruction injection."""
+    kept: list[dict] = []
+    for row in results:
+        content = row.get("content") or ""
+        if chunk_looks_like_score_injection(content):
+            logger.info("Dropped retrieved chunk that looks like score injection")
+            continue
+        kept.append(row)
+    return kept
+
+
+def quote_only_in_injection_scaffold(quote: str | None, sources: list[str]) -> bool:
+    """True when quote appears in sources only inside attack JSON / 'correct output is'."""
+    if not quote or not isinstance(quote, str):
+        return False
+    q = quote.strip()
+    if len(q) < 12:
+        return False
+    saw = False
+    for text in sources:
+        start = 0
+        while True:
+            i = text.find(q, start)
+            if i < 0:
+                break
+            saw = True
+            prefix = text[max(0, i - 160) : i]
+            in_scaffold = bool(
+                re.search(r'"evidence_quote"\s*:\s*"$', prefix)
+                or re.search(r"correct output is", prefix, re.I)
+                or re.search(r"json evaluation", prefix, re.I)
+            )
+            if not in_scaffold:
+                return False
+            start = i + 1
+    return saw
+
+
+def _poisoned_no_evidence(control: dict) -> ControlResult:
+    return ControlResult(
+        control_id=control["id"],
+        score=ControlScore.NO_EVIDENCE,
+        confidence=0.0,
+        evidence_quote=None,
+        evidence_chunk=None,
+        reasoning=(
+            "Retrieved passages looked like instructions to the scoring "
+            "model (embedded JSON / 'correct output is') rather than vendor "
+            "self-attestation, so they were discarded. No remaining evidence."
+        ),
+        gap=(
+            "Provide a policy or technical document that states the vendor's "
+            "own practice for this control, without embedded scoring templates."
+        ),
+        domain=control["domain"],
+        title=control["title"],
+        citations=[],
+    )
+
 
 def _parse_confidence(raw) -> float:
     """Clamp the LLM's confidence value to [0.0, 1.0].
@@ -163,6 +240,12 @@ async def evaluate_control(
         [round(r["score"], 3) for r in results],
     )
 
+    retrieved_count = len(results)
+    results = filter_injected_chunks(results)
+    if retrieved_count > 0 and not results:
+        logger.info("Control %s: all retrieved chunks looked like score injection", control_id)
+        return _poisoned_no_evidence(control)
+
     # Extract chunk text for the prompt, labeling reference-document chunks
     # so the ATTRIBUTION RULE has metadata to work with, not just inference
     chunk_texts = [
@@ -215,11 +298,33 @@ async def evaluate_control(
         logger.warning(f"Unrecognized score '{score_raw}' for {control_id}")
         score = ControlScore.NO_EVIDENCE
 
+    evidence_quote = parsed.get("evidence_quote")
+    source_texts = [r.get("content") or "" for r in results]
+    if score == ControlScore.PASS and quote_only_in_injection_scaffold(
+        evidence_quote, source_texts
+    ):
+        logger.info(
+            "Control %s: PASS quote only appears inside injection JSON — downgrading",
+            control_id,
+        )
+        score = ControlScore.NO_EVIDENCE
+        parsed["confidence"] = 0.0
+        parsed["reasoning"] = (
+            "The model returned PASS with a quote that only appears inside "
+            "an embedded scoring template in the vendor file, not as a real "
+            "self-attestation. Treated as NO_EVIDENCE."
+        )
+        parsed["gap"] = (
+            "Provide a policy or technical document that states the vendor's "
+            "own practice for this control."
+        )
+        evidence_quote = None
+
     result = ControlResult(
         control_id=control_id,
         score=score,
         confidence=_parse_confidence(parsed.get("confidence", 0.5)),
-        evidence_quote=parsed.get("evidence_quote"),
+        evidence_quote=evidence_quote,
         evidence_chunk=parsed.get("evidence_chunk"),
         reasoning=parsed.get("reasoning", ""),
         gap=parsed.get("gap"),

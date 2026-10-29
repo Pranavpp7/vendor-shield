@@ -40,6 +40,7 @@ def _get_client() -> QdrantClient:
             _client = QdrantClient(
                 host=settings.qdrant_host,
                 port=settings.qdrant_port,
+                timeout=60,
             )
             # Verify connectivity with a lightweight call
             _client.get_collections()

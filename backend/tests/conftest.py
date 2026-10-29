@@ -17,6 +17,9 @@ os.environ["LANGFUSE_SECRET_KEY"] = ""
 # (LLM extraction calls + Qdrant writes).  Tests that need it enable a
 # fake client explicitly via services.memory.reset_memory().
 os.environ["MEMORY_ENABLED"] = "0"
+# First-boot demo seed must never run inside the unit suite (it
+# downloads/loads BGE and talks to Qdrant).
+os.environ["AUTO_SEED"] = "0"
 
 import pytest
 

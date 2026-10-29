@@ -9,7 +9,7 @@ RESPONSIBILITY:
       - client singletons (async + sync) for the PRIMARY provider
         (OpenRouter by default) and an optional FALLBACK provider
         (Groq's OpenAI-compatible endpoint by default — its free tier
-        hosts llama-3.3-70b-versatile and openai/gpt-oss-120b)
+        hosts openai/gpt-oss-120b; llama-3.3-70b-versatile 404s)
       - JSON mode with automatic retry-without when a provider rejects
         response_format
       - PROVIDER FAILOVER: when the primary is dead for account/model

@@ -1,13 +1,12 @@
-version: "3.8"
-
 # VendorShield infrastructure
 #
 # Dev (Qdrant only, run backend/frontend locally):
-#     docker-compose up -d
+#     docker compose up -d
 #
-# Full stack (app + Qdrant in containers):
-#     OPENROUTER_API_KEY=sk-... docker compose --profile full up -d
-#     → http://localhost:8000
+# Full stack (app + Qdrant + Caddy) — see docs/DEPLOY.md:
+#     docker compose --profile full up -d --build
+#     → http://localhost:8000  (app directly)
+#     → http://localhost       (Caddy, port 80)
 #
 # Qdrant dashboard: http://localhost:6333/dashboard
 
@@ -27,22 +26,58 @@ services:
   app:
     # Only starts with:  docker compose --profile full up
     profiles: ["full"]
-    build: .
+    build:
+      context: .
+      args:
+        VITE_API_KEY: ${API_KEY:-}
     container_name: vendorshield-app
     ports:
       - "8000:8000"
     environment:
       QDRANT_HOST: qdrant
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-meta-llama/llama-3.3-70b-instruct}
+      LLM_CONCURRENCY: ${LLM_CONCURRENCY:-4}
+      LLM_PRICE_IN_PER_M: ${LLM_PRICE_IN_PER_M:-0.12}
+      LLM_PRICE_OUT_PER_M: ${LLM_PRICE_OUT_PER_M:-0.30}
+      FALLBACK_API_KEY: ${FALLBACK_API_KEY:-}
+      FALLBACK_BASE_URL: ${FALLBACK_BASE_URL:-https://api.groq.com/openai/v1}
+      FALLBACK_MODEL: ${FALLBACK_MODEL:-openai/gpt-oss-120b}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       CLERK_JWKS_URL: ${CLERK_JWKS_URL:-}
       API_KEY: ${API_KEY:-}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-*}
+      DEMO_MODE: ${DEMO_MODE:-0}
+      AUTO_SEED: ${AUTO_SEED:-1}
     volumes:
       - vendorshield_data:/app/backend/data   # SQLite + uploads survive restarts
     depends_on:
       - qdrant
     restart: unless-stopped
 
+  caddy:
+    # HTTPS (or plain HTTP on :80) in front of the app. Same `full` profile.
+    # SITE_ADDRESS=:80          → HTTP only (default, fine on a public IP)
+    # SITE_ADDRESS=demo.example.com → Let's Encrypt on 80/443
+    profiles: ["full"]
+    image: caddy:2-alpine
+    container_name: vendorshield-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
 volumes:
   qdrant_data:
   vendorshield_data:
+  caddy_data:
+  caddy_config:

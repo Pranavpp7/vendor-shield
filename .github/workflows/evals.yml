@@ -36,16 +36,15 @@ jobs:
         ports:
           - 6333:6333
     env:
-      # The app reads OPENROUTER_* as its primary-provider slots; when the
-      # GROQ_API_KEY secret exists it wins and the Groq endpoint + certified
-      # free model are filled in automatically.
-      OPENROUTER_API_KEY: ${{ secrets.GROQ_API_KEY || secrets.OPENROUTER_API_KEY }}
-      OPENROUTER_BASE_URL: ${{ secrets.GROQ_API_KEY && 'https://api.groq.com/openai/v1' || 'https://openrouter.ai/api/v1' }}
-      OPENROUTER_MODEL: ${{ secrets.GROQ_API_KEY && 'llama-3.3-70b-versatile' || 'meta-llama/llama-3.3-70b-instruct' }}
-      # Groq free tier is 12k tokens/min — lower concurrency so calls queue
-      # instead of exhausting retries (verified live: concurrency 4 degraded
-      # 2/50 controls to the system-failure fallback).
-      LLM_CONCURRENCY: ${{ secrets.GROQ_API_KEY && '2' || '4' }}
+      # Prefer the eval-verified OpenRouter scorer. Groq
+      # openai/gpt-oss-120b failed the false-PASS gate (2026-10-25);
+      # llama-3.3-70b-versatile 404s on Groq free. Only fall back to Groq
+      # if OPENROUTER_API_KEY is unset (that nightly will fail the gate
+      # until a free model is recertified).
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || secrets.GROQ_API_KEY }}
+      OPENROUTER_BASE_URL: ${{ secrets.OPENROUTER_API_KEY && 'https://openrouter.ai/api/v1' || 'https://api.groq.com/openai/v1' }}
+      OPENROUTER_MODEL: ${{ secrets.OPENROUTER_API_KEY && 'meta-llama/llama-3.3-70b-instruct' || 'openai/gpt-oss-120b' }}
+      LLM_CONCURRENCY: ${{ secrets.OPENROUTER_API_KEY && '4' || '1' }}
       FALLBACK_API_KEY: ${{ secrets.FALLBACK_API_KEY }}
       # This project's Langfuse account is US-region; override with repo
       # variable LANGFUSE_HOST if that ever changes.

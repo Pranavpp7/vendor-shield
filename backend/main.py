@@ -82,7 +82,21 @@ async def lifespan(app: FastAPI):
             f"Qdrant not reachable (start with: docker-compose up -d): {e}"
         )
 
-    # 4. Check if frontend build exists
+    # 4. First-boot demo seed (compose sets AUTO_SEED=1 on the public VM)
+    try:
+        if get_settings().auto_seed:
+            from storage.local_store import list_assessments
+            if not list_assessments():
+                logger.info("Empty database — seeding demo vendors (AUTO_SEED=1).")
+                from seed import seed
+                seed()
+                logger.info("Demo vendors seeded.")
+            else:
+                logger.info("Database already has assessments — skipping AUTO_SEED.")
+    except Exception as e:
+        logger.warning(f"AUTO_SEED failed (dashboard may be empty): {e}")
+
+    # 5. Check if frontend build exists
     if FRONTEND_DIR.exists():
         logger.info(f"Serving frontend from {FRONTEND_DIR}")
     else:

@@ -37,10 +37,18 @@ class Settings(BaseSettings):
     #     uv run python evals/run_evals.py
     # Eval-gate history (don't retry these without new evidence):
     #   - openai/gpt-oss-120b:free  → REJECTED 19/30 (malformed/truncated JSON)
+    #     OpenRouter's :free tag of this model.
+    #   - Groq openai/gpt-oss-120b  → REJECTED 2026-10-25 without filter
+    #     (47/50, 2 false-PASS on eval-injection-fake-json).
+    #     Re-ran 2026-10-29 with the injection filter in
+    #     services/evaluation.py: 48/50 agreement, 0 false-PASS, 100%
+    #     faithfulness — PASS as the local *demo* scorer
+    #     (LLM_CONCURRENCY=1). llama-3.3-70b-versatile 404s on Groq free
+    #     (shutdown 2026-08-16).
     #   - this model's ":free" tag  → REJECTED 19/30 (free-tier rate limits
     #     exhaust retries under concurrent runs; fine for light manual use
     #     with LLM_CONCURRENCY=1, unreliable for full assessments)
-    # For a true $0 setup, run a local model via Ollama and point
+    # For a true $0 local setup, run Ollama and point
     # OPENROUTER_BASE_URL at http://localhost:11434/v1.
     openrouter_model: str = "meta-llama/llama-3.3-70b-instruct"
     # Max concurrent LLM calls during an assessment run.  Higher = faster
@@ -60,20 +68,15 @@ class Settings(BaseSettings):
     # hours, so the call spills over) — never for per-minute 429/5xx.
     # Empty key = disabled.
     #
-    # RECOMMENDED free fallback when the primary is Groq's free tier
-    # (100k tokens/day, account-wide): Cerebras hosts the SAME
-    # llama-3.3-70b with a ~1M token/day free tier — ~10x the budget,
-    # same weights, so eval-gate risk is minimal (still run it).
-    # Key at https://cloud.cerebras.ai — then set in .env:
-    #     FALLBACK_BASE_URL=https://api.cerebras.ai/v1
-    #     FALLBACK_MODEL=llama-3.3-70b
-    #     FALLBACK_API_KEY=csk-...
-    # NOTE: pointing the fallback at the same org as the primary (e.g.
-    # two Groq keys) is useless — free-tier caps are org-wide.
+    # Free fallback when the primary is OpenRouter paid: Groq's free
+    # plan hosts openai/gpt-oss-120b (200k tokens/day). Do NOT point
+    # fallback at the same org as the primary — caps are org-wide.
+    # llama-3.3-70b-versatile was removed from Groq free/developer
+    # (shutdown 2026-08-16) and will 404.
     # Any fallback model must pass the eval gate before you rely on it.
     fallback_base_url: str = "https://api.groq.com/openai/v1"
     fallback_api_key: str = ""
-    fallback_model: str = "llama-3.3-70b-versatile"
+    fallback_model: str = "openai/gpt-oss-120b"
 
     # ── Qdrant Vector Database ───────────────────────────────────────────────
     # Qdrant runs locally via Docker — no cloud, no API key needed.
@@ -194,8 +197,15 @@ class Settings(BaseSettings):
     # ── Demo mode (free read-only hosting) ───────────────────────────────────
     # When true, all mutating requests (POST/PUT/PATCH/DELETE) to /api and
     # /mcp return 403 — the app serves seeded data read-only with zero LLM
-    # spend possible.  Built for free-tier hosting (e.g. HF Spaces).
+    # spend possible.  Use this for a public "look but don't touch" URL.
     demo_mode: bool = False
+
+    # ── First-boot demo seed ─────────────────────────────────────────────────
+    # When true, an empty assessments table is filled with the three
+    # fictional demo vendors (seed.py) on startup.  Compose sets this
+    # on the public VM so the dashboard is never blank.  Default off so
+    # unit tests and local empty DBs stay empty.
+    auto_seed: bool = False
 
     # ── pydantic-settings config ─────────────────────────────────────────────
     model_config = {
