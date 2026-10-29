@@ -16,8 +16,8 @@ Prerequisites: Docker, Python 3.11+, Node 18+, a
 [Groq](https://console.groq.com/keys) API key.
 
 ```bash
-git clone https://github.com/Pranavpp7/vendor-shield-1.git
-cd vendor-shield-1
+git clone https://github.com/Pranavpp7/vendor-shield.git
+cd vendor-shield
 docker compose up -d          # Qdrant
 cd backend
 cp .env.example .env          # paste the Groq key

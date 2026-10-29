@@ -9,8 +9,8 @@ false-PASS, every evidence quote checked verbatim in the source.
 
 VendorShield automates the evaluation of vendor security documentation against 21 controls grounded in NIST SP 800-53 Revision 5. Upload a vendor's security policies, SOC 2 reports, or ISO 27001 certificates and get back a structured risk score, control-by-control evidence citations, RAG-powered Q&A, and an emailable PDF report - all in minutes instead of days.
 
-![CI](https://github.com/Pranavpp7/vendor-shield-1/actions/workflows/ci.yml/badge.svg)
-![Nightly Evals](https://github.com/Pranavpp7/vendor-shield-1/actions/workflows/evals.yml/badge.svg)
+![CI](https://github.com/Pranavpp7/vendor-shield/actions/workflows/ci.yml/badge.svg)
+![Nightly Evals](https://github.com/Pranavpp7/vendor-shield/actions/workflows/evals.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/react-18-61DAFB.svg?logo=react&logoColor=black)
@@ -133,8 +133,8 @@ no-card PaaS can run this image — see [docs/DEPLOY.md](docs/DEPLOY.md).
 **Fully containerized** (one command, nothing else installed):
 
 ```bash
-git clone https://github.com/Pranavpp7/vendor-shield-1.git
-cd vendor-shield-1
+git clone https://github.com/Pranavpp7/vendor-shield.git
+cd vendor-shield
 cp deploy.env.example .env   # paste Groq key; model is openai/gpt-oss-120b
 docker compose --profile full up -d --build
 # → http://localhost:8000
@@ -208,7 +208,7 @@ aggregate, and see the run's cost and latency stamped on the result.
 ## Project structure
 
 ```
-vendor-shield-1/
+vendor-shield/
 ├── src/                 # React frontend (pages, components, api layer)
 ├── backend/             # FastAPI backend — see backend/README.md
 │   ├── config.py        #   all settings (pydantic-settings)

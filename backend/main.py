@@ -159,7 +159,7 @@ async def demo_mode_guard(request: Request, call_next):
             content={
                 "detail": "This is a read-only demo instance — running assessments, "
                 "uploads, chat, and edits are disabled. Clone the repo to run your own: "
-                "https://github.com/Pranavpp7/vendor-shield-1"
+                "https://github.com/Pranavpp7/vendor-shield"
             },
         )
     return await call_next(request)
